@@ -1,0 +1,4251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>CNE Multi-Map Work Request Tool</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/IvanSanchez/Leaflet.ImageOverlay.Rotated@gh-pages/Leaflet.ImageOverlay.Rotated.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet.locatecontrol/dist/L.Control.Locate.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/leaflet.locatecontrol/dist/L.Control.Locate.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      width: 100%;
+      font-family: Arial, sans-serif;
+    }
+
+    #map {
+      height: 100vh;
+      width: 100vw;
+    }
+
+    .leaflet-popup-content {
+      font-size: 14px;
+      line-height: 1.4;
+      min-width: 220px;
+    }
+
+    .map-help,
+    .status-bar,
+    .map-toolbar,
+    .filter-bar {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1000;
+      background: rgba(255,255,255,0.96);
+      padding: 8px 12px;
+      border-radius: 6px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      font-size: 13px;
+      text-align: center;
+    }
+
+    .map-help {
+      display: none;
+    }
+
+    .status-bar {
+      top: 10px;
+      min-width: 280px;
+    }
+
+    .map-toolbar {
+      top: 62px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+      max-width: 760px;
+    }
+
+    .filter-bar {
+      top: 118px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+      max-width: 820px;
+    }
+
+    .toolbar-btn,
+    .action-btn,
+    .file-label {
+      border: none;
+      border-radius: 4px;
+      padding: 7px 10px;
+      font-size: 12px;
+      cursor: pointer;
+      color: #fff;
+      background: #005a9c;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .toolbar-btn.secondary,
+    .action-btn.secondary,
+    .file-label.secondary {
+      background: #5f6b7a;
+    }
+
+    .action-btn.clear-btn {
+      margin-top: 8px;
+      background: #c62828;
+    }
+
+    .toolbar-btn:hover,
+    .action-btn:hover,
+    .file-label:hover {
+      opacity: 0.92;
+    }
+
+    .filter-bar label {
+      font-weight: bold;
+      color: #243447;
+    }
+
+    .filter-bar select {
+      border: 1px solid #c9d2dc;
+      border-radius: 4px;
+      padding: 6px 8px;
+      font-size: 12px;
+      background: white;
+    }
+
+    .floating-ui {
+      position: static;
+    }
+
+    .mobile-ui-toggle {
+      display: none;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 14px;
+      font-weight: bold;
+      cursor: pointer;
+      color: #fff;
+      background: #005a9c;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      width: 100%;
+    }
+
+    .floating-ui-content {
+      display: contents;
+    }
+
+    .hidden-input {
+      display: none;
+    }
+
+    .custom-pin {
+      width: 16px;
+      height: 16px;
+      border: 2px solid #ffffff;
+      border-radius: 50%;
+      box-shadow: 0 0 6px rgba(0,0,0,0.35);
+    }
+
+    .popup-photo,
+    .log-photo {
+      display: block;
+      margin: 8px auto 0;
+      width: 100%;
+      max-width: 180px;
+      max-height: 140px;
+      object-fit: cover;
+      object-position: center center;
+      border-radius: 6px;
+      border: 1px solid #d0d7de;
+      background: #f2f4f7;
+    }
+
+    .photo-gallery,
+    .photo-preview-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(86px, 1fr));
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .photo-gallery img,
+    .photo-preview-grid img {
+      width: 100%;
+      height: 82px;
+      object-fit: cover;
+      object-position: center center;
+      border-radius: 6px;
+      border: 1px solid #d0d7de;
+      background: #f2f4f7;
+    }
+
+    .photo-section-title {
+      display: block;
+      margin-top: 8px;
+      font-size: 12px;
+      font-weight: bold;
+      color: #243447;
+    }
+
+    .panel {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 1000;
+      width: 360px;
+      max-height: calc(100vh - 20px);
+      background: rgba(255,255,255,0.98);
+      border-radius: 10px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+      display: none;
+      overflow: hidden;
+    }
+
+    .panel.open {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .panel-header {
+      padding: 12px 14px;
+      background: #005a9c;
+      color: #fff;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: bold;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+
+    .panel-close-btn {
+      border: none;
+      background: rgba(255,255,255,0.16);
+      color: #fff;
+      font-size: 22px;
+      line-height: 1;
+      cursor: pointer;
+      width: 34px;
+      height: 34px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: none;
+    }
+
+    .panel-body {
+      padding: 10px 12px 14px;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    .log-item {
+      border: 1px solid #d9e0e6;
+      border-radius: 8px;
+      padding: 10px;
+      margin-bottom: 10px;
+      background: #f9fbfc;
+    }
+
+    .log-title {
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+
+    .log-meta {
+      font-size: 12px;
+      color: #55606e;
+      margin-top: 6px;
+      line-height: 1.35;
+    }
+
+    .empty-log,
+    .panel-note {
+      color: #55606e;
+      font-style: italic;
+      padding: 10px 0;
+    }
+
+    .legend {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px 12px;
+      margin-top: 8px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+    }
+
+    .legend-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      border: 1px solid #d8dee6;
+      flex: none;
+    }
+
+    .modal-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.35);
+      z-index: 1600;
+    }
+
+    .modal-backdrop.open {
+      display: block;
+    }
+
+    .modal {
+      position: fixed;
+      inset: 50% auto auto 50%;
+      transform: translate(-50%, -50%);
+      width: min(420px, calc(100vw - 24px));
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 14px 32px rgba(0,0,0,0.28);
+      z-index: 1700;
+      display: none;
+    }
+
+    .modal.open {
+      display: block;
+    }
+
+    .modal-header {
+      padding: 12px 14px;
+      background: #005a9c;
+      color: white;
+      font-weight: bold;
+      border-radius: 10px 10px 0 0;
+    }
+
+    .modal-body {
+      padding: 14px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .modal-body label {
+      font-size: 12px;
+      font-weight: bold;
+      color: #243447;
+      display: grid;
+      gap: 4px;
+    }
+
+    .modal-body input,
+    .modal-body textarea,
+    .modal-body select {
+      border: 1px solid #c9d2dc;
+      border-radius: 6px;
+      padding: 8px 9px;
+      font: inherit;
+    }
+
+    .modal-body textarea {
+      min-height: 72px;
+      resize: vertical;
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      padding: 0 14px 14px;
+    }
+
+    #itemReportModal {
+      width: min(720px, calc(100vw - 24px));
+      max-height: calc(100vh - 32px);
+      overflow: hidden;
+    }
+
+    #itemReportBody {
+      max-height: calc(100vh - 130px);
+      overflow-y: auto;
+    }
+
+    .mini-report-card {
+      border: 1px solid #d9e0e6;
+      border-radius: 10px;
+      padding: 12px;
+      background: #f9fbfc;
+      line-height: 1.45;
+    }
+
+    .mini-report-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px 14px;
+      font-size: 13px;
+    }
+
+    .mini-report-detail {
+      margin-top: 10px;
+      white-space: pre-wrap;
+    }
+
+    @media (max-width: 640px) {
+      .mini-report-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+
+    .department-view-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .department-view-btn {
+      border: 1px solid #c9d2dc;
+      border-radius: 8px;
+      padding: 10px;
+      background: #f9fbfc;
+      cursor: pointer;
+      font-weight: bold;
+      color: #243447;
+      text-align: left;
+    }
+
+    .department-view-btn:hover,
+    .department-view-btn.selected {
+      border-color: #005a9c;
+      box-shadow: 0 0 0 2px rgba(0,90,156,0.12);
+      background: #eef7ff;
+    }
+
+    @media (max-width: 520px) {
+      .department-view-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .popup-close-row {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 6px;
+    }
+
+    .popup-close-btn {
+      border: none;
+      background: #5f6b7a;
+      color: #fff;
+      width: 28px;
+      height: 28px;
+      border-radius: 999px;
+      font-size: 18px;
+      line-height: 1;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .export-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+
+
+    .outstanding-summary {
+      display: flex;
+      gap: 8px;
+      align-items: stretch;
+      justify-content: center;
+      flex-wrap: wrap;
+      max-width: 820px;
+      background: rgba(255,255,255,0.96);
+      border-radius: 6px;
+      padding: 8px 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+
+    .outstanding-card {
+      border: 1px solid #d9e0e6;
+      border-left: 5px solid #005a9c;
+      background: #f9fbfc;
+      border-radius: 8px;
+      padding: 7px 9px;
+      min-width: 112px;
+      cursor: pointer;
+      text-align: left;
+    }
+
+    .outstanding-card:hover,
+    .outstanding-card.active {
+      border-color: #005a9c;
+      box-shadow: 0 0 0 2px rgba(0,90,156,0.12);
+      background: #eef7ff;
+    }
+
+    .outstanding-count {
+      display: block;
+      font-size: 20px;
+      font-weight: bold;
+      color: #1f2933;
+      line-height: 1;
+    }
+
+    .outstanding-label {
+      display: block;
+      margin-top: 3px;
+      color: #55606e;
+      font-size: 11px;
+      line-height: 1.2;
+    }
+
+    .admin-menu-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .admin-menu-section {
+      border: 1px solid #d9e0e6;
+      border-radius: 10px;
+      padding: 10px;
+      background: #f9fbfc;
+      margin-bottom: 10px;
+    }
+
+    .admin-menu-section h3 {
+      margin: 0 0 8px;
+      font-size: 14px;
+      color: #243447;
+    }
+
+    @media (max-width: 900px) {
+      .outstanding-summary {
+        max-width: none;
+        width: auto;
+      }
+    }
+
+    @media (max-width: 520px) {
+      .admin-menu-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+
+
+    .settings-row {
+      display: grid;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .settings-row label {
+      font-size: 12px;
+      font-weight: bold;
+      color: #243447;
+      display: grid;
+      gap: 4px;
+    }
+
+    .settings-row input,
+    .settings-row textarea,
+    .settings-row select {
+      border: 1px solid #c9d2dc;
+      border-radius: 6px;
+      padding: 8px 9px;
+      font: inherit;
+      font-size: 13px;
+    }
+
+    .settings-row textarea {
+      min-height: 86px;
+      resize: vertical;
+      font-family: Arial, sans-serif;
+    }
+
+    .sms-group-list {
+      border: 1px solid #d9e0e6;
+      border-radius: 8px;
+      background: #f9fbfc;
+      padding: 8px;
+      display: grid;
+      gap: 6px;
+    }
+
+    .sms-group-option {
+      display: flex !important;
+      align-items: flex-start;
+      gap: 8px !important;
+      font-weight: normal !important;
+      line-height: 1.35;
+    }
+
+
+
+    .pin-instructions {
+      border: 1px solid #d9e0e6;
+      border-radius: 8px;
+      background: #f9fbfc;
+      padding: 0;
+      overflow: hidden;
+    }
+
+    .pin-instructions summary {
+      cursor: pointer;
+      font-weight: bold;
+      color: #243447;
+      padding: 9px 10px;
+      user-select: none;
+      list-style-position: inside;
+    }
+
+    .pin-instructions[open] summary {
+      border-bottom: 1px solid #d9e0e6;
+      background: #eef4f8;
+    }
+
+    .pin-instructions-body {
+      padding: 0 10px 8px;
+    }
+
+    .pin-instructions-body .panel-note {
+      padding: 8px 0 0;
+    }
+
+    .sms-group-option input {
+      width: auto;
+      margin-top: 2px;
+    }
+
+    .sms-group-meta {
+      color: #55606e;
+      font-size: 11px;
+      display: block;
+    }
+
+
+    #floorPlanView {
+      display: none;
+      height: 100vh;
+      width: 100vw;
+      background: #eef2f6;
+      overflow: auto;
+      position: relative;
+    }
+
+    #floorPlanStage {
+      position: relative;
+      width: min(1400px, 96vw);
+      margin: 230px auto 40px;
+      background: #fff;
+      border: 1px solid #c9d2dc;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+      min-height: 420px;
+    }
+
+    #floorPlanImage {
+      display: block;
+      width: 100%;
+      height: auto;
+      user-select: none;
+      -webkit-user-drag: none;
+    }
+
+    #floorPlanPinLayer {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    .floor-pin {
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      border: 2px solid #ffffff;
+      border-radius: 50%;
+      box-shadow: 0 0 6px rgba(0,0,0,0.35);
+      transform: translate(-50%, -50%);
+      cursor: pointer;
+      pointer-events: auto;
+    }
+
+    .floor-popup {
+      display: none;
+      position: absolute;
+      z-index: 1200;
+      width: 260px;
+      max-width: calc(100vw - 32px);
+      background: #fff;
+      border: 1px solid #c9d2dc;
+      border-radius: 8px;
+      padding: 10px;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.22);
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    .floor-plan-empty-note {
+      position: absolute;
+      inset: 50% auto auto 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(255,255,255,0.95);
+      border: 1px dashed #9aa8b6;
+      border-radius: 10px;
+      padding: 18px;
+      max-width: 420px;
+      text-align: center;
+      color: #415162;
+      pointer-events: none;
+    }
+
+
+
+    .leaflet-top.leaflet-left {
+      top: 190px;
+    }
+
+    .mobile-ui-toggle {
+      position: relative;
+      justify-content: center;
+      text-align: center;
+    }
+
+    #mobileUiToggleIcon {
+      position: absolute;
+      right: 12px;
+    }
+
+    @media (max-width: 900px) {
+      .floating-ui {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        right: 10px;
+        z-index: 1000;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .mobile-ui-toggle {
+        display: flex;
+      }
+
+      .floating-ui-content {
+        display: none;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .floating-ui.mobile-open .floating-ui-content {
+        display: flex;
+      }
+
+      .map-help {
+        display: none;
+      }
+
+      .status-bar,
+      .map-toolbar,
+      .filter-bar {
+        position: static;
+        left: auto;
+        right: auto;
+        top: auto;
+        transform: none;
+        max-width: none;
+        min-width: 0;
+        width: auto;
+      }
+
+      .map-toolbar,
+      .filter-bar {
+        gap: 6px;
+      }
+
+      .toolbar-btn,
+      .action-btn,
+      .file-label,
+      .filter-bar select {
+        min-height: 40px;
+      }
+
+      .filter-bar label {
+        display: grid;
+        gap: 4px;
+        flex: 1 1 140px;
+      }
+
+      .panel {
+        width: calc(100vw - 20px);
+      }
+
+      #floorPlanStage {
+        margin-top: 150px;
+        width: 96vw;
+      }
+
+      .leaflet-top.leaflet-left {
+        top: 70px;
+      }
+
+      .leaflet-popup-close-button {
+        font-size: 22px !important;
+        padding: 6px 10px 0 0 !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="floating-ui" id="floatingUi">
+    <button class="mobile-ui-toggle" id="mobileUiToggle" type="button" onclick="toggleMobileUi()">
+      <span>Map Controls <small style="font-weight:normal; opacity:0.95;">(Collapse / Expand Menu)</small></span>
+      <span id="mobileUiToggleIcon">☰</span>
+    </button>
+
+    <div class="floating-ui-content" id="floatingUiContent">
+      <div class="status-bar" id="statusBar">Starting map...</div>
+
+      <div class="map-toolbar">
+        <label style="font-weight:bold; color:#243447; display:inline-flex; align-items:center; gap:6px;">Map
+          <select id="mapSelector" onchange="switchMapView(this.value)" style="border:1px solid #c9d2dc; border-radius:4px; padding:6px 8px; font-size:12px; background:white;"></select>
+        </label>
+        <button class="toolbar-btn secondary" onclick="openDepartmentViewPrompt(false); closeMobileUiAfterAction();">Change View</button>
+        <button class="toolbar-btn" onclick="loadPins(true); closeMobileUiAfterAction();">Refresh Pins</button>
+        <button class="toolbar-btn" onclick="openPinModalForPending(); closeMobileUiAfterAction();">Add Pin</button>
+        <button class="toolbar-btn secondary" onclick="toggleLogPanel(); closeMobileUiAfterAction();">View Clear Log</button>
+        <button class="toolbar-btn secondary" onclick="toggleLegendPanel(); closeMobileUiAfterAction();">Legend</button>
+        <button class="toolbar-btn secondary" onclick="toggleAdminPanel(); closeMobileUiAfterAction();">Admin Menu</button>
+        <input class="hidden-input" id="csvInput" type="file" accept=".csv,text/csv" onchange="handleCsvImport(event)">
+      </div>
+
+      <div class="filter-bar">
+        <label>Status
+          <select id="statusFilter" onchange="applyFilters()">
+            <option value="active">Active pins only</option>
+            <option value="cleared">Cleared pins only</option>
+            <option value="cancelled">Cancelled calls only</option>
+            <option value="reported">Report-only items</option>
+            <option value="all">All pins</option>
+          </select>
+        </label>
+
+        <label>Department
+          <select id="categoryFilter" onchange="setDepartmentView(this.value, true)">
+            <option value="all">All departments</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="outstanding-summary" id="outstandingSummary" aria-label="Outstanding pins by department">
+        <div class="panel-note" style="padding:0;">Loading outstanding counts...</div>
+      </div>
+    </div>
+  </div>
+
+  </div>
+
+  <div class="panel" id="adminPanel">
+    <div class="panel-header">
+      <span>Admin Menu</span>
+      <button class="panel-close-btn" onclick="toggleAdminPanel(false)">&times;</button>
+    </div>
+    <div class="panel-body">
+      <div class="panel-note">Admin tools for logs, exports, department settings, profile names, and CSV imports.</div>
+      <div class="admin-menu-section">
+        <h3>Logs & Exports</h3>
+        <div class="admin-menu-grid">
+          <button class="action-btn secondary" onclick="toggleLogPanel(true)">View Clear Log</button>
+          <button class="action-btn secondary" onclick="toggleAllLogsPanel(true)">View All Logs</button>
+          <button class="action-btn secondary" onclick="toggleDeleteHistoryPanel(true)">Delete from History</button>
+          <button class="action-btn secondary" onclick="exportClearLogHtml()">Export Clear Log</button>
+          <button class="action-btn secondary" onclick="exportClearLogCsv()">Export CSV Log</button>
+          <button class="action-btn secondary" onclick="toggleAllLogsPanel(true); setTimeout(printAllLogs, 150);">Print Filtered Logs</button>
+        </div>
+      </div>
+      <div class="admin-menu-section">
+        <h3>Settings</h3>
+        <div class="admin-menu-grid">
+          <button class="action-btn secondary" onclick="toggleDepartmentPanel(true)">Manage Departments</button>
+          <button class="action-btn secondary" onclick="toggleProfilesPanel(true)">Manage Profiles</button>
+          <button class="action-btn secondary" onclick="toggleMapsPanel(true)">Manage Maps / Buildings</button>
+        </div>
+      </div>
+      <div class="admin-menu-section">
+        <h3>Imports</h3>
+        <div class="admin-menu-grid">
+          <label class="file-label secondary" for="csvInput" style="justify-content:center;">Import CSV Pins</label>
+        </div>
+        <div class="panel-note">CSV columns supported: title, description, lat, lng, category/department, photo_url</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" id="logPanel">
+    <div class="panel-header">
+      <span>Cleared Pin Log</span>
+      <button class="panel-close-btn" onclick="toggleLogPanel(false)">&times;</button>
+    </div>
+    <div class="panel-body">
+      <div id="logBody">
+        <div class="empty-log">No cleared pins yet.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" id="allLogsPanel">
+    <div class="panel-header">
+      <span>All Pin Logs</span>
+      <button class="panel-close-btn" onclick="toggleAllLogsPanel(false)">&times;</button>
+    </div>
+    <div class="panel-body">
+      <div class="panel-note">Use the filters to review active, cleared, cancelled, and report records across maps and departments.</div>
+      <div class="settings-row">
+        <label>Status
+          <select id="allLogsStatusFilter" onchange="renderAllLogs()">
+            <option value="all">All statuses</option>
+            <option value="active">Active / outstanding</option>
+            <option value="cleared">Cleared / completed</option>
+            <option value="cancelled">Cancelled calls</option>
+            <option value="reported">Report-only items</option>
+          </select>
+        </label>
+      </div>
+      <div class="settings-row">
+        <label>Department
+          <select id="allLogsDepartmentFilter" onchange="renderAllLogs()"></select>
+        </label>
+      </div>
+      <div class="settings-row">
+        <label>Map / Building
+          <select id="allLogsMapFilter" onchange="renderAllLogs()"></select>
+        </label>
+      </div>
+      <div class="export-actions">
+        <button class="action-btn secondary" onclick="populateAllLogsFilters(); renderAllLogs();">Refresh Logs</button>
+        <button class="action-btn secondary" onclick="printAllLogs()">Print Filtered Logs</button>
+      </div>
+      <div id="allLogsBody" style="margin-top:10px;">
+        <div class="empty-log">No pins found.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" id="deleteHistoryPanel">
+    <div class="panel-header">
+      <span>Delete Cleared Pin History</span>
+      <button class="panel-close-btn" onclick="toggleDeleteHistoryPanel(false)">&times;</button>
+    </div>
+    <div class="panel-body">
+      <div class="panel-note">Admin only. Use this when a cleared item should be permanently removed from the history log.</div>
+      <div class="settings-row">
+        <label>Cleared pin to delete
+          <select id="deleteHistorySelect" onchange="loadDeleteHistoryDetails()"></select>
+        </label>
+      </div>
+      <div id="deleteHistoryDetails" class="panel-note">Choose a cleared pin above.</div>
+      <div class="export-actions">
+        <button class="action-btn secondary" onclick="populateDeleteHistorySelect()">Refresh List</button>
+        <button class="action-btn" style="background:#b71c1c;" onclick="deleteSelectedClearedPin()">Delete Selected From History</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" id="legendPanel">
+    <div class="panel-header">
+      <span>Category Legend</span>
+      <button class="panel-close-btn" onclick="toggleLegendPanel(false)">&times;</button>
+    </div>
+    <div class="panel-body">
+      <div class="panel-note">Pin colors can be changed later if you want a different legend.</div>
+      <div class="legend" id="legendBody"></div>
+      <div class="panel-note">CSV columns supported: title, description, lat, lng, category/department, photo_url</div>
+    </div>
+  </div>
+
+
+
+  <div class="panel" id="departmentPanel">
+    <div class="panel-header">
+      <span>Manage Departments & Text Groups</span>
+      <button class="panel-close-btn" onclick="toggleDepartmentPanel(false)">&times;</button>
+    </div>
+    <div class="panel-body">
+      <div class="panel-note">Edit the department list, dropdown titles, and text message groups. Saved centrally in Supabase so all devices see the same settings.</div>
+      <div class="settings-row">
+        <label>Choose department
+          <select id="manageDepartmentSelect" onchange="loadDepartmentEditor()"></select>
+        </label>
+      </div>
+      <div class="settings-row">
+        <label>Department name
+          <input type="text" id="manageDepartmentName" placeholder="Example: Plumbing">
+        </label>
+      </div>
+      <div class="settings-row">
+        <label>Pin colour
+          <input type="color" id="manageDepartmentColor" value="#0078d7">
+        </label>
+      </div>
+      <div class="settings-row">
+        <label>Title dropdown options, one per line
+          <textarea id="manageDepartmentTitles" placeholder="Water leak&#10;Blocked drain&#10;Repair"></textarea>
+        </label>
+      </div>
+      <div class="settings-row">
+        <label>Text message groups, one per line. Format: Group Name: phone, phone
+          <textarea id="manageDepartmentGroups" placeholder="Plumbing Leads: 4165551111, 4165552222&#10;After Hours: 4165553333"></textarea>
+        </label>
+      </div>
+      <div class="export-actions">
+        <button class="action-btn" onclick="saveDepartmentEditor()">Save Department</button>
+        <button class="action-btn secondary" onclick="addNewDepartmentEditor()">Add New</button>
+        <button class="action-btn secondary" style="background:#b71c1c;" onclick="deleteDepartmentEditor()">Delete</button>
+        <button class="action-btn secondary" onclick="resetDepartmentSettings()">Reset Defaults</button>
+      </div>
+    </div>
+  </div>
+
+
+  <div class="panel" id="profilesPanel">
+    <div class="panel-header">
+      <span>Manage Reported/Cleared By Profiles</span>
+      <button class="panel-close-btn" onclick="toggleProfilesPanel(false)">&times;</button>
+    </div>
+    <div class="panel-body">
+      <div class="panel-note">Add names under each heading. Reported By and Cleared By will show only the selected department list plus the Admin list. Saved centrally in Supabase.</div>
+      <div class="settings-row">
+        <label>Profile names by department
+          <textarea id="manageProfilesList" placeholder="[Admin]&#10;Beau Felipe&#10;Operations Manager&#10;&#10;[Plumbing]&#10;Plumbing Lead&#10;Plumber 1&#10;&#10;[Electrical]&#10;Electrical Lead"></textarea>
+        </label>
+      </div>
+      <div class="export-actions">
+        <button class="action-btn" onclick="saveProfilesEditor()">Save Profiles</button>
+        <button class="action-btn secondary" onclick="resetProfilesSettings()">Reset Defaults</button>
+      </div>
+    </div>
+  </div>
+
+
+
+  <div class="panel" id="mapsPanel">
+    <div class="panel-header">
+      <span>Manage Maps / Buildings</span>
+      <button class="panel-close-btn" onclick="toggleMapsPanel(false)">&times;</button>
+    </div>
+    <div class="panel-body">
+      <div class="panel-note">Add building floor plans or other map views. These are saved centrally in Supabase so all devices see the same map list. For floor plans, use an image path such as <b>./food-building-main.png</b> or a Supabase Storage public URL.</div>
+      <div class="settings-row">
+        <label>Choose map/building
+          <select id="manageMapSelect" onchange="loadMapEditor()"></select>
+        </label>
+      </div>
+      <div class="settings-row">
+        <label>Map name
+          <input type="text" id="manageMapName" placeholder="Example: Food Building - Mezzanine">
+        </label>
+      </div>
+      <div class="settings-row">
+        <label>Map ID / short code
+          <input type="text" id="manageMapId" placeholder="Example: food_building_mezzanine">
+        </label>
+      </div>
+      <div class="settings-row">
+        <label>Map type
+          <select id="manageMapType">
+            <option value="floorplan">Building floor plan / image</option>
+            <option value="outdoor">Outdoor GPS/site map</option>
+          </select>
+        </label>
+      </div>
+      <div class="settings-row">
+        <label>Floor plan image path or URL
+          <input type="text" id="manageMapImage" placeholder="./floor-plan-food-building.png or Supabase public URL">
+        </label>
+      </div>
+      <div class="panel-note">Tip: If you add a new local image path, keep that image file in the same folder as this HTML file. If you use Supabase Storage, paste the public image URL here.</div>
+      <div class="export-actions">
+        <button class="action-btn" onclick="saveMapEditor()">Save Map</button>
+        <button class="action-btn secondary" onclick="addNewMapEditor()">Add New</button>
+        <button class="action-btn secondary" style="background:#b71c1c;" onclick="deleteMapEditor()">Delete</button>
+        <button class="action-btn secondary" onclick="resetMapSettings()">Reset Defaults</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="modalBackdrop"></div>
+  <div class="modal" id="pinModal">
+    <div class="modal-header">Add Map Pin / Work Request</div>
+    <div class="modal-body">
+      <label>Reported By <span style="color:#b71c1c;">*</span>
+        <input type="text" id="pinReportedByInput" list="pinReportedByList" placeholder="Select or type name...">
+        <datalist id="pinReportedByList"></datalist>
+      </label>
+      <label>Department
+        <select id="pinCategoryInput" onchange="onPinDepartmentChange()"></select>
+      </label>
+      <label>Title
+        <select id="pinTitleInput"></select>
+      </label>
+      <label>Location and description details <span style="color:#b71c1c;">*</span>
+        <textarea id="pinDescriptionInput" placeholder="Required. Example: west washroom, beside sink. Add any issue details here."></textarea>
+      </label>
+      <label>Photos from phone or device
+        <input type="file" id="pinPhotoFileInput" accept="image/*" capture="environment" multiple>
+      </label>
+      <label>Text message groups for this department
+        <div id="smsGroupCheckboxes" class="sms-group-list"></div>
+      </label>
+      <label style="display:flex; align-items:center; gap:8px; font-weight:normal;">
+        <input type="checkbox" id="pinNotifySmsNowInput" style="width:auto; margin:0;" checked> Open text message after saving this pin
+      </label>
+      <details class="pin-instructions" id="pinInstructionsDetails">
+        <summary>Instructions / tips</summary>
+        <div class="pin-instructions-body">
+          <div class="panel-note">Check one or more text groups. Leave the box above unchecked if you only want to save the pin.</div>
+          <div class="panel-note">You can attach multiple photos. Images are compressed before upload to keep storage and data use low.</div>
+          <div class="panel-note" id="pinLocationNote">Click the map first to choose a pin location.</div>
+        </div>
+      </details>
+      <div id="pinPhotoPreview" class="photo-preview-grid" style="display:none;"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="action-btn secondary" onclick="closePinModal()">Cancel</button>
+      <button class="action-btn" onclick="submitPinForm()">Save Pin</button>
+    </div>
+  </div>
+
+
+  <div class="modal" id="clearModal">
+    <div class="modal-header">Clear Pin / Complete Work</div>
+    <div class="modal-body">
+      <label>Cleared By <span style="color:#b71c1c;">*</span>
+        <input type="text" id="clearByInput" list="clearByList" placeholder="Select or type name...">
+        <datalist id="clearByList"></datalist>
+      </label>
+      <label>Clear comments (optional)
+        <textarea id="clearCommentInput" placeholder="Example: repaired, cleaned, inspected, no issue found, or add completion notes here."></textarea>
+      </label>
+      <label>Clear/completion photos, optional
+        <input type="file" id="clearPhotoFileInput" accept="image/*" capture="environment" multiple>
+      </label>
+      <div id="clearPhotoPreview" class="photo-preview-grid" style="display:none;"></div>
+      <div class="panel-note" id="clearPinNote">Select who completed/cleared this pin. You can also attach photos if needed.</div>
+    </div>
+    <div class="modal-actions">
+      <button class="action-btn secondary" onclick="closeClearModal()">Cancel</button>
+      <button class="action-btn" onclick="submitClearPinForm()">Clear Pin</button>
+    </div>
+  </div>
+
+
+
+
+  <div class="modal" id="editPinModal">
+    <div class="modal-header" id="editPinModalHeader">Edit / Reassign Pin</div>
+    <div class="modal-body">
+      <div class="panel-note" id="editPinStatusNote" style="padding-top:0;">Update this request. For cleared pins, this is intended for admin corrections or adding completion photos.</div>
+      <label>Department
+        <select id="editPinCategoryInput" onchange="onEditPinDepartmentChange()"></select>
+      </label>
+      <label>Title
+        <select id="editPinTitleInput"></select>
+      </label>
+      <label>Text message groups for this department
+        <div id="editSmsGroupCheckboxes" class="sms-group-list"></div>
+      </label>
+      <label style="display:flex; align-items:center; gap:8px; font-weight:normal;">
+        <input type="checkbox" id="editNotifySmsNowInput" style="width:auto; margin:0;" checked> Open text message after saving this update/reassignment
+      </label>
+      <label>Location and description details
+        <textarea id="editPinDescriptionInput" placeholder="Example: west washroom, beside sink. Add any issue details here."></textarea>
+      </label>
+      <label>Reported By <span style="color:#b71c1c;">*</span>
+        <input type="text" id="editPinReportedByInput" list="editPinReportedByList" placeholder="Select or type name...">
+        <datalist id="editPinReportedByList"></datalist>
+      </label>
+      <label>Status
+        <select id="editPinStatusInput" onchange="onEditPinStatusChange()">
+          <option value="active">Active / outstanding</option>
+          <option value="cleared">Cleared / completed</option>
+          <option value="cancelled">Cancelled call</option>
+          <option value="reported">Report only</option>
+        </select>
+      </label>
+      <div id="editClearedFields">
+        <label>Cleared By <span style="color:#b71c1c;">*</span>
+          <input type="text" id="editPinClearedByInput" list="editPinClearedByList" placeholder="Select or type name...">
+          <datalist id="editPinClearedByList"></datalist>
+        </label>
+        <label>Clear comments (optional)
+          <textarea id="editPinClearCommentInput" placeholder="Add or update completion notes."></textarea>
+        </label>
+        <label>Add more clear/completion photos, optional
+          <input type="file" id="editClearPhotoFileInput" accept="image/*" capture="environment" multiple>
+        </label>
+        <div id="editClearPhotoPreview" class="photo-preview-grid" style="display:none;"></div>
+      </div>
+      <label>Add more reported photos, optional
+        <input type="file" id="editReportedPhotoFileInput" accept="image/*" capture="environment" multiple>
+      </label>
+      <div id="editReportedPhotoPreview" class="photo-preview-grid" style="display:none;"></div>
+      <div class="panel-note">Existing photos stay saved. New photos are added to the request.</div>
+    </div>
+    <div class="modal-actions">
+      <button class="action-btn secondary" onclick="closeEditPinModal()">Cancel</button>
+      <button class="action-btn" onclick="submitEditPinForm()">Save Updates</button>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="departmentViewBackdrop"></div>
+  <div class="modal" id="departmentViewModal">
+    <div class="modal-header">Choose Your Department View</div>
+    <div class="modal-body">
+      <div class="panel-note" style="padding-top:0;">Choose the department you want to see by default on this device. Your selection will stay saved only on this device. Choose <b>All</b> to see every department.</div>
+      <div class="department-view-grid" id="departmentViewOptions"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="action-btn secondary" onclick="setDepartmentView('all', true)">Show All</button>
+    </div>
+  </div>
+
+  <div class="modal" id="itemReportModal">
+    <div class="modal-header">Mini Item Report</div>
+    <div class="modal-body" id="itemReportBody">
+      <div class="panel-note">Loading report...</div>
+    </div>
+    <div class="modal-actions">
+      <button class="action-btn secondary" onclick="printItemReport()">Print Report</button>
+      <button class="action-btn" onclick="openCurrentReportOnMap()">Open on Map</button>
+      <button class="action-btn secondary" onclick="closeItemReportModal()">Close</button>
+    </div>
+  </div>
+
+
+  <div id="map"></div>
+  <div id="floorPlanView">
+    <div id="floorPlanStage">
+      <img id="floorPlanImage" src="./floor-plan-food-building.png" alt="Building floor plan">
+      <div id="floorPlanPinLayer"></div>
+      <div id="floorPlanEmptyNote" class="floor-plan-empty-note">Building floor plan view. Replace <b>floor-plan-food-building.png</b> with your real floor plan image, keeping the same file name, or edit the map list in the HTML.</div>
+      <div id="floorPlanPopup" class="floor-popup"></div>
+    </div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = "https://mbfuzetxfwpodjcjrlge.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1iZnV6ZXR4Zndwb2RqY2pybGdlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5ODc0NjgsImV4cCI6MjA5MDU2MzQ2OH0.Q0yFDCzAhE772OaeMaioq8LE_arUINllgSnM4VvZPCI";
+    const SUPABASE_TABLE = "pins";
+    const SUPABASE_BUCKET = "pin-photos";
+    const SETTINGS_TABLE = "app_settings";
+    const APP_LINK = window.location.href.split("#")[0].split("?")[0];
+
+    const DEPARTMENT_STORAGE_KEY = "cne_map_departments_v1";
+    const PROFILES_STORAGE_KEY = "cne_map_profiles_v1";
+    const MAP_VIEWS_STORAGE_KEY = "cne_map_views_v1";
+    const DEPARTMENT_VIEW_STORAGE_KEY = "cne_map_department_view_v1";
+    const ADMIN_PASSWORD = "admin123"; // Change this password before sharing the file.
+    const DEFAULT_MAP_VIEWS = [
+      { id: "outdoor_site", name: "Outdoor Site Map", type: "outdoor", image: null },
+      { id: "food_building_main", name: "Food Building - Main Floor", type: "floorplan", image: "./floor-plan-food-building.png" }
+    ];
+    const DEFAULT_DEPARTMENTS = [
+      {
+        key: "general",
+        name: "General",
+        color: "#0078d7",
+        titles: ["General request", "Follow up", "Inspection"],
+        smsGroups: []
+      },
+      {
+        key: "plumbing",
+        name: "Plumbing",
+        color: "#00838f",
+        titles: ["Water leak", "Blocked drain", "Washroom issue", "Repair"],
+        smsGroups: [
+          { name: "Plumbing Team", numbers: [] }
+        ]
+      },
+      {
+        key: "carpentry",
+        name: "Carpentry",
+        color: "#8d6e63",
+        titles: ["Repair", "Build item", "Door or hardware", "Sign support"],
+        smsGroups: [
+          { name: "Carpentry Team", numbers: [] }
+        ]
+      },
+      {
+        key: "electrical",
+        name: "Electrical",
+        color: "#ff8f00",
+        titles: ["Power issue", "Light out", "Trip hazard cable", "Repair"],
+        smsGroups: [
+          { name: "Electrical Team", numbers: [] }
+        ]
+      },
+      {
+        key: "inspection",
+        name: "Report",
+        color: "#0f766e",
+        titles: ["Report", "Inspection report", "Safety observation", "Site condition", "Follow-up note"],
+        smsGroups: [
+          { name: "Report Leads", numbers: [] }
+        ]
+      },
+      {
+        key: "labour",
+        name: "Labour",
+        color: "#3949ab",
+        titles: ["Move item", "Setup support", "Clean up", "Delivery"],
+        smsGroups: [
+          { name: "Labour Leads", numbers: ["6472825087", "4164350485", "6474824760", "4165534029"] }
+        ]
+      }
+    ];
+
+    let mapViews = loadMapViewsFromStorage();
+    let departments = loadDepartmentsFromStorage();
+    const DEFAULT_PROFILES = {
+      admin: ["Beau Felipe", "Operations Manager", "Admin"],
+      general: ["General Lead"],
+      plumbing: ["Plumbing Lead"],
+      carpentry: ["Carpentry Lead"],
+      electrical: ["Electrical Lead"],
+      inspection: ["Report Lead"],
+      labour: ["Labour Lead"]
+    };
+    let profiles = loadProfilesFromStorage();
+    let pendingClearPinId = null;
+    let pendingEditPinId = null;
+    let selectedDepartmentView = localStorage.getItem(DEPARTMENT_VIEW_STORAGE_KEY) || "";
+    let currentMapId = (mapViews[0] && mapViews[0].id) || DEFAULT_MAP_VIEWS[0].id;
+
+    let supabaseClient = null;
+    let realtimeChannel = null;
+    let allPins = [];
+    let pendingLatLng = null;
+    let previewObjectUrl = null;
+
+    const mapSelector = document.getElementById("mapSelector");
+    const floorPlanView = document.getElementById("floorPlanView");
+    const floorPlanStage = document.getElementById("floorPlanStage");
+    const floorPlanImage = document.getElementById("floorPlanImage");
+    const floorPlanPinLayer = document.getElementById("floorPlanPinLayer");
+    const floorPlanPopup = document.getElementById("floorPlanPopup");
+    const floorPlanEmptyNote = document.getElementById("floorPlanEmptyNote");
+    const statusBar = document.getElementById("statusBar");
+    const outstandingSummary = document.getElementById("outstandingSummary");
+    const adminPanel = document.getElementById("adminPanel");
+    const deleteHistoryPanel = document.getElementById("deleteHistoryPanel");
+    const deleteHistorySelect = document.getElementById("deleteHistorySelect");
+    const deleteHistoryDetails = document.getElementById("deleteHistoryDetails");
+    const allLogsPanel = document.getElementById("allLogsPanel");
+    const allLogsBody = document.getElementById("allLogsBody");
+    const allLogsStatusFilter = document.getElementById("allLogsStatusFilter");
+    const allLogsDepartmentFilter = document.getElementById("allLogsDepartmentFilter");
+    const allLogsMapFilter = document.getElementById("allLogsMapFilter");
+    const logPanel = document.getElementById("logPanel");
+    const legendPanel = document.getElementById("legendPanel");
+    const departmentPanel = document.getElementById("departmentPanel");
+    const profilesPanel = document.getElementById("profilesPanel");
+    const mapsPanel = document.getElementById("mapsPanel");
+    const logBody = document.getElementById("logBody");
+    const legendBody = document.getElementById("legendBody");
+    const statusFilter = document.getElementById("statusFilter");
+    const categoryFilter = document.getElementById("categoryFilter");
+    const pinModal = document.getElementById("pinModal");
+    const modalBackdrop = document.getElementById("modalBackdrop");
+    const departmentViewBackdrop = document.getElementById("departmentViewBackdrop");
+    const departmentViewModal = document.getElementById("departmentViewModal");
+    const departmentViewOptions = document.getElementById("departmentViewOptions");
+    const pinTitleInput = document.getElementById("pinTitleInput");
+    const pinDescriptionInput = document.getElementById("pinDescriptionInput");
+    const pinCategoryInput = document.getElementById("pinCategoryInput");
+    const pinReportedByInput = document.getElementById("pinReportedByInput");
+    const pinPhotoFileInput = document.getElementById("pinPhotoFileInput");
+    const pinNotifySmsNowInput = document.getElementById("pinNotifySmsNowInput");
+    const pinPhotoPreview = document.getElementById("pinPhotoPreview");
+    const pinLocationNote = document.getElementById("pinLocationNote");
+    const smsGroupCheckboxes = document.getElementById("smsGroupCheckboxes");
+    const manageDepartmentSelect = document.getElementById("manageDepartmentSelect");
+    const manageDepartmentName = document.getElementById("manageDepartmentName");
+    const manageDepartmentColor = document.getElementById("manageDepartmentColor");
+    const manageDepartmentTitles = document.getElementById("manageDepartmentTitles");
+    const manageDepartmentGroups = document.getElementById("manageDepartmentGroups");
+    const manageProfilesList = document.getElementById("manageProfilesList");
+    const manageMapSelect = document.getElementById("manageMapSelect");
+    const manageMapName = document.getElementById("manageMapName");
+    const manageMapId = document.getElementById("manageMapId");
+    const manageMapType = document.getElementById("manageMapType");
+    const manageMapImage = document.getElementById("manageMapImage");
+    const clearModal = document.getElementById("clearModal");
+    const clearByInput = document.getElementById("clearByInput");
+    const clearPhotoFileInput = document.getElementById("clearPhotoFileInput");
+    const clearCommentInput = document.getElementById("clearCommentInput");
+    const clearPhotoPreview = document.getElementById("clearPhotoPreview");
+    const clearPinNote = document.getElementById("clearPinNote");
+    const editPinModal = document.getElementById("editPinModal");
+    const editPinModalHeader = document.getElementById("editPinModalHeader");
+    const editPinStatusNote = document.getElementById("editPinStatusNote");
+    const editPinCategoryInput = document.getElementById("editPinCategoryInput");
+    const editPinTitleInput = document.getElementById("editPinTitleInput");
+    const editSmsGroupCheckboxes = document.getElementById("editSmsGroupCheckboxes");
+    const editNotifySmsNowInput = document.getElementById("editNotifySmsNowInput");
+    const editPinDescriptionInput = document.getElementById("editPinDescriptionInput");
+    const editPinReportedByInput = document.getElementById("editPinReportedByInput");
+    const editPinStatusInput = document.getElementById("editPinStatusInput");
+    const editClearedFields = document.getElementById("editClearedFields");
+    const editPinClearedByInput = document.getElementById("editPinClearedByInput");
+    const editPinClearCommentInput = document.getElementById("editPinClearCommentInput");
+    const editReportedPhotoFileInput = document.getElementById("editReportedPhotoFileInput");
+    const editClearPhotoFileInput = document.getElementById("editClearPhotoFileInput");
+    const editReportedPhotoPreview = document.getElementById("editReportedPhotoPreview");
+    const editClearPhotoPreview = document.getElementById("editClearPhotoPreview");
+    const itemReportModal = document.getElementById("itemReportModal");
+    const itemReportBody = document.getElementById("itemReportBody");
+    let currentReportPinId = null;
+    let initialUrlActionHandled = false;
+    const floatingUi = document.getElementById("floatingUi");
+    const mobileUiToggleIcon = document.getElementById("mobileUiToggleIcon");
+
+
+    function normalizeMapId(value) {
+      return String(value || "")
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9]+/g, "_")
+        .replace(/^_+|_+$/g, "") || "map_view";
+    }
+
+    function normalizeMapViews(value) {
+      const source = Array.isArray(value) && value.length ? value : DEFAULT_MAP_VIEWS;
+      const seen = new Set();
+      const normalized = source.map((view, index) => {
+        const name = String(view.name || view.id || `Map ${index + 1}`).trim();
+        let id = normalizeMapId(view.id || name);
+        if (seen.has(id)) id = `${id}_${index + 1}`;
+        seen.add(id);
+        const type = view.type === "outdoor" ? "outdoor" : "floorplan";
+        return {
+          id,
+          name,
+          type,
+          image: type === "floorplan" ? String(view.image || "./floor-plan-food-building.png").trim() : null
+        };
+      });
+      if (!normalized.some(view => view.type === "outdoor")) {
+        normalized.unshift({ ...DEFAULT_MAP_VIEWS[0] });
+      }
+      return normalized;
+    }
+
+    function loadMapViewsFromStorage() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(MAP_VIEWS_STORAGE_KEY) || "null");
+        return normalizeMapViews(saved);
+      } catch (error) {
+        console.warn("Could not load map settings:", error);
+        return normalizeMapViews(DEFAULT_MAP_VIEWS);
+      }
+    }
+
+    function saveMapViewsToStorage() {
+      mapViews = normalizeMapViews(mapViews);
+      localStorage.setItem(MAP_VIEWS_STORAGE_KEY, JSON.stringify(mapViews));
+      saveSettingToSupabase("map_views", mapViews);
+      populateMapSelector();
+    }
+
+    function getMapView(mapId) {
+      return mapViews.find(item => item.id === mapId) || mapViews[0] || DEFAULT_MAP_VIEWS[0];
+    }
+
+    function isFloorPlanMap(mapId = currentMapId) {
+      return getMapView(mapId).type === "floorplan";
+    }
+
+    function getPinMapId(pin) {
+      return pin.map_id || "outdoor_site";
+    }
+
+    function getPinById(pinId) {
+      return allPins.find(pin => String(pin.id) === String(pinId));
+    }
+
+    function buildAppUrl(params = {}) {
+      const url = new URL(APP_LINK, window.location.href);
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== "") url.searchParams.set(key, value);
+      });
+      return url.toString();
+    }
+
+    function populateMapSelector() {
+      if (!mapSelector) return;
+      mapSelector.innerHTML = mapViews.map(view => `<option value="${escapeHtml(view.id)}">${escapeHtml(view.name)}</option>`).join("");
+      if (!mapViews.some(view => view.id === currentMapId)) currentMapId = (mapViews[0] && mapViews[0].id) || "outdoor_site";
+      mapSelector.value = currentMapId;
+      populateManageMapSelect();
+    }
+
+    function switchMapView(mapId) {
+      currentMapId = getMapView(mapId).id;
+      if (mapSelector) mapSelector.value = currentMapId;
+      pendingLatLng = null;
+      closeAllMapPopups();
+
+      const view = getMapView(currentMapId);
+      if (view.type === "floorplan") {
+        document.getElementById("map").style.display = "none";
+        floorPlanView.style.display = "block";
+        floorPlanImage.src = view.image || "./floor-plan-food-building.png";
+        if (floorPlanEmptyNote) floorPlanEmptyNote.style.display = "block";
+      } else {
+        floorPlanView.style.display = "none";
+        document.getElementById("map").style.display = "block";
+        setTimeout(() => map.invalidateSize(), 80);
+      }
+      applyFilters();
+    }
+
+    function getLocationLabel(pin) {
+      const view = getMapView(getPinMapId(pin));
+      if ((pin.location_type || "gps") === "floorplan" || view.type === "floorplan") {
+        const x = Number(pin.x_percent ?? pin.lng);
+        const y = Number(pin.y_percent ?? pin.lat);
+        return `${view.name}: X ${Number.isFinite(x) ? x.toFixed(1) : "?"}%, Y ${Number.isFinite(y) ? y.toFixed(1) : "?"}%`;
+      }
+      return `Lat: ${Number(pin.lat).toFixed(6)}, Lng: ${Number(pin.lng).toFixed(6)}`;
+    }
+
+    function setPendingFloorLocationFromEvent(event) {
+      const rect = floorPlanStage.getBoundingClientRect();
+      const xPercent = ((event.clientX - rect.left) / rect.width) * 100;
+      const yPercent = ((event.clientY - rect.top) / rect.height) * 100;
+      if (xPercent < 0 || xPercent > 100 || yPercent < 0 || yPercent > 100) return;
+      pendingLatLng = {
+        lat: yPercent,
+        lng: xPercent,
+        map_id: currentMapId,
+        location_type: "floorplan",
+        x_percent: xPercent,
+        y_percent: yPercent
+      };
+      openPinModalForPending();
+    }
+
+
+
+    function populateManageMapSelect() {
+      if (!manageMapSelect) return;
+      const current = manageMapSelect.value || currentMapId;
+      manageMapSelect.innerHTML = mapViews.map(view => `<option value="${escapeHtml(view.id)}">${escapeHtml(view.name)}</option>`).join("");
+      if (mapViews.some(view => view.id === current)) manageMapSelect.value = current;
+      else if (mapViews[0]) manageMapSelect.value = mapViews[0].id;
+    }
+
+    function loadMapEditor() {
+      if (!manageMapSelect) return;
+      const view = getMapView(manageMapSelect.value);
+      manageMapName.value = view.name || "";
+      manageMapId.value = view.id || "";
+      manageMapType.value = view.type || "floorplan";
+      manageMapImage.value = view.image || "";
+    }
+
+    function toggleMapsPanel(forceOpen) {
+      const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : !mapsPanel.classList.contains('open');
+      if (shouldOpen) {
+        populateManageMapSelect();
+        loadMapEditor();
+        mapsPanel.classList.add('open');
+      } else {
+        mapsPanel.classList.remove('open');
+      }
+    }
+
+    function saveMapEditor() {
+      const previousId = manageMapSelect.value;
+      const name = (manageMapName.value || "").trim();
+      if (!name) {
+        alert("Map name is required.");
+        manageMapName.focus();
+        return;
+      }
+      let id = normalizeMapId(manageMapId.value || name);
+      const type = manageMapType.value === "outdoor" ? "outdoor" : "floorplan";
+      const image = type === "floorplan" ? (manageMapImage.value || "./floor-plan-food-building.png").trim() : null;
+      const existingIndex = mapViews.findIndex(view => view.id === previousId);
+      const duplicate = mapViews.find((view, index) => view.id === id && index !== existingIndex);
+      if (duplicate) {
+        alert("That Map ID is already being used. Choose a different short code.");
+        manageMapId.focus();
+        return;
+      }
+      const updated = { id, name, type, image };
+      if (existingIndex >= 0) mapViews[existingIndex] = updated;
+      else mapViews.push(updated);
+      saveMapViewsToStorage();
+      manageMapSelect.value = id;
+      currentMapId = id;
+      switchMapView(id);
+      setStatus("Map/building list saved centrally.");
+    }
+
+    function addNewMapEditor() {
+      const nextNumber = mapViews.length + 1;
+      const newView = {
+        id: `new_floor_plan_${nextNumber}`,
+        name: `New Floor Plan ${nextNumber}`,
+        type: "floorplan",
+        image: "./floor-plan-food-building.png"
+      };
+      mapViews.push(newView);
+      saveMapViewsToStorage();
+      manageMapSelect.value = newView.id;
+      loadMapEditor();
+      setStatus("New map added. Edit the name and image, then save.");
+    }
+
+    function deleteMapEditor() {
+      const id = manageMapSelect.value;
+      const view = getMapView(id);
+      if (!view || mapViews.length <= 1) {
+        alert("At least one map must remain.");
+        return;
+      }
+      if (!window.confirm(`Delete ${view.name} from the map list? Existing pins saved to this map will remain in Supabase but will not display until the map is added again with the same Map ID.`)) return;
+      mapViews = mapViews.filter(item => item.id !== id);
+      if (currentMapId === id) currentMapId = (mapViews[0] && mapViews[0].id) || DEFAULT_MAP_VIEWS[0].id;
+      saveMapViewsToStorage();
+      switchMapView(currentMapId);
+      loadMapEditor();
+      setStatus("Map deleted from central list.");
+    }
+
+    function resetMapSettings() {
+      if (!window.confirm("Reset map/building list to the default outdoor map and Food Building floor plan?")) return;
+      mapViews = normalizeMapViews(DEFAULT_MAP_VIEWS);
+      currentMapId = mapViews[0].id;
+      saveMapViewsToStorage();
+      switchMapView(currentMapId);
+      loadMapEditor();
+      setStatus("Map/building list reset.");
+    }
+
+    function normalizeProfileList(list) {
+      const seen = new Set();
+      return (Array.isArray(list) ? list : [])
+        .map(name => String(name || "").trim())
+        .filter(Boolean)
+        .filter(name => {
+          const key = name.toLowerCase();
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+    }
+
+    function normalizeProfiles(value) {
+      const result = {};
+      const addToGroup = (groupKey, names) => {
+        const key = normalizeDepartmentKey(groupKey || "general");
+        result[key] = normalizeProfileList([...(result[key] || []), ...(Array.isArray(names) ? names : [names])]);
+      };
+
+      if (Array.isArray(value)) {
+        // Backward compatible: old profile lists become Admin profiles.
+        addToGroup("admin", value.length ? value : DEFAULT_PROFILES.admin);
+      } else if (value && typeof value === "object") {
+        Object.keys(value).forEach(key => addToGroup(key, value[key]));
+      }
+
+      Object.keys(DEFAULT_PROFILES).forEach(key => {
+        if (!result[key] || !result[key].length) addToGroup(key, DEFAULT_PROFILES[key]);
+      });
+
+      return result;
+    }
+
+    function getProfilesForDepartment(departmentKey) {
+      const key = normalizeDepartmentKey(departmentKey || "general");
+      const combined = [
+        ...(profiles.admin || []),
+        ...(profiles[key] || [])
+      ];
+      return normalizeProfileList(combined);
+    }
+
+    function profilesToEditorText() {
+      const order = ["admin", ...departments.map(dept => dept.key)];
+      const used = new Set();
+      const lines = [];
+      order.forEach(key => {
+        if (used.has(key)) return;
+        used.add(key);
+        const names = normalizeProfileList(profiles[key] || []);
+        if (!names.length) return;
+        const label = key === "admin" ? "Admin" : formatDepartmentLabel(key);
+        lines.push(`[${label}]`);
+        lines.push(...names);
+        lines.push("");
+      });
+      Object.keys(profiles).sort().forEach(key => {
+        if (used.has(key)) return;
+        const names = normalizeProfileList(profiles[key] || []);
+        if (!names.length) return;
+        lines.push(`[${key}]`);
+        lines.push(...names);
+        lines.push("");
+      });
+      return lines.join("\n").trim();
+    }
+
+    function parseProfilesEditorText(text) {
+      const next = {};
+      let currentKey = "admin";
+      String(text || "").split(/\n+/).forEach(rawLine => {
+        const line = rawLine.trim();
+        if (!line) return;
+        const headingMatch = line.match(/^\[(.+?)\]$/);
+        if (headingMatch) {
+          const label = headingMatch[1].trim();
+          const deptMatch = departments.find(dept => dept.name.toLowerCase() === label.toLowerCase() || dept.key.toLowerCase() === label.toLowerCase());
+          currentKey = label.toLowerCase() === "admin" ? "admin" : normalizeDepartmentKey(deptMatch ? deptMatch.key : label);
+          if (!next[currentKey]) next[currentKey] = [];
+          return;
+        }
+        if (!next[currentKey]) next[currentKey] = [];
+        next[currentKey].push(line);
+      });
+      return normalizeProfiles(next);
+    }
+
+    function loadProfilesFromStorage() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(PROFILES_STORAGE_KEY) || "null");
+        return normalizeProfiles(saved);
+      } catch (error) {
+        console.warn("Could not load profile settings:", error);
+        return normalizeProfiles(DEFAULT_PROFILES);
+      }
+    }
+
+    function saveProfilesToStorage() {
+      localStorage.setItem(PROFILES_STORAGE_KEY, JSON.stringify(profiles));
+      saveSettingToSupabase("profiles", profiles);
+    }
+
+    function populateProfileDropdown(selectElement, departmentKey, previousValue) {
+      if (!selectElement) return;
+      const names = getProfilesForDepartment(departmentKey);
+      const tagName = (selectElement.tagName || "").toLowerCase();
+      if (tagName === "input") {
+        const listId = selectElement.getAttribute("list");
+        const dataList = listId ? document.getElementById(listId) : null;
+        if (dataList) {
+          dataList.innerHTML = names.map(name => `<option value="${escapeHtml(name)}"></option>`).join("");
+        }
+        if (previousValue) selectElement.value = previousValue;
+        return;
+      }
+      selectElement.innerHTML = '<option value="">Select name...</option>' + names.map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("");
+      if (previousValue) selectElement.value = previousValue;
+    }
+
+    function populateReportedByDropdown() {
+      const previous = pinReportedByInput ? pinReportedByInput.value : "";
+      populateProfileDropdown(pinReportedByInput, pinCategoryInput ? pinCategoryInput.value : selectedDepartmentView, previous);
+    }
+
+    function populateClearedByDropdown(pin) {
+      const previous = clearByInput ? clearByInput.value : "";
+      populateProfileDropdown(clearByInput, pin ? pin.category : selectedDepartmentView, previous);
+    }
+
+    function populateProfileDropdowns() {
+      populateReportedByDropdown();
+      const clearPin = allPins.find(item => item.id === pendingClearPinId);
+      populateClearedByDropdown(clearPin);
+    }
+
+    function populateEditDepartmentDropdown(selectedKey) {
+      if (!editPinCategoryInput) return;
+      editPinCategoryInput.innerHTML = departments.map(dept => `<option value="${escapeHtml(dept.key)}">${escapeHtml(dept.name)}</option>`).join("");
+      if (selectedKey && departments.some(dept => dept.key === selectedKey)) editPinCategoryInput.value = selectedKey;
+    }
+
+    function populateEditTitleDropdown(previousTitle) {
+      if (!editPinTitleInput || !editPinCategoryInput) return;
+      const dept = getDepartment(editPinCategoryInput.value);
+      const titles = [...dept.titles];
+      if (previousTitle && !titles.includes(previousTitle)) titles.unshift(previousTitle);
+      editPinTitleInput.innerHTML = titles.map(title => `<option value="${escapeHtml(title)}">${escapeHtml(title)}</option>`).join("");
+      if (previousTitle) editPinTitleInput.value = previousTitle;
+    }
+
+    function populateEditSmsGroupCheckboxes() {
+      if (!editSmsGroupCheckboxes || !editPinCategoryInput) return;
+      const dept = getDepartment(editPinCategoryInput.value);
+      if (!dept.smsGroups.length) {
+        editSmsGroupCheckboxes.innerHTML = '<div class="panel-note" style="padding:0;">No text groups set for this department.</div>';
+        return;
+      }
+      editSmsGroupCheckboxes.innerHTML = dept.smsGroups.map((group, index) => {
+        const cleanNumbers = (group.numbers || []).map(cleanPhoneNumber).filter(Boolean);
+        return `<label class="sms-group-option"><input type="checkbox" class="edit-sms-group-checkbox" value="${index}" checked><span><strong>${escapeHtml(group.name)}</strong><span class="sms-group-meta">${cleanNumbers.length} number${cleanNumbers.length === 1 ? "" : "s"}</span></span></label>`;
+      }).join("");
+    }
+
+    function populateEditProfileDropdowns(reportedBy, clearedBy) {
+      if (!editPinCategoryInput) return;
+      const deptKey = editPinCategoryInput.value;
+      populateProfileDropdown(editPinReportedByInput, deptKey, reportedBy);
+      populateProfileDropdown(editPinClearedByInput, deptKey, clearedBy);
+    }
+
+    function onEditPinDepartmentChange() {
+      const pin = allPins.find(item => item.id === pendingEditPinId);
+      populateEditTitleDropdown(pin ? pin.title : "");
+      populateEditSmsGroupCheckboxes();
+      populateEditProfileDropdowns(pin ? pin.reported_by : "", pin ? pin.cleared_by : "");
+    }
+
+    function onEditPinStatusChange() {
+      if (!editClearedFields || !editPinStatusInput) return;
+      editClearedFields.style.display = editPinStatusInput.value === "cleared" ? "block" : "none";
+    }
+
+    function openEditPinModal(pinId) {
+      const pin = allPins.find(item => item.id === pinId);
+      if (!pin) return;
+
+      if (getPinStatus(pin) === "cleared") {
+        const password = window.prompt('Enter admin password to update a cleared pin:');
+        if (password !== ADMIN_PASSWORD) {
+          alert('Incorrect password.');
+          return;
+        }
+      }
+
+      pendingEditPinId = pinId;
+      if (editPinModalHeader) editPinModalHeader.textContent = getPinStatus(pin) === "cleared" ? "Admin Edit Cleared Pin" : "Edit / Reassign Pin";
+      if (editPinStatusNote) editPinStatusNote.textContent = getPinStatus(pin) === "cleared"
+        ? "This pin is already cleared. Admins can correct details, add completion photos, or reopen it."
+        : (getPinStatus(pin) === "cancelled" ? "This call is cancelled. Admins can correct details or return it to active." : "Update this active request or reassign it to another department.");
+
+      populateEditDepartmentDropdown(pin.category || "general");
+      populateEditTitleDropdown(pin.title || "");
+      populateEditSmsGroupCheckboxes();
+      if (editNotifySmsNowInput) editNotifySmsNowInput.checked = true;
+      if (editPinDescriptionInput) editPinDescriptionInput.value = pin.description || "";
+      populateEditProfileDropdowns(pin.reported_by || "", pin.cleared_by || "");
+      if (editPinClearCommentInput) editPinClearCommentInput.value = pin.clear_comment || "";
+      if (editPinStatusInput) editPinStatusInput.value = getPinStatus(pin);
+      onEditPinStatusChange();
+
+      if (editReportedPhotoFileInput) editReportedPhotoFileInput.value = "";
+      if (editClearPhotoFileInput) editClearPhotoFileInput.value = "";
+      if (editReportedPhotoPreview) { editReportedPhotoPreview.innerHTML = ""; editReportedPhotoPreview.style.display = "none"; }
+      if (editClearPhotoPreview) { editClearPhotoPreview.innerHTML = ""; editClearPhotoPreview.style.display = "none"; }
+
+      editPinModal.classList.add("open");
+      modalBackdrop.classList.add("open");
+      if (editPinCategoryInput) editPinCategoryInput.focus();
+    }
+
+    function closeEditPinModal() {
+      pendingEditPinId = null;
+      if (editPinModal) editPinModal.classList.remove("open");
+      modalBackdrop.classList.remove("open");
+      if (editReportedPhotoFileInput) editReportedPhotoFileInput.value = "";
+      if (editClearPhotoFileInput) editClearPhotoFileInput.value = "";
+      if (editReportedPhotoPreview) { editReportedPhotoPreview.innerHTML = ""; editReportedPhotoPreview.style.display = "none"; }
+      if (editClearPhotoPreview) { editClearPhotoPreview.innerHTML = ""; editClearPhotoPreview.style.display = "none"; }
+    }
+
+    async function submitEditPinForm() {
+      if (!supabaseClient || !pendingEditPinId) return;
+      const pin = allPins.find(item => item.id === pendingEditPinId);
+      if (!pin) return;
+
+      const category = editPinCategoryInput.value || "general";
+      const title = editPinTitleInput.value || "General request";
+      const description = editPinDescriptionInput.value.trim();
+      const reportedBy = editPinReportedByInput.value.trim();
+      const status = editPinStatusInput.value;
+      const clearedBy = editPinClearedByInput.value.trim();
+      const clearComment = editPinClearCommentInput ? editPinClearCommentInput.value.trim() : "";
+
+      if (!reportedBy) {
+        alert("Reported By is required.");
+        editPinReportedByInput.focus();
+        return;
+      }
+      if (status === "cleared" && !clearedBy) {
+        alert("Cleared By is required when a pin is cleared.");
+        editPinClearedByInput.focus();
+        return;
+      }
+
+      setStatus("Updating pin...");
+      let addedReportedPhotos = [];
+      let addedClearPhotos = [];
+
+      try {
+        const reportFiles = Array.from((editReportedPhotoFileInput && editReportedPhotoFileInput.files) || []);
+        const clearFiles = Array.from((editClearPhotoFileInput && editClearPhotoFileInput.files) || []);
+        if (reportFiles.length) {
+          setStatus(`Uploading ${reportFiles.length} additional reported photo${reportFiles.length === 1 ? "" : "s"}...`);
+          addedReportedPhotos = await uploadPhotoFiles(reportFiles);
+        }
+        if (clearFiles.length) {
+          setStatus(`Uploading ${clearFiles.length} additional clear photo${clearFiles.length === 1 ? "" : "s"}...`);
+          addedClearPhotos = await uploadPhotoFiles(clearFiles);
+        }
+      } catch (error) {
+        console.error(error);
+        alert("Could not upload the added photo(s). Check your storage bucket and storage policies.");
+        setStatus("Photo upload failed.");
+        return;
+      }
+
+      const currentReportedPhotos = getPinPhotos(pin);
+      const currentClearPhotos = getClearPhotos(pin);
+      const nextReportedPhotos = [...currentReportedPhotos, ...addedReportedPhotos];
+      const nextClearPhotos = status === "cleared" ? [...currentClearPhotos, ...addedClearPhotos] : currentClearPhotos;
+      const wasCleared = getPinStatus(pin) === "cleared";
+      const wasCancelled = getPinStatus(pin) === "cancelled";
+      const wasReported = getPinStatus(pin) === "reported";
+      const nextClearedAt = status === "cleared" ? (pin.cleared_at || new Date().toISOString()) : null;
+
+      const updatePayload = {
+        title,
+        description,
+        category,
+        reported_by: reportedBy,
+        photo_urls: nextReportedPhotos,
+        photo_url: nextReportedPhotos[0] || null,
+        clear_photo_urls: nextClearPhotos,
+        status: status,
+        is_cleared: status === "cleared",
+        cleared_at: nextClearedAt,
+        cleared_by: status === "cleared" ? clearedBy : null,
+        clear_comment: status === "cleared" ? clearComment : null
+      };
+
+      const { data, error } = await supabaseClient
+        .from(SUPABASE_TABLE)
+        .update(updatePayload)
+        .eq("id", pendingEditPinId)
+        .select();
+
+      if (error) {
+        console.error(error);
+        alert("Could not update the pin. Check your update policy and Supabase columns.");
+        setStatus("Update failed.");
+        return;
+      }
+
+      const updatedPin = data && data.length ? data[0] : { ...pin, ...updatePayload };
+      const index = allPins.findIndex(item => item.id === pendingEditPinId);
+      if (index !== -1) {
+        allPins[index] = {
+          ...allPins[index],
+          ...updatedPin,
+          category: updatedPin.category || "general",
+          map_id: updatedPin.map_id || allPins[index].map_id || currentMapId,
+          location_type: updatedPin.location_type || allPins[index].location_type || (isFloorPlanMap() ? "floorplan" : "gps")
+        };
+      }
+      closeEditPinModal();
+      applyFilters();
+      triggerEditSmsNotification(updatedPin);
+      if (!editNotifySmsNowInput || !editNotifySmsNowInput.checked) {
+        setStatus((wasCleared || wasCancelled || wasReported) && status === "active" ? "Pin reopened and returned to outstanding." : "Pin updated.");
+      }
+    }
+
+
+    function toggleProfilesPanel(forceOpen) {
+      const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : !profilesPanel.classList.contains('open');
+      if (shouldOpen) {
+        if (manageProfilesList) manageProfilesList.value = profilesToEditorText();
+        profilesPanel.classList.add('open');
+      } else {
+        profilesPanel.classList.remove('open');
+      }
+    }
+
+    function saveProfilesEditor() {
+      profiles = parseProfilesEditorText(manageProfilesList.value || "");
+      saveProfilesToStorage();
+      populateProfileDropdowns();
+      setStatus("Profiles updated by department.");
+    }
+
+    function resetProfilesSettings() {
+      if (!window.confirm("Reset profile names to defaults?")) return;
+      profiles = normalizeProfiles(DEFAULT_PROFILES);
+      saveProfilesToStorage();
+      populateProfileDropdowns();
+      if (manageProfilesList) manageProfilesList.value = profilesToEditorText();
+      setStatus("Profiles reset.");
+    }
+
+
+    function normalizeDepartmentKey(value) {
+      return String(value || "")
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "") || "general";
+    }
+
+    function normalizeDepartments(value) {
+      const baseSource = Array.isArray(value) && value.length ? value : DEFAULT_DEPARTMENTS;
+      const source = [...baseSource];
+      DEFAULT_DEPARTMENTS.forEach(defaultDept => {
+        const defaultKey = normalizeDepartmentKey(defaultDept.key || defaultDept.name);
+        if (!source.some(dept => normalizeDepartmentKey(dept.key || dept.name) === defaultKey)) {
+          source.push(defaultDept);
+        }
+      });
+      const seen = new Set();
+      return source.map((dept, index) => {
+        const name = String(dept.name || dept.key || `Department ${index + 1}`).trim();
+        let key = normalizeDepartmentKey(dept.key || name);
+        if (seen.has(key)) key = `${key}-${index + 1}`;
+        seen.add(key);
+        return {
+          key,
+          name,
+          color: /^#[0-9a-f]{6}$/i.test(dept.color || "") ? dept.color : "#0078d7",
+          titles: Array.isArray(dept.titles) && dept.titles.length ? dept.titles.map(String).filter(Boolean) : ["General request"],
+          smsGroups: Array.isArray(dept.smsGroups) ? dept.smsGroups.map(group => ({
+            name: String(group.name || "Text Group").trim(),
+            numbers: Array.isArray(group.numbers) ? group.numbers.map(String).filter(Boolean) : []
+          })) : []
+        };
+      });
+    }
+
+    function loadDepartmentsFromStorage() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(DEPARTMENT_STORAGE_KEY) || "null");
+        return normalizeDepartments(saved);
+      } catch (error) {
+        console.warn("Could not load department settings:", error);
+        return normalizeDepartments(DEFAULT_DEPARTMENTS);
+      }
+    }
+
+    function saveDepartmentsToStorage() {
+      localStorage.setItem(DEPARTMENT_STORAGE_KEY, JSON.stringify(departments));
+      saveSettingToSupabase("departments", departments);
+    }
+
+    async function saveSettingToSupabase(configKey, settingsValue) {
+      if (!supabaseClient) return;
+      try {
+        const { error } = await supabaseClient
+          .from(SETTINGS_TABLE)
+          .upsert([{
+            config_key: configKey,
+            settings_value: settingsValue,
+            updated_at: new Date().toISOString()
+          }], { onConflict: "config_key" });
+
+        if (error) {
+          console.warn("Could not save central setting:", configKey, error);
+          setStatus("Saved locally, but central Supabase settings were not updated. Run the settings SQL if needed.");
+        }
+      } catch (error) {
+        console.warn("Central setting save failed:", configKey, error);
+      }
+    }
+
+    async function loadCentralSettingsFromSupabase() {
+      if (!supabaseClient) return;
+      try {
+        const { data, error } = await supabaseClient
+          .from(SETTINGS_TABLE)
+          .select("config_key, settings_value")
+          .in("config_key", ["departments", "profiles", "map_views"]);
+
+        if (error) {
+          console.warn("Could not load central settings:", error);
+          setStatus("Using local settings. Run the Supabase settings SQL to centralize maps/departments/profiles.");
+          return;
+        }
+
+        const departmentRow = (data || []).find(row => row.config_key === "departments");
+        const profileRow = (data || []).find(row => row.config_key === "profiles");
+        const mapRow = (data || []).find(row => row.config_key === "map_views");
+
+        if (mapRow && mapRow.settings_value) {
+          mapViews = normalizeMapViews(mapRow.settings_value);
+          localStorage.setItem(MAP_VIEWS_STORAGE_KEY, JSON.stringify(mapViews));
+          if (!mapViews.some(view => view.id === currentMapId)) currentMapId = (mapViews[0] && mapViews[0].id) || DEFAULT_MAP_VIEWS[0].id;
+          populateMapSelector();
+          switchMapView(currentMapId);
+        } else {
+          await saveSettingToSupabase("map_views", mapViews);
+        }
+
+        if (departmentRow && departmentRow.settings_value) {
+          departments = normalizeDepartments(departmentRow.settings_value);
+          localStorage.setItem(DEPARTMENT_STORAGE_KEY, JSON.stringify(departments));
+        } else {
+          await saveSettingToSupabase("departments", departments);
+        }
+
+        if (profileRow && profileRow.settings_value) {
+          profiles = normalizeProfiles(profileRow.settings_value);
+          localStorage.setItem(PROFILES_STORAGE_KEY, JSON.stringify(profiles));
+        } else {
+          await saveSettingToSupabase("profiles", profiles);
+        }
+      } catch (error) {
+        console.warn("Central settings load failed:", error);
+      }
+    }
+
+
+    function isValidDepartmentView(value) {
+      return value === "all" || departments.some(dept => dept.key === value);
+    }
+
+    function buildDepartmentViewOptions() {
+      if (!departmentViewOptions) return;
+      const options = [
+        { key: "all", name: "All Departments" },
+        ...departments.map(dept => ({ key: dept.key, name: dept.name }))
+      ];
+      departmentViewOptions.innerHTML = options.map(option => (
+        `<button type="button" class="department-view-btn${categoryFilter.value === option.key ? " selected" : ""}" onclick="setDepartmentView('${escapeHtml(option.key)}', true)">${escapeHtml(option.name)}</button>`
+      )).join("");
+    }
+
+    function openDepartmentViewPrompt(firstOpen = false) {
+      if (!departmentViewModal || !departmentViewBackdrop) return;
+      buildDepartmentViewOptions();
+      departmentViewModal.classList.add("open");
+      departmentViewBackdrop.classList.add("open");
+      if (firstOpen) {
+        setStatus("Choose a department view to start.");
+      }
+    }
+
+    function closeDepartmentViewPrompt() {
+      if (departmentViewModal) departmentViewModal.classList.remove("open");
+      if (departmentViewBackdrop) departmentViewBackdrop.classList.remove("open");
+    }
+
+    function setDepartmentView(value, saveChoice = true) {
+      const view = isValidDepartmentView(value) ? value : "all";
+      selectedDepartmentView = view;
+      if (categoryFilter) categoryFilter.value = view;
+      if (saveChoice) localStorage.setItem(DEPARTMENT_VIEW_STORAGE_KEY, view);
+      closeDepartmentViewPrompt();
+      buildDepartmentViewOptions();
+      applyFilters();
+    }
+
+    function hasInitialUrlAction() {
+      const params = new URLSearchParams(window.location.search);
+      return !!(params.get("report") || params.get("pin"));
+    }
+
+    function ensureDepartmentViewSelected() {
+      if (hasInitialUrlAction()) {
+        selectedDepartmentView = isValidDepartmentView(selectedDepartmentView) ? selectedDepartmentView : "all";
+        setDepartmentView(selectedDepartmentView, false);
+        closeDepartmentViewPrompt();
+        return;
+      }
+
+      if (!selectedDepartmentView || !isValidDepartmentView(selectedDepartmentView)) {
+        selectedDepartmentView = "";
+        openDepartmentViewPrompt(true);
+        return;
+      }
+      setDepartmentView(selectedDepartmentView, false);
+    }
+
+    function getDepartment(category) {
+      const key = normalizeDepartmentKey(category);
+      return departments.find(dept => dept.key === key) || departments[0] || DEFAULT_DEPARTMENTS[0];
+    }
+
+    function getDepartmentColor(category) {
+      return getDepartment(category).color || "#0078d7";
+    }
+
+    function formatDepartmentLabel(category) {
+      return getDepartment(category).name || formatCategoryLabel(category);
+    }
+
+    function populateDepartmentDropdowns(selectedKey) {
+      const currentPinKey = selectedKey || pinCategoryInput.value || (departments[0] && departments[0].key) || "general";
+      const currentFilterKey = categoryFilter.value || "all";
+      const currentEditorKey = manageDepartmentSelect.value || currentPinKey;
+
+      pinCategoryInput.innerHTML = departments.map(dept => `<option value="${escapeHtml(dept.key)}">${escapeHtml(dept.name)}</option>`).join("");
+      if (departments.some(dept => dept.key === currentPinKey)) pinCategoryInput.value = currentPinKey;
+
+      categoryFilter.innerHTML = '<option value="all">All departments</option>' + departments.map(dept => `<option value="${escapeHtml(dept.key)}">${escapeHtml(dept.name)}</option>`).join("");
+      const storedView = selectedDepartmentView || localStorage.getItem(DEPARTMENT_VIEW_STORAGE_KEY) || currentFilterKey;
+      if (storedView === "all" || departments.some(dept => dept.key === storedView)) categoryFilter.value = storedView;
+      else if (currentFilterKey === "all" || departments.some(dept => dept.key === currentFilterKey)) categoryFilter.value = currentFilterKey;
+
+      manageDepartmentSelect.innerHTML = departments.map(dept => `<option value="${escapeHtml(dept.key)}">${escapeHtml(dept.name)}</option>`).join("");
+      if (departments.some(dept => dept.key === currentEditorKey)) manageDepartmentSelect.value = currentEditorKey;
+
+      populateTitleDropdown();
+      populateSmsGroupCheckboxes();
+      populateReportedByDropdown();
+      buildLegend();
+      buildDepartmentViewOptions();
+      applyFilters();
+    }
+
+    function populateTitleDropdown() {
+      const dept = getDepartment(pinCategoryInput.value);
+      pinTitleInput.innerHTML = dept.titles.map(title => `<option value="${escapeHtml(title)}">${escapeHtml(title)}</option>`).join("");
+    }
+
+    function populateSmsGroupCheckboxes() {
+      const dept = getDepartment(pinCategoryInput.value);
+      if (!dept.smsGroups.length) {
+        smsGroupCheckboxes.innerHTML = '<div class="panel-note" style="padding:0;">No text groups set for this department.</div>';
+        return;
+      }
+      smsGroupCheckboxes.innerHTML = dept.smsGroups.map((group, index) => {
+        const cleanNumbers = (group.numbers || []).map(cleanPhoneNumber).filter(Boolean);
+        return `<label class="sms-group-option"><input type="checkbox" class="sms-group-checkbox" value="${index}"><span><strong>${escapeHtml(group.name)}</strong><span class="sms-group-meta">${cleanNumbers.length} number${cleanNumbers.length === 1 ? "" : "s"}</span></span></label>`;
+      }).join("");
+    }
+
+    function onPinDepartmentChange() {
+      populateTitleDropdown();
+      populateSmsGroupCheckboxes();
+      populateReportedByDropdown();
+    }
+
+    function setStatus(message) {
+      statusBar.textContent = message;
+    }
+
+    function toggleMobileUi(forceOpen) {
+      const isOpen = floatingUi.classList.contains("mobile-open");
+      const shouldOpen = typeof forceOpen === "boolean" ? forceOpen : !isOpen;
+
+      if (shouldOpen) {
+        floatingUi.classList.add("mobile-open");
+        if (mobileUiToggleIcon) mobileUiToggleIcon.textContent = "✕";
+      } else {
+        floatingUi.classList.remove("mobile-open");
+        if (mobileUiToggleIcon) mobileUiToggleIcon.textContent = "☰";
+      }
+    }
+
+    function closeMobileUiAfterAction() {
+      if (window.innerWidth <= 900) {
+        toggleMobileUi(false);
+      }
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement("div");
+      div.innerText = text ?? "";
+      return div.innerHTML;
+    }
+
+    function buildLegend() {
+      legendBody.innerHTML = departments.map(dept => (
+        '<div class="legend-item">' +
+          '<span class="legend-dot" style="background:' + escapeHtml(dept.color) + '"></span>' +
+          '<span>' + escapeHtml(dept.name) + '</span>' +
+        '</div>'
+      )).join("");
+    }
+
+    function makePinIcon(category) {
+      const color = getDepartmentColor(category);
+      return L.divIcon({
+        className: "",
+        html: '<div class="custom-pin" style="background:' + color + '"></div>',
+        iconSize: [18, 18],
+        iconAnchor: [9, 9],
+        popupAnchor: [0, -8]
+      });
+    }
+
+    function isSupabaseConfigured() {
+      return (
+        SUPABASE_URL &&
+        SUPABASE_ANON_KEY &&
+        !SUPABASE_URL.includes("REPLACE_WITH") &&
+        !SUPABASE_ANON_KEY.includes("REPLACE_WITH")
+      );
+    }
+
+    if (isSupabaseConfigured()) {
+      supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    }
+
+    const map = L.map("map", {
+      minZoom: 13,
+      maxZoom: 22
+    }).setView([43.6326, -79.4148], 17);
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 22,
+      attribution: "&copy; OpenStreetMap contributors"
+    }).addTo(map);
+
+    const p1 = L.latLng(43.634936, -79.426124);
+    const p2 = L.latLng(43.638072, -79.410371);
+    const p3 = L.latLng(43.629324, -79.423991);
+
+    L.imageOverlay.rotated("./site-plan.png", p1, p2, p3, {
+      opacity: 0.68,
+      interactive: true
+    }).addTo(map);
+
+    const userPinsLayer = L.layerGroup().addTo(map);
+
+    L.control.locate({
+      position: "topright",
+      keepCurrentZoomLevel: true,
+      flyTo: true,
+      locateOptions: {
+        enableHighAccuracy: true
+      },
+      strings: {
+        title: "Show my location"
+      }
+    }).addTo(map);
+
+    const cneBounds = L.latLngBounds(
+      [43.6280, -79.4245],
+      [43.6385, -79.4040]
+    );
+    map.fitBounds(cneBounds);
+
+    function normalizePhotoList(value, fallback) {
+      let photos = [];
+      if (Array.isArray(value)) {
+        photos = value;
+      } else if (typeof value === "string" && value.trim()) {
+        try {
+          const parsed = JSON.parse(value);
+          photos = Array.isArray(parsed) ? parsed : [value];
+        } catch (error) {
+          photos = [value];
+        }
+      }
+      if ((!photos || !photos.length) && fallback) photos = [fallback];
+      return photos.map(item => String(item || "").trim()).filter(Boolean);
+    }
+
+    function getPinPhotos(pin) {
+      return normalizePhotoList(pin.photo_urls, pin.photo_url);
+    }
+
+    function getClearPhotos(pin) {
+      return normalizePhotoList(pin.clear_photo_urls, pin.clear_photo_url);
+    }
+
+    function buildPhotoGalleryHtml(photos, label, imageClass = "popup-photo") {
+      const list = normalizePhotoList(photos);
+      if (!list.length) return "";
+      if (list.length === 1) {
+        return '<span class="photo-section-title">' + escapeHtml(label) + '</span>' +
+          '<img class="' + imageClass + '" src="' + escapeHtml(list[0]) + '" alt="' + escapeHtml(label) + '" onerror="this.style.display=\'none\'">';
+      }
+      return '<span class="photo-section-title">' + escapeHtml(label) + ' (' + list.length + ')</span>' +
+        '<div class="photo-gallery">' + list.map((url, index) =>
+          '<img src="' + escapeHtml(url) + '" alt="' + escapeHtml(label) + ' ' + (index + 1) + '" onerror="this.style.display=\'none\'">'
+        ).join("") + '</div>';
+    }
+
+    function buildPopupHtml(pin) {
+      const categoryLabel = formatDepartmentLabel(pin.category);
+      const photoHtml = buildPhotoGalleryHtml(getPinPhotos(pin), "Reported photos");
+      const clearPhotoHtml = buildPhotoGalleryHtml(getClearPhotos(pin), "Clear photos");
+
+      const closeButton = '<div class="popup-close-row"><button class="popup-close-btn" onclick="closeAllMapPopups()" title="Close">&times;</button></div>';
+
+      const pinStatus = getPinStatus(pin);
+      const canClearOrCancel = pinStatus === "active";
+      const editButton = pin.id
+        ? '<button class="action-btn secondary" onclick="openEditPinModal(' + pin.id + ')">' + (pinStatus === "cleared" ? 'Admin edit cleared pin' : 'Edit / Reassign') + '</button>'
+        : "";
+
+      const clearButton = canClearOrCancel
+        ? (pin.id ? '<button class="action-btn clear-btn" onclick="clearPin(' + pin.id + ')">Clear pin</button>' : "")
+        : "";
+
+      const cancelButton = canClearOrCancel
+        ? (pin.id ? '<button class="action-btn secondary" style="background:#8a4b08;" onclick="cancelPin(' + pin.id + ')">Cancel call</button>' : "")
+        : "";
+
+      const actionRow = pin.id
+        ? '<div style="margin-top:12px; display:flex; gap:8px; align-items:center; justify-content:space-between; flex-wrap:wrap;">' +
+            '<div style="display:flex; gap:8px; flex-wrap:wrap;">' + editButton + cancelButton + '</div>' +
+            '<div style="margin-left:auto;">' + clearButton + '</div>' +
+          '</div>'
+        : "";
+
+      return (
+        closeButton +
+        "<b>" + escapeHtml(pin.title) + "</b>" +
+        "<br><small><b>Status:</b> " + escapeHtml(formatPinStatus(pin)) + "</small>" +
+        "<br><small><b>Department:</b> " + escapeHtml(categoryLabel) + "</small>" +
+        (pin.reported_by ? "<br><small><b>Reported by:</b> " + escapeHtml(pin.reported_by) + "</small>" : "") +
+        (pin.cleared_by ? "<br><small><b>Cleared by:</b> " + escapeHtml(pin.cleared_by) + "</small>" : "") +
+        (pin.clear_comment ? "<br><small><b>Clear comments:</b> " + escapeHtml(pin.clear_comment) + "</small>" : "") +
+        (pin.description && pin.description.trim() !== "" ? "<br>" + escapeHtml(pin.description) : "") +
+        photoHtml +
+        clearPhotoHtml +
+        "<br><br><small>Location: " + escapeHtml(getLocationLabel(pin)) +
+        (pin.created_at ? "<br>Saved: " + new Date(pin.created_at).toLocaleString() : "") +
+        (getPinStatus(pin) === "cleared" && pin.cleared_at ? "<br>Cleared: " + new Date(pin.cleared_at).toLocaleString() : "") +
+        "</small>" +
+        actionRow
+      );
+    }
+
+    function addUserPin(pin, openPopup = false) {
+      const marker = L.marker([pin.lat, pin.lng], { icon: makePinIcon(pin.category) }).addTo(userPinsLayer);
+      marker.pinId = pin.id || null;
+      marker.bindPopup(buildPopupHtml(pin));
+      if (openPopup) marker.openPopup();
+    }
+
+    function renderFloorPlanPins(pins) {
+      if (!floorPlanPinLayer) return;
+      floorPlanPinLayer.innerHTML = "";
+      pins.forEach(pin => {
+        const x = Number(pin.x_percent ?? pin.lng);
+        const y = Number(pin.y_percent ?? pin.lat);
+        if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+        const dot = document.createElement("button");
+        dot.type = "button";
+        dot.className = "floor-pin";
+        dot.style.left = x + "%";
+        dot.style.top = y + "%";
+        dot.style.background = getDepartmentColor(pin.category);
+        dot.title = pin.title || "Pin";
+        dot.addEventListener("click", function(event) {
+          event.stopPropagation();
+          openFloorPlanPopup(pin, x, y);
+        });
+        floorPlanPinLayer.appendChild(dot);
+      });
+    }
+
+    function openFloorPlanPopup(pin, xPercent, yPercent) {
+      if (!floorPlanPopup) return;
+      floorPlanPopup.innerHTML = buildPopupHtml(pin);
+      floorPlanPopup.style.left = Math.min(96, Math.max(2, xPercent + 1.5)) + "%";
+      floorPlanPopup.style.top = Math.min(92, Math.max(2, yPercent + 1.5)) + "%";
+      floorPlanPopup.style.display = "block";
+    }
+
+    function renderLog(logPins) {
+      if (!logPins || !logPins.length) {
+        logBody.innerHTML = '<div class="empty-log">No cleared pins yet.</div>';
+        return;
+      }
+
+      logBody.innerHTML = logPins.map(pin => {
+        const photo = buildPhotoGalleryHtml(getPinPhotos(pin), "Reported photos", "log-photo");
+        const clearPhoto = buildPhotoGalleryHtml(getClearPhotos(pin), "Clear photos", "log-photo");
+
+        return (
+          '<div class="log-item">' +
+            '<div class="log-title">' + escapeHtml(pin.title) + '</div>' +
+            '<div><small><b>Status:</b> ' + escapeHtml(formatPinStatus(pin)) + '</small></div>' +
+            '<div><small><b>Department:</b> ' + escapeHtml(formatDepartmentLabel(pin.category)) + '</small></div>' +
+            (pin.reported_by ? '<div><small><b>Reported by:</b> ' + escapeHtml(pin.reported_by) + '</small></div>' : '') +
+            (pin.cleared_by ? '<div><small><b>Cleared by:</b> ' + escapeHtml(pin.cleared_by) + '</small></div>' : '') +
+            (pin.clear_comment ? '<div><small><b>Clear comments:</b> ' + escapeHtml(pin.clear_comment) + '</small></div>' : '') +
+            (pin.description ? '<div>' + escapeHtml(pin.description) + '</div>' : '') +
+            photo +
+            clearPhoto +
+            '<div class="log-meta">' +
+              'Original location: ' + escapeHtml(getLocationLabel(pin)) + '<br>' +
+              (pin.created_at ? 'Created: ' + new Date(pin.created_at).toLocaleString() + '<br>' : '') +
+              (pin.cleared_at ? 'Cleared: ' + new Date(pin.cleared_at).toLocaleString() : 'Cleared') +
+            '</div>' +
+            '<div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">' +
+              '<button class="action-btn secondary" onclick="openEditPinModal(' + pin.id + ')">Admin edit / reopen</button>' +
+            '</div>' +
+          '</div>'
+        );
+      }).join('');
+    }
+
+
+    function getPinStatus(pin) {
+      if (!pin) return "active";
+      if (pin.status === "cancelled") return "cancelled";
+      if (pin.status === "reported") return "reported";
+      if (pin.status === "cleared" || pin.is_cleared) return "cleared";
+      return "active";
+    }
+
+    function formatPinStatus(pin) {
+      const status = getPinStatus(pin);
+      if (status === "cleared") return "Cleared";
+      if (status === "cancelled") return "Cancelled call";
+      if (status === "reported") return "Report only";
+      return "Active";
+    }
+
+    function getActivePinsForCurrentMap() {
+      return allPins.filter(pin => getPinStatus(pin) === "active" && getPinMapId(pin) === currentMapId);
+    }
+
+    function getActivePinsForAllMaps() {
+      return allPins.filter(pin => getPinStatus(pin) === "active");
+    }
+
+    function navigateOutstanding(mapId, departmentKey) {
+      if (departmentKey) {
+        setDepartmentView(departmentKey, true);
+      }
+      if (mapId) {
+        switchMapView(mapId);
+      }
+      if (statusFilter) statusFilter.value = "active";
+      applyFilters();
+      closeMobileUiAfterAction();
+    }
+
+    function navigateLogPin(mapId, departmentKey, statusValue) {
+      if (departmentKey) {
+        setDepartmentView(departmentKey, true);
+      }
+      if (mapId) {
+        switchMapView(mapId);
+      }
+      if (statusFilter) statusFilter.value = statusValue || "all";
+      applyFilters();
+      closeMobileUiAfterAction();
+    }
+
+    function countActivePinsByMap(activePins, departmentKey) {
+      const counts = {};
+      activePins.forEach(pin => {
+        const pinDept = pin.category || "general";
+        if (departmentKey && departmentKey !== "all" && pinDept !== departmentKey) return;
+        const mapId = getPinMapId(pin);
+        counts[mapId] = (counts[mapId] || 0) + 1;
+      });
+      return counts;
+    }
+
+    function countActivePinsByDepartment(activePins) {
+      const counts = {};
+      activePins.forEach(pin => {
+        const key = pin.category || "general";
+        counts[key] = (counts[key] || 0) + 1;
+      });
+      return counts;
+    }
+
+    function buildOutstandingMapCards(countsByMap, departmentKey) {
+      const rows = mapViews
+        .map(view => ({ view, count: countsByMap[view.id] || 0 }))
+        .filter(item => item.count > 0)
+        .sort((a, b) => b.count - a.count || a.view.name.localeCompare(b.view.name));
+
+      if (!rows.length) {
+        return '<div class="panel-note" style="padding:0;">No outstanding items for this view.</div>';
+      }
+
+      return rows.map(item => {
+        const isCurrent = item.view.id === currentMapId;
+        return `<button type="button" class="outstanding-card ${isCurrent ? "active" : ""}" style="border-left-color:#005a9c;" onclick="navigateOutstanding('${escapeHtml(item.view.id)}', '${escapeHtml(departmentKey || "all")}')"><span class="outstanding-count">${item.count}</span><span class="outstanding-label">${escapeHtml(item.view.name)}</span></button>`;
+      }).join("");
+    }
+
+    function updateOutstandingSummary() {
+      if (!outstandingSummary) return;
+      const activePins = getActivePinsForAllMaps();
+      const selected = categoryFilter ? categoryFilter.value : "all";
+
+      if (selected !== "all") {
+        const selectedDept = departments.find(dept => dept.key === selected);
+        const deptName = selectedDept ? selectedDept.name : formatCategoryLabel(selected);
+        const deptColor = selectedDept ? (selectedDept.color || "#005a9c") : "#005a9c";
+        const deptPins = activePins.filter(pin => (pin.category || "general") === selected);
+        const countsByMap = countActivePinsByMap(activePins, selected);
+
+        outstandingSummary.innerHTML =
+          `<button type="button" class="outstanding-card active" style="border-left-color:${escapeHtml(deptColor)};" onclick="navigateOutstanding('${escapeHtml(currentMapId)}', '${escapeHtml(selected)}')"><span class="outstanding-count">${deptPins.length}</span><span class="outstanding-label">${escapeHtml(deptName)} total outstanding<br><small>Open items by map/building below</small></span></button>` +
+          buildOutstandingMapCards(countsByMap, selected);
+        return;
+      }
+
+      const total = activePins.length;
+      const countsByMap = countActivePinsByMap(activePins, "all");
+      const countsByDept = countActivePinsByDepartment(activePins);
+      const deptBreakdown = departments
+        .map(dept => ({ dept, count: countsByDept[dept.key] || 0 }))
+        .filter(item => item.count > 0)
+        .sort((a, b) => b.count - a.count || a.dept.name.localeCompare(b.dept.name))
+        .slice(0, 6)
+        .map(item => `${escapeHtml(item.dept.name)}: ${item.count}`)
+        .join(" · ");
+
+      outstandingSummary.innerHTML =
+        `<button type="button" class="outstanding-card active" style="border-left-color:#005a9c;" onclick="navigateOutstanding('${escapeHtml(currentMapId)}', 'all')"><span class="outstanding-count">${total}</span><span class="outstanding-label">All outstanding${deptBreakdown ? `<br>${deptBreakdown}` : ""}<br><small>Open items by map/building below</small></span></button>` +
+        buildOutstandingMapCards(countsByMap, "all");
+    }
+
+    function applyFilters() {
+      const statusValue = statusFilter.value;
+      const categoryValue = categoryFilter.value;
+
+      userPinsLayer.clearLayers();
+      if (floorPlanPinLayer) floorPlanPinLayer.innerHTML = "";
+      if (floorPlanPopup) floorPlanPopup.style.display = "none";
+
+      const filtered = allPins.filter(pin => {
+        const pinStatus = getPinStatus(pin);
+        const statusMatch =
+          statusValue === "all" ||
+          pinStatus === statusValue;
+
+        const categoryMatch =
+          categoryValue === "all" ||
+          (pin.category || "general") === categoryValue;
+
+        const mapMatch = getPinMapId(pin) === currentMapId;
+
+        return statusMatch && categoryMatch && mapMatch;
+      });
+
+      if (isFloorPlanMap()) {
+        renderFloorPlanPins(filtered);
+      } else {
+        filtered.forEach(pin => addUserPin(pin, false));
+      }
+
+      renderLog(allPins.filter(pin => getPinStatus(pin) === "cleared").filter(pin => getPinMapId(pin) === currentMapId).filter(pin => categoryValue === "all" || (pin.category || "general") === categoryValue));
+      updateOutstandingSummary();
+      if (allLogsPanel && allLogsPanel.classList.contains("open")) renderAllLogs();
+      setStatus(`Showing ${filtered.length} pin${filtered.length === 1 ? "" : "s"} on ${getMapView(currentMapId).name} (${statusValue}, ${categoryValue}).`);
+    }
+
+    async function loadPins(showMessage) {
+      if (!supabaseClient) {
+        setStatus("");
+        return;
+      }
+
+      if (showMessage) setStatus("Loading pins...");
+
+      const { data, error } = await supabaseClient
+        .from(SUPABASE_TABLE)
+        .select("id, title, description, lat, lng, photo_url, photo_urls, clear_photo_urls, map_snapshot_url, category, is_cleared, created_at, cleared_at, reported_by, cleared_by, clear_comment, status, map_id, location_type, x_percent, y_percent")
+        .order("created_at", { ascending: true });
+
+      if (error) {
+        console.error(error);
+        setStatus("Could not load pins. Check table columns, policies, and API key.");
+        return;
+      }
+
+      allPins = (data || []).map(pin => ({
+        ...pin,
+        category: pin.category || "general",
+        map_id: pin.map_id || "outdoor_site",
+        location_type: pin.location_type || "gps"
+      }));
+
+      applyFilters();
+      if (showMessage) setStatus(`Loaded ${allPins.length} total pin${allPins.length === 1 ? "" : "s"}.`);
+      handleInitialUrlAction();
+    }
+
+    async function savePin(latlng, title, description, photoUrls, category, reportedBy, statusValue = "active") {
+      if (!supabaseClient) {
+        alert("Supabase is not configured yet. Add your URL and anon key first.");
+        return;
+      }
+
+      setStatus("Saving pin...");
+
+      const payload = {
+        title: title,
+        description: description || "",
+        lat: latlng.lat,
+        lng: latlng.lng,
+        photo_urls: normalizePhotoList(photoUrls),
+        photo_url: normalizePhotoList(photoUrls)[0] || null,
+        map_snapshot_url: null,
+        category: category || "general",
+        reported_by: reportedBy || null,
+        map_id: latlng.map_id || currentMapId,
+        location_type: latlng.location_type || (isFloorPlanMap() ? "floorplan" : "gps"),
+        x_percent: latlng.x_percent ?? null,
+        y_percent: latlng.y_percent ?? null,
+        is_cleared: false,
+        status: statusValue || "active",
+        cleared_at: null
+      };
+
+      const { data, error } = await supabaseClient
+        .from(SUPABASE_TABLE)
+        .insert([payload])
+        .select();
+
+      if (error) {
+        console.error(error);
+        alert("Could not save pin. Check your insert policy and table columns in Supabase.");
+        setStatus("Save failed.");
+        return;
+      }
+
+      const savedPin = data && data.length ? data[0] : payload;
+      const normalizedPin = { ...savedPin, category: savedPin.category || "general", map_id: savedPin.map_id || currentMapId, location_type: savedPin.location_type || (isFloorPlanMap() ? "floorplan" : "gps") };
+      allPins.push(normalizedPin);
+      applyFilters();
+      setStatus("Pin saved.");
+      return normalizedPin;
+    }
+
+    function openClearModal(pinId) {
+      const pin = allPins.find(item => item.id === pinId);
+      if (!pin) return;
+      pendingClearPinId = pinId;
+      populateClearedByDropdown(pin);
+      if (clearPinNote) clearPinNote.textContent = `Clearing ${formatDepartmentLabel(pin.category)} request: ${pin.title}`;
+      clearModal.classList.add("open");
+      modalBackdrop.classList.add("open");
+      if (clearByInput) clearByInput.focus();
+    }
+
+    function closeClearModal() {
+      pendingClearPinId = null;
+      clearModal.classList.remove("open");
+      modalBackdrop.classList.remove("open");
+      if (clearByInput) clearByInput.value = "";
+      if (clearCommentInput) clearCommentInput.value = "";
+      if (clearPhotoFileInput) clearPhotoFileInput.value = "";
+      if (clearPhotoPreview) {
+        clearPhotoPreview.innerHTML = "";
+        clearPhotoPreview.style.display = "none";
+      }
+    }
+
+
+    async function cancelPin(pinId) {
+      if (!supabaseClient || !pinId) return;
+      const pin = allPins.find(item => item.id === pinId);
+      if (!pin) return;
+      const confirmed = window.confirm("Mark this call as cancelled? It will be removed from outstanding items but kept in All Logs.");
+      if (!confirmed) return;
+
+      setStatus("Cancelling call...");
+      const { data, error } = await supabaseClient
+        .from(SUPABASE_TABLE)
+        .update({
+          status: "cancelled",
+          is_cleared: false,
+          cleared_at: null,
+          cleared_by: null
+        })
+        .eq("id", pinId)
+        .select();
+
+      if (error) {
+        console.error(error);
+        alert("Could not cancel this call. Make sure the status column exists in Supabase and check your update policy.");
+        setStatus("Cancel failed.");
+        return;
+      }
+
+      const updatedPin = data && data.length ? data[0] : { ...pin, status: "cancelled", is_cleared: false, cleared_at: null, cleared_by: null };
+      const index = allPins.findIndex(item => item.id === pinId);
+      if (index !== -1) allPins[index] = { ...allPins[index], ...updatedPin };
+      applyFilters();
+      setStatus("Call cancelled and removed from outstanding.");
+    }
+
+    async function clearPin(pinId) {
+      openClearModal(pinId);
+    }
+
+    async function submitClearPinForm() {
+      if (!supabaseClient || !pendingClearPinId) return;
+
+      const clearedBy = clearByInput.value.trim();
+      if (!clearedBy) {
+        alert("Cleared By is required.");
+        clearByInput.focus();
+        return;
+      }
+
+      const clearComment = clearCommentInput ? clearCommentInput.value.trim() : "";
+
+      const confirmed = window.confirm("Clear this pin publicly and keep it in the log?");
+      if (!confirmed) return;
+
+      setStatus("Clearing pin...");
+      const clearedAt = new Date().toISOString();
+      let clearPhotoUrls = [];
+
+      try {
+        const clearPhotoFiles = Array.from((clearPhotoFileInput && clearPhotoFileInput.files) || []);
+        if (clearPhotoFiles.length) {
+          setStatus(`Uploading ${clearPhotoFiles.length} clear photo${clearPhotoFiles.length === 1 ? "" : "s"}...`);
+          clearPhotoUrls = await uploadPhotoFiles(clearPhotoFiles);
+        }
+      } catch (error) {
+        console.error(error);
+        alert("Could not upload the clear photo(s). Check your storage bucket and storage policies.");
+        setStatus("Clear photo upload failed.");
+        return;
+      }
+
+      const { error } = await supabaseClient
+        .from(SUPABASE_TABLE)
+        .update({
+          is_cleared: true,
+          status: "cleared",
+          cleared_at: clearedAt,
+          cleared_by: clearedBy,
+          clear_comment: clearComment,
+          clear_photo_urls: clearPhotoUrls
+        })
+        .eq("id", pendingClearPinId);
+
+      if (error) {
+        console.error(error);
+        alert("Could not clear pin. Make sure the cleared_by column exists in Supabase and check your update policy.");
+        setStatus("Clear failed.");
+        return;
+      }
+
+      const target = allPins.find(pin => pin.id === pendingClearPinId);
+      if (target) {
+        target.is_cleared = true;
+        target.status = "cleared";
+        target.cleared_at = clearedAt;
+        target.cleared_by = clearedBy;
+        target.clear_comment = clearComment;
+        target.clear_photo_urls = clearPhotoUrls;
+      }
+      closeClearModal();
+      applyFilters();
+      setStatus("Pin cleared and moved to the log.");
+    }
+
+    function getClearedPinsForDeleteList() {
+      return allPins
+        .filter(pin => getPinStatus(pin) === "cleared")
+        .slice()
+        .sort((a, b) => new Date(b.cleared_at || b.created_at || 0) - new Date(a.cleared_at || a.created_at || 0));
+    }
+
+    function populateDeleteHistorySelect() {
+      if (!deleteHistorySelect) return;
+      const clearedPins = getClearedPinsForDeleteList();
+      if (!clearedPins.length) {
+        deleteHistorySelect.innerHTML = '<option value="">No cleared pins in history</option>';
+        if (deleteHistoryDetails) deleteHistoryDetails.innerHTML = 'No cleared pins are available to delete.';
+        return;
+      }
+
+      deleteHistorySelect.innerHTML = clearedPins.map(pin => {
+        const labelParts = [
+          pin.title || 'Untitled pin',
+          formatDepartmentLabel(pin.category),
+          getMapView(getPinMapId(pin)).name,
+          pin.cleared_at ? new Date(pin.cleared_at).toLocaleString() : 'Cleared'
+        ];
+        return `<option value="${escapeHtml(pin.id)}">${escapeHtml(labelParts.join(' | '))}</option>`;
+      }).join('');
+      loadDeleteHistoryDetails();
+    }
+
+    function loadDeleteHistoryDetails() {
+      if (!deleteHistorySelect || !deleteHistoryDetails) return;
+      const pinId = Number(deleteHistorySelect.value);
+      const pin = allPins.find(item => Number(item.id) === pinId);
+      if (!pin) {
+        deleteHistoryDetails.innerHTML = 'Choose a cleared pin above.';
+        return;
+      }
+      deleteHistoryDetails.innerHTML =
+        '<b>' + escapeHtml(pin.title || 'Untitled pin') + '</b><br>' +
+        '<b>Department:</b> ' + escapeHtml(formatDepartmentLabel(pin.category)) + '<br>' +
+        '<b>Map:</b> ' + escapeHtml(getMapView(getPinMapId(pin)).name) + '<br>' +
+        (pin.reported_by ? '<b>Reported by:</b> ' + escapeHtml(pin.reported_by) + '<br>' : '') +
+        (pin.cleared_by ? '<b>Cleared by:</b> ' + escapeHtml(pin.cleared_by) + '<br>' : '') +
+        (pin.clear_comment ? '<b>Clear comments:</b> ' + escapeHtml(pin.clear_comment) + '<br>' : '') +
+        (pin.cleared_at ? '<b>Cleared:</b> ' + escapeHtml(new Date(pin.cleared_at).toLocaleString()) + '<br>' : '') +
+        '<b>Location:</b> ' + escapeHtml(getLocationLabel(pin)) +
+        '<br><br><span style="color:#b71c1c; font-weight:bold;">Deleting removes this item from Supabase history and removes its stored photos.</span>';
+    }
+
+
+    function populateAllLogsFilters() {
+      if (allLogsDepartmentFilter) {
+        const previous = allLogsDepartmentFilter.value || "all";
+        allLogsDepartmentFilter.innerHTML = '<option value="all">All departments</option>' + departments.map(dept => `<option value="${escapeHtml(dept.key)}">${escapeHtml(dept.name)}</option>`).join("");
+        allLogsDepartmentFilter.value = departments.some(dept => dept.key === previous) ? previous : "all";
+      }
+      if (allLogsMapFilter) {
+        const previous = allLogsMapFilter.value || "all";
+        allLogsMapFilter.innerHTML = '<option value="all">All maps/buildings</option>' + mapViews.map(view => `<option value="${escapeHtml(view.id)}">${escapeHtml(view.name)}</option>`).join("");
+        allLogsMapFilter.value = mapViews.some(view => view.id === previous) ? previous : "all";
+      }
+    }
+
+    function getFilteredAllLogRows() {
+      const statusValue = allLogsStatusFilter ? allLogsStatusFilter.value : "all";
+      const deptValue = allLogsDepartmentFilter ? allLogsDepartmentFilter.value : "all";
+      const mapValue = allLogsMapFilter ? allLogsMapFilter.value : "all";
+      return allPins
+        .filter(pin => statusValue === "all" || getPinStatus(pin) === statusValue)
+        .filter(pin => deptValue === "all" || (pin.category || "general") === deptValue)
+        .filter(pin => mapValue === "all" || getPinMapId(pin) === mapValue)
+        .slice()
+        .sort((a, b) => new Date(b.cleared_at || b.created_at || 0) - new Date(a.cleared_at || a.created_at || 0));
+    }
+
+    function getAllLogsFilterTitle() {
+      const statusText = allLogsStatusFilter ? allLogsStatusFilter.options[allLogsStatusFilter.selectedIndex]?.text || "All statuses" : "All statuses";
+      const deptText = allLogsDepartmentFilter ? allLogsDepartmentFilter.options[allLogsDepartmentFilter.selectedIndex]?.text || "All departments" : "All departments";
+      const mapText = allLogsMapFilter ? allLogsMapFilter.options[allLogsMapFilter.selectedIndex]?.text || "All maps/buildings" : "All maps/buildings";
+      return `${statusText} · ${deptText} · ${mapText}`;
+    }
+
+    function renderAllLogs() {
+      if (!allLogsBody) return;
+      const rows = getFilteredAllLogRows();
+
+      if (!rows.length) {
+        allLogsBody.innerHTML = '<div class="empty-log">No pins match these filters.</div>';
+        return;
+      }
+
+      allLogsBody.innerHTML = rows.map(pin => {
+        const status = getPinStatus(pin);
+        return (
+          '<div class="log-item">' +
+            '<div class="log-title">' + escapeHtml(pin.title || 'Untitled pin') + '</div>' +
+            '<div><small><b>Status:</b> ' + escapeHtml(formatPinStatus(pin)) + '</small></div>' +
+            '<div><small><b>Department:</b> ' + escapeHtml(formatDepartmentLabel(pin.category)) + '</small></div>' +
+            '<div><small><b>Map:</b> ' + escapeHtml(getMapView(getPinMapId(pin)).name) + '</small></div>' +
+            (pin.reported_by ? '<div><small><b>Reported by:</b> ' + escapeHtml(pin.reported_by) + '</small></div>' : '') +
+            (pin.cleared_by ? '<div><small><b>Cleared by:</b> ' + escapeHtml(pin.cleared_by) + '</small></div>' : '') +
+            (pin.clear_comment ? '<div><small><b>Clear comments:</b> ' + escapeHtml(pin.clear_comment) + '</small></div>' : '') +
+            (pin.description ? '<div>' + escapeHtml(pin.description) + '</div>' : '') +
+            '<div class="log-meta">' +
+              'Location: ' + escapeHtml(getLocationLabel(pin)) + '<br>' +
+              (pin.created_at ? 'Created: ' + new Date(pin.created_at).toLocaleString() + '<br>' : '') +
+              (status === 'cleared' && pin.cleared_at ? 'Cleared: ' + new Date(pin.cleared_at).toLocaleString() : '') +
+            '</div>' +
+            '<div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">' +
+              '<button class="action-btn secondary" onclick="openEditPinModal(' + pin.id + ')">Edit / update</button>' +
+              '<button class="action-btn secondary" onclick="navigateLogPin(&quot;' + escapeHtml(getPinMapId(pin)) + '&quot;, &quot;' + escapeHtml(pin.category || 'general') + '&quot;, &quot;' + escapeHtml(status) + '&quot;)">Open map</button>' +
+            '</div>' +
+          '</div>'
+        );
+      }).join('');
+    }
+
+    function printAllLogs() {
+      populateAllLogsFilters();
+      const rows = getFilteredAllLogRows();
+      const printedAt = new Date().toLocaleString();
+      const filterTitle = getAllLogsFilterTitle();
+      const bodyHtml = rows.length ? rows.map(pin => {
+        const reportedPhotos = buildPhotoGalleryHtml(getPinPhotos(pin), "Reported photos", "log-photo");
+        const clearPhotos = buildPhotoGalleryHtml(getClearPhotos(pin), "Clear photos", "log-photo");
+        return `
+          <div class="card">
+            <h2>${escapeHtml(pin.title || 'Untitled pin')}</h2>
+            <div><strong>Status:</strong> ${escapeHtml(formatPinStatus(pin))}</div>
+            <div><strong>Department:</strong> ${escapeHtml(formatDepartmentLabel(pin.category))}</div>
+            <div><strong>Map:</strong> ${escapeHtml(getMapView(getPinMapId(pin)).name)}</div>
+            ${pin.reported_by ? `<div><strong>Reported by:</strong> ${escapeHtml(pin.reported_by)}</div>` : ""}
+            ${pin.cleared_by ? `<div><strong>Cleared by:</strong> ${escapeHtml(pin.cleared_by)}</div>` : ""}
+            ${pin.clear_comment ? `<div><strong>Clear comments:</strong> ${escapeHtml(pin.clear_comment)}</div>` : ""}
+            ${pin.description ? `<div style="margin-top:6px;"><strong>Location/details:</strong> ${escapeHtml(pin.description)}</div>` : ""}
+            <div class="meta">
+              Location: ${escapeHtml(getLocationLabel(pin))}<br>
+              ${pin.created_at ? `Created: ${new Date(pin.created_at).toLocaleString()}<br>` : ""}
+              ${getPinStatus(pin) === 'cleared' && pin.cleared_at ? `Cleared: ${new Date(pin.cleared_at).toLocaleString()}` : ""}
+            </div>
+            ${reportedPhotos}
+            ${clearPhotos}
+          </div>`;
+      }).join("\n") : '<div class="note">No pins match these filters.</div>';
+
+      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>CNE Pin Logs</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 24px; color:#1f2933; }
+          h1 { margin: 0 0 6px; }
+          .note { color:#52606d; margin-bottom:18px; }
+          .card { border:1px solid #d9e2ec; border-radius:10px; padding:14px; margin-bottom:14px; page-break-inside:avoid; }
+          .card h2 { margin:0 0 8px; font-size:18px; }
+          .meta { font-size:13px; color:#52606d; line-height:1.5; margin-top:8px; }
+          .photo-section-title { display:block; font-weight:bold; margin-top:10px; font-size:13px; }
+          .log-photo, .popup-photo { display:block; margin-top:8px; max-width:220px; max-height:160px; object-fit:cover; border:1px solid #d9e2ec; border-radius:8px; }
+          .photo-gallery { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+          .photo-gallery img { width:120px; height:90px; object-fit:cover; border:1px solid #d9e2ec; border-radius:8px; }
+          @media print { button { display:none; } body { margin: 12mm; } }
+        </style></head><body>
+        <h1>CNE Pin Logs</h1>
+        <div class="note">Printed ${escapeHtml(printedAt)}<br>Filters: ${escapeHtml(filterTitle)}<br>${rows.length} item${rows.length === 1 ? "" : "s"}</div>
+        ${bodyHtml}
+        <script>window.onload = function(){ setTimeout(function(){ window.print(); }, 250); }<\/script>
+      </body></html>`;
+
+      const printWindow = window.open("", "_blank");
+      if (!printWindow) {
+        alert("Pop-up blocked. Please allow pop-ups to print the logs.");
+        return;
+      }
+      printWindow.document.open();
+      printWindow.document.write(html);
+      printWindow.document.close();
+    }
+
+    function toggleAllLogsPanel(forceOpen) {
+      const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : !allLogsPanel.classList.contains('open');
+      if (shouldOpen) {
+        if (!adminPanel || !adminPanel.classList.contains('open')) {
+          const password = window.prompt('Enter admin password to view all logs:');
+          if (password !== ADMIN_PASSWORD) {
+            alert('Incorrect password.');
+            return;
+          }
+        }
+        populateAllLogsFilters();
+        renderAllLogs();
+        allLogsPanel.classList.add('open');
+      } else {
+        allLogsPanel.classList.remove('open');
+      }
+    }
+
+    function toggleDeleteHistoryPanel(forceOpen) {
+      const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : !deleteHistoryPanel.classList.contains('open');
+      if (shouldOpen) {
+        if (!adminPanel || !adminPanel.classList.contains('open')) {
+          const password = window.prompt('Enter admin password to delete history:');
+          if (password !== ADMIN_PASSWORD) {
+            alert('Incorrect password.');
+            return;
+          }
+        }
+        populateDeleteHistorySelect();
+        deleteHistoryPanel.classList.add('open');
+      } else {
+        deleteHistoryPanel.classList.remove('open');
+      }
+    }
+
+    async function deleteSelectedClearedPin() {
+      if (!deleteHistorySelect || !deleteHistorySelect.value) {
+        alert('Choose a cleared pin to delete first.');
+        return;
+      }
+      await deletePinPermanently(Number(deleteHistorySelect.value));
+      populateDeleteHistorySelect();
+    }
+
+    async function deletePinPermanently(pinId) {
+      if (!supabaseClient || !pinId) return;
+
+      const confirmed = window.confirm("Delete this pin from history permanently?");
+      if (!confirmed) return;
+
+      setStatus("Deleting pin from history...");
+      const targetPin = allPins.find(pin => pin.id === pinId);
+
+      const { error } = await supabaseClient
+        .from(SUPABASE_TABLE)
+        .delete()
+        .eq("id", pinId);
+
+      if (error) {
+        console.error(error);
+        alert("Could not delete pin from history. Check your delete policy in Supabase.");
+        setStatus("Delete failed.");
+        return;
+      }
+
+      if (targetPin) {
+        const photosToRemove = [...getPinPhotos(targetPin), ...getClearPhotos(targetPin)];
+        for (const photoUrl of photosToRemove) {
+          await removeStoredPhoto(photoUrl);
+        }
+      }
+
+      allPins = allPins.filter(pin => pin.id !== pinId);
+      applyFilters();
+      if (deleteHistoryPanel && deleteHistoryPanel.classList.contains("open")) populateDeleteHistorySelect();
+      setStatus("Pin deleted from history.");
+    }
+
+    function toggleAdminPanel(forceOpen) {
+      const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : !adminPanel.classList.contains('open');
+      if (shouldOpen) {
+        const password = window.prompt('Enter admin password:');
+        if (password !== ADMIN_PASSWORD) {
+          alert('Incorrect password.');
+          return;
+        }
+        adminPanel.classList.add('open');
+      } else {
+        adminPanel.classList.remove('open');
+      }
+    }
+
+    function toggleLogPanel(forceOpen) {
+      const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : !logPanel.classList.contains('open');
+      if (shouldOpen) {
+        logPanel.classList.add('open');
+      } else {
+        logPanel.classList.remove('open');
+      }
+    }
+
+    function toggleLegendPanel(forceOpen) {
+      const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : !legendPanel.classList.contains('open');
+      if (shouldOpen) {
+        legendPanel.classList.add('open');
+      } else {
+        legendPanel.classList.remove('open');
+      }
+    }
+
+    function toggleDepartmentPanel(forceOpen) {
+      const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : !departmentPanel.classList.contains('open');
+      if (shouldOpen) {
+        if (!adminPanel || !adminPanel.classList.contains('open')) {
+          const password = window.prompt('Enter admin password to manage departments:');
+          if (password !== ADMIN_PASSWORD) {
+            alert('Incorrect password.');
+            return;
+          }
+        }
+        departmentPanel.classList.add('open');
+        loadDepartmentEditor();
+      } else {
+        departmentPanel.classList.remove('open');
+      }
+    }
+
+    function groupsToText(groups) {
+      return (groups || []).map(group => `${group.name}: ${(group.numbers || []).join(', ')}`).join('\n');
+    }
+
+    function textToGroups(text) {
+      return String(text || '').split('\n').map(line => line.trim()).filter(Boolean).map(line => {
+        const parts = line.split(':');
+        const name = (parts.shift() || 'Text Group').trim();
+        const numbers = parts.join(':').split(/[;,]+/).map(item => cleanPhoneNumber(item.trim())).filter(Boolean);
+        return { name, numbers };
+      });
+    }
+
+    function loadDepartmentEditor() {
+      const dept = getDepartment(manageDepartmentSelect.value);
+      manageDepartmentSelect.value = dept.key;
+      manageDepartmentName.value = dept.name;
+      manageDepartmentColor.value = dept.color;
+      manageDepartmentTitles.value = dept.titles.join('\n');
+      manageDepartmentGroups.value = groupsToText(dept.smsGroups);
+    }
+
+    function saveDepartmentEditor() {
+      const oldKey = manageDepartmentSelect.value;
+      const name = manageDepartmentName.value.trim();
+      if (!name) {
+        alert('Department name is required.');
+        manageDepartmentName.focus();
+        return;
+      }
+      let key = normalizeDepartmentKey(name);
+      let duplicateIndex = departments.findIndex(dept => dept.key === key && dept.key !== oldKey);
+      if (duplicateIndex !== -1) key = `${key}-${Date.now().toString(36).slice(-4)}`;
+      const titles = manageDepartmentTitles.value.split('\n').map(item => item.trim()).filter(Boolean);
+      if (!titles.length) {
+        alert('Add at least one title option.');
+        manageDepartmentTitles.focus();
+        return;
+      }
+      const updated = {
+        key,
+        name,
+        color: manageDepartmentColor.value || '#0078d7',
+        titles,
+        smsGroups: textToGroups(manageDepartmentGroups.value)
+      };
+      const index = departments.findIndex(dept => dept.key === oldKey);
+      if (index === -1) departments.push(updated);
+      else departments[index] = updated;
+
+      allPins.forEach(pin => {
+        if ((pin.category || 'general') === oldKey) pin.category = key;
+      });
+      saveDepartmentsToStorage();
+      populateDepartmentDropdowns(key);
+      manageDepartmentSelect.value = key;
+      loadDepartmentEditor();
+      setStatus('Department settings saved.');
+    }
+
+    function addNewDepartmentEditor() {
+      const baseName = 'New Department';
+      const key = `new-department-${Date.now().toString(36).slice(-4)}`;
+      departments.push({
+        key,
+        name: baseName,
+        color: '#0078d7',
+        titles: ['New request'],
+        smsGroups: [{ name: 'Team', numbers: [] }]
+      });
+      saveDepartmentsToStorage();
+      populateDepartmentDropdowns(key);
+      manageDepartmentSelect.value = key;
+      loadDepartmentEditor();
+      manageDepartmentName.select();
+    }
+
+    function deleteDepartmentEditor() {
+      const key = manageDepartmentSelect.value;
+      if (departments.length <= 1) {
+        alert('You need at least one department.');
+        return;
+      }
+      const dept = getDepartment(key);
+      if (!window.confirm(`Delete ${dept.name}? Existing pins will show under General if this department is removed.`)) return;
+      departments = departments.filter(item => item.key !== key);
+      if (selectedDepartmentView === key) {
+        selectedDepartmentView = "all";
+        localStorage.setItem(DEPARTMENT_VIEW_STORAGE_KEY, "all");
+      }
+      allPins.forEach(pin => {
+        if ((pin.category || 'general') === key) pin.category = departments[0].key;
+      });
+      saveDepartmentsToStorage();
+      populateDepartmentDropdowns(departments[0].key);
+      loadDepartmentEditor();
+      setStatus('Department deleted.');
+    }
+
+    function resetDepartmentSettings() {
+      if (!window.confirm('Reset departments, title options, colours, and text groups to defaults?')) return;
+      departments = normalizeDepartments(DEFAULT_DEPARTMENTS);
+      saveDepartmentsToStorage();
+      populateDepartmentDropdowns(departments[0].key);
+      loadDepartmentEditor();
+      setStatus('Department settings reset.');
+    }
+
+function resetPinForm() {
+  pinDescriptionInput.value = "";
+  pinCategoryInput.value = departments[0] ? departments[0].key : "general";
+  if (pinReportedByInput) pinReportedByInput.value = "";
+  populateTitleDropdown();
+  populateSmsGroupCheckboxes();
+  pinPhotoFileInput.value = "";
+  pinNotifySmsNowInput.checked = true;
+  if (previewObjectUrl) {
+    previewObjectUrl.forEach(url => URL.revokeObjectURL(url));
+    previewObjectUrl = null;
+  }
+  pinPhotoPreview.innerHTML = "";
+  pinPhotoPreview.style.display = "none";
+}
+
+    function openPinModalForPending() {
+      if (!pendingLatLng) {
+        pinLocationNote.textContent = isFloorPlanMap() ? "Click the floor plan first to choose a location, then click Add Pin." : "Click the map first to choose a pin location, then click Add Pin.";
+      } else if (pendingLatLng.location_type === "floorplan") {
+        pinLocationNote.textContent = `Selected floor plan location: X ${pendingLatLng.x_percent.toFixed(1)}%, Y ${pendingLatLng.y_percent.toFixed(1)}%`;
+      } else {
+        pinLocationNote.textContent = `Selected GPS location: ${pendingLatLng.lat.toFixed(6)}, ${pendingLatLng.lng.toFixed(6)}`;
+      }
+      if (selectedDepartmentView && selectedDepartmentView !== "all" && departments.some(dept => dept.key === selectedDepartmentView)) {
+        pinCategoryInput.value = selectedDepartmentView;
+      }
+      onPinDepartmentChange();
+      const pinInstructionsDetails = document.getElementById("pinInstructionsDetails");
+      if (pinInstructionsDetails) pinInstructionsDetails.open = false;
+      pinModal.classList.add("open");
+      modalBackdrop.classList.add("open");
+      pinTitleInput.focus();
+    }
+
+    function closePinModal() {
+      pinModal.classList.remove("open");
+      modalBackdrop.classList.remove("open");
+      resetPinForm();
+    }
+
+    async function submitPinForm() {
+      if (!pendingLatLng) {
+        alert(isFloorPlanMap() ? "Click the floor plan first to choose a pin location." : "Click the map first to choose a pin location.");
+        return;
+      }
+
+      const reportedBy = pinReportedByInput.value.trim();
+      if (!reportedBy) {
+        alert("Reported By is required.");
+        pinReportedByInput.focus();
+        return;
+      }
+
+      const title = pinTitleInput.value.trim();
+      if (!title) {
+        alert("Pin title is required.");
+        pinTitleInput.focus();
+        return;
+      }
+
+      const locationDetails = pinDescriptionInput.value.trim();
+      if (!locationDetails) {
+        alert("Location and description details are required.");
+        pinDescriptionInput.focus();
+        return;
+      }
+
+      let uploadedPhotoUrls = [];
+      const photoFiles = Array.from((pinPhotoFileInput.files || []));
+
+      try {
+        if (photoFiles.length) {
+          setStatus(`Compressing and uploading ${photoFiles.length} photo${photoFiles.length === 1 ? "" : "s"}...`);
+          uploadedPhotoUrls = await uploadPhotoFiles(photoFiles);
+        }
+
+        const requestStatus = "active";
+        const savedPin = await savePin(
+          pendingLatLng,
+          title,
+          locationDetails,
+          uploadedPhotoUrls,
+          pinCategoryInput.value,
+          reportedBy,
+          requestStatus
+        );
+
+        if (savedPin) {
+          await saveMapSnapshotForPin(savedPin);
+        }
+        triggerSmsNotification(savedPin);
+        closePinModal();
+      } catch (error) {
+        console.error(error);
+        alert("Could not upload the photo. Check your storage bucket and storage policies.");
+        setStatus("Photo upload failed.");
+      }
+    }
+
+    function buildStoragePath(originalName) {
+      const safeName = (originalName || "photo.jpg").replace(/[^a-zA-Z0-9._-]/g, "_");
+      return "pins/" + Date.now() + "_" + Math.random().toString(36).slice(2, 10) + "_" + safeName.replace(/\.[^.]+$/, "") + ".jpg";
+    }
+
+    function buildSnapshotStoragePath(pinId) {
+      return "map-snapshots/" + (pinId || "pin") + "_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8) + ".png";
+    }
+
+    function loadImageForCanvas(src) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error("Could not load map image for snapshot: " + src));
+        img.src = src;
+      });
+    }
+
+    function canvasToPngBlob(canvas) {
+      return new Promise((resolve, reject) => {
+        canvas.toBlob(blob => {
+          if (blob) resolve(blob);
+          else reject(new Error("Could not create map snapshot image."));
+        }, "image/png", 0.92);
+      });
+    }
+
+    function drawSnapshotPin(ctx, x, y, label) {
+      ctx.save();
+      ctx.shadowColor = "rgba(0,0,0,0.35)";
+      ctx.shadowBlur = 8;
+      ctx.fillStyle = "#d32f2f";
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.arc(x, y, 15, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.arc(x, y, 5, 0, Math.PI * 2);
+      ctx.fill();
+      if (label) {
+        ctx.font = "bold 20px Arial";
+        const text = String(label).slice(0, 34);
+        const width = ctx.measureText(text).width + 22;
+        const boxX = Math.min(Math.max(12, x + 22), ctx.canvas.width - width - 12);
+        const boxY = Math.min(Math.max(12, y - 28), ctx.canvas.height - 44);
+        ctx.fillStyle = "rgba(255,255,255,0.94)";
+        ctx.strokeStyle = "rgba(0,0,0,0.18)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.roundRect(boxX, boxY, width, 34, 8);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = "#1f2933";
+        ctx.fillText(text, boxX + 11, boxY + 23);
+      }
+      ctx.restore();
+    }
+
+    function calculateOutdoorImagePosition(pin) {
+      const lat = Number(pin.lat);
+      const lng = Number(pin.lng);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return { u: 0.5, v: 0.5 };
+      const a = { x: p1.lng, y: p1.lat };
+      const b = { x: p2.lng - p1.lng, y: p2.lat - p1.lat };
+      const c = { x: p3.lng - p1.lng, y: p3.lat - p1.lat };
+      const d = { x: lng - a.x, y: lat - a.y };
+      const det = b.x * c.y - b.y * c.x;
+      if (Math.abs(det) < 1e-12) return { u: 0.5, v: 0.5 };
+      const u = (d.x * c.y - d.y * c.x) / det;
+      const v = (b.x * d.y - b.y * d.x) / det;
+      return { u: Math.max(0, Math.min(1, u)), v: Math.max(0, Math.min(1, v)) };
+    }
+
+    async function createMapSnapshotBlob(pin) {
+      const view = getMapView(getPinMapId(pin));
+      const isFloor = (pin.location_type || "gps") === "floorplan" || view.type === "floorplan";
+      const imageSrc = isFloor ? (view.image || "./floor-plan-food-building.png") : "./site-plan.png";
+      const img = await loadImageForCanvas(imageSrc);
+      const sourceWidth = img.naturalWidth || img.width;
+      const sourceHeight = img.naturalHeight || img.height;
+
+      let sourceX;
+      let sourceY;
+      if (isFloor) {
+        sourceX = (Number(pin.x_percent ?? pin.lng) / 100) * sourceWidth;
+        sourceY = (Number(pin.y_percent ?? pin.lat) / 100) * sourceHeight;
+      } else {
+        const pos = calculateOutdoorImagePosition(pin);
+        sourceX = pos.u * sourceWidth;
+        sourceY = pos.v * sourceHeight;
+      }
+      if (!Number.isFinite(sourceX)) sourceX = sourceWidth / 2;
+      if (!Number.isFinite(sourceY)) sourceY = sourceHeight / 2;
+
+      // Create a zoomed-in snapshot around the pin instead of the full map/floor plan.
+      // The crop keeps enough surrounding context while making the pin area easier to read in reports.
+      const cropWidth = Math.min(sourceWidth, Math.max(420, sourceWidth * 0.32));
+      const cropHeight = Math.min(sourceHeight, Math.max(320, sourceHeight * 0.32));
+      let cropX = sourceX - cropWidth / 2;
+      let cropY = sourceY - cropHeight / 2;
+      cropX = Math.max(0, Math.min(sourceWidth - cropWidth, cropX));
+      cropY = Math.max(0, Math.min(sourceHeight - cropHeight, cropY));
+
+      const canvasWidth = 760;
+      const canvasHeight = Math.max(420, Math.round(canvasWidth * (cropHeight / cropWidth)));
+      const canvas = document.createElement("canvas");
+      canvas.width = canvasWidth;
+      canvas.height = canvasHeight;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, cropX, cropY, cropWidth, cropHeight, 0, 0, canvas.width, canvas.height);
+
+      const pinX = ((sourceX - cropX) / cropWidth) * canvas.width;
+      const pinY = ((sourceY - cropY) / cropHeight) * canvas.height;
+      drawSnapshotPin(ctx, Math.max(24, Math.min(canvas.width - 24, pinX)), Math.max(24, Math.min(canvas.height - 24, pinY)), pin.title || "Pin");
+      return canvasToPngBlob(canvas);
+    }
+
+    async function saveMapSnapshotForPin(pin) {
+      if (!pin || !pin.id || !supabaseClient) return null;
+      try {
+        setStatus("Creating map snapshot...");
+        const blob = await createMapSnapshotBlob(pin);
+        const storagePath = buildSnapshotStoragePath(pin.id);
+        const { error } = await supabaseClient.storage
+          .from(SUPABASE_BUCKET)
+          .upload(storagePath, blob, {
+            contentType: "image/png",
+            cacheControl: "3600",
+            upsert: false
+          });
+        if (error) throw error;
+        const { data } = supabaseClient.storage.from(SUPABASE_BUCKET).getPublicUrl(storagePath);
+        const snapshotUrl = data.publicUrl;
+        const { error: updateError } = await supabaseClient
+          .from(SUPABASE_TABLE)
+          .update({ map_snapshot_url: snapshotUrl })
+          .eq("id", pin.id);
+        if (updateError) throw updateError;
+        pin.map_snapshot_url = snapshotUrl;
+        const index = allPins.findIndex(item => String(item.id) === String(pin.id));
+        if (index !== -1) allPins[index].map_snapshot_url = snapshotUrl;
+        return snapshotUrl;
+      } catch (error) {
+        console.warn("Map snapshot was not saved:", error);
+        setStatus("Pin saved. Map snapshot was not saved. Check the map_snapshot_url column and storage policies.");
+        return null;
+      }
+    }
+
+    function extractStoragePathFromUrl(publicUrl) {
+      if (!publicUrl || !SUPABASE_URL || !publicUrl.startsWith(SUPABASE_URL)) return null;
+      const marker = "/storage/v1/object/public/" + SUPABASE_BUCKET + "/";
+      const index = publicUrl.indexOf(marker);
+      if (index === -1) return null;
+      return decodeURIComponent(publicUrl.slice(index + marker.length).split("?")[0]);
+    }
+
+    async function removeStoredPhoto(photoUrl) {
+      const storagePath = extractStoragePathFromUrl(photoUrl);
+      if (!storagePath || !supabaseClient) return;
+      const { error } = await supabaseClient.storage.from(SUPABASE_BUCKET).remove([storagePath]);
+      if (error) {
+        console.warn("Could not remove storage photo:", error);
+      }
+    }
+
+    function previewFileList(input, previewElement) {
+      if (!input || !previewElement) return;
+      const files = Array.from(input.files || []);
+      if (previewObjectUrl) {
+        previewObjectUrl.forEach(url => URL.revokeObjectURL(url));
+      }
+      previewObjectUrl = [];
+      previewElement.innerHTML = "";
+      if (!files.length) {
+        previewElement.style.display = "none";
+        return;
+      }
+      files.forEach((file, index) => {
+        const url = URL.createObjectURL(file);
+        previewObjectUrl.push(url);
+        const img = document.createElement("img");
+        img.src = url;
+        img.alt = `Photo preview ${index + 1}`;
+        previewElement.appendChild(img);
+      });
+      previewElement.style.display = "grid";
+    }
+
+    function previewSelectedPhoto() {
+      previewFileList(pinPhotoFileInput, pinPhotoPreview);
+    }
+
+    function previewSelectedClearPhoto() {
+      previewFileList(clearPhotoFileInput, clearPhotoPreview);
+    }
+
+    async function compressImage(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error("Could not read image."));
+        reader.onload = () => {
+          const img = new Image();
+          img.onerror = () => reject(new Error("Could not load image."));
+          img.onload = () => {
+            const maxDimension = 900;
+            const scale = Math.min(1, maxDimension / Math.max(img.width, img.height));
+            const width = Math.max(1, Math.round(img.width * scale));
+            const height = Math.max(1, Math.round(img.height * scale));
+            const canvas = document.createElement("canvas");
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext("2d", { alpha: false });
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, width, height);
+            ctx.drawImage(img, 0, 0, width, height);
+            canvas.toBlob(blob => {
+              if (!blob) {
+                reject(new Error("Could not compress image."));
+                return;
+              }
+              resolve(blob);
+            }, "image/jpeg", 0.65);
+          };
+          img.src = reader.result;
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    async function uploadPhotoFiles(files) {
+      const list = Array.from(files || []).filter(Boolean);
+      const uploaded = [];
+      for (const file of list) {
+        uploaded.push(await uploadPhotoFile(file));
+      }
+      return uploaded.filter(Boolean);
+    }
+
+    async function uploadPhotoFile(file) {
+      if (!file) return null;
+      if (!supabaseClient) throw new Error("Supabase is not configured.");
+      const compressedBlob = await compressImage(file);
+      const storagePath = buildStoragePath(file.name);
+      const { error } = await supabaseClient.storage
+        .from(SUPABASE_BUCKET)
+        .upload(storagePath, compressedBlob, {
+          contentType: "image/jpeg",
+          cacheControl: "3600",
+          upsert: false
+        });
+
+      if (error) throw error;
+
+      const { data } = supabaseClient.storage.from(SUPABASE_BUCKET).getPublicUrl(storagePath);
+      return data.publicUrl;
+    }
+
+
+    function buildMiniReportHtml(pin) {
+      const status = formatPinStatus(pin);
+      const dept = formatDepartmentLabel(pin.category);
+      const mapName = getMapView(getPinMapId(pin)).name;
+      const created = pin.created_at ? new Date(pin.created_at).toLocaleString() : "";
+      const cleared = pin.cleared_at ? new Date(pin.cleared_at).toLocaleString() : "";
+      const reportedPhotos = buildPhotoGalleryHtml(getPinPhotos(pin), "Reported photos", "log-photo");
+      const clearPhotos = buildPhotoGalleryHtml(getClearPhotos(pin), "Clear/completion photos", "log-photo");
+      const mapSnapshotHtml = pin.map_snapshot_url
+        ? '<div style="margin-top:12px;"><span class="photo-section-title">Map / pin location snapshot</span><img class="log-photo" style="max-width:360px; max-height:260px;" src="' + escapeHtml(pin.map_snapshot_url) + '" alt="Map snapshot" onerror="this.style.display=\'none\'"></div>'
+        : '<div class="panel-note" style="margin-top:12px;">Map snapshot is not available for this item. New pins will include one after the map snapshot SQL is run.</div>';
+      return (
+        '<div class="mini-report-card">' +
+          '<h2 style="margin:0 0 10px;">' + escapeHtml(pin.title || "Item Report") + '</h2>' +
+          '<div class="mini-report-grid">' +
+            '<div><strong>Status:</strong> ' + escapeHtml(status) + '</div>' +
+            '<div><strong>Department:</strong> ' + escapeHtml(dept) + '</div>' +
+            '<div><strong>Map / Building:</strong> ' + escapeHtml(mapName) + '</div>' +
+            '<div><strong>Reported by:</strong> ' + escapeHtml(pin.reported_by || "") + '</div>' +
+            (pin.cleared_by ? '<div><strong>Cleared by:</strong> ' + escapeHtml(pin.cleared_by) + '</div>' : '') +
+            (pin.clear_comment ? '<div><strong>Clear comments:</strong> ' + escapeHtml(pin.clear_comment) + '</div>' : '') +
+            (created ? '<div><strong>Saved:</strong> ' + escapeHtml(created) + '</div>' : '') +
+            (cleared ? '<div><strong>Cleared:</strong> ' + escapeHtml(cleared) + '</div>' : '') +
+            '<div><strong>Item ID:</strong> ' + escapeHtml(String(pin.id || "")) + '</div>' +
+          '</div>' +
+          (pin.description ? '<div class="mini-report-detail"><strong>Location and description details:</strong><br>' + escapeHtml(pin.description) + '</div>' : '') +
+          '<div style="margin-top:10px;"><strong>Map link:</strong><br><a href="' + escapeHtml(buildAppUrl({ pin: pin.id })) + '" target="_blank" rel="noopener">Open this item on the map</a></div>' +
+          mapSnapshotHtml +
+          (reportedPhotos ? '<div style="margin-top:12px;">' + reportedPhotos + '</div>' : '') +
+          (clearPhotos ? '<div style="margin-top:12px;">' + clearPhotos + '</div>' : '') +
+        '</div>'
+      );
+    }
+
+    async function openItemReportModal(pinId) {
+      let pin = getPinById(pinId);
+
+      if (!pin && supabaseClient && pinId) {
+        const { data, error } = await supabaseClient
+          .from(SUPABASE_TABLE)
+          .select("id, title, description, lat, lng, photo_url, photo_urls, clear_photo_urls, map_snapshot_url, category, is_cleared, created_at, cleared_at, reported_by, cleared_by, clear_comment, status, map_id, location_type, x_percent, y_percent")
+          .eq("id", pinId)
+          .maybeSingle();
+
+        if (!error && data) {
+          pin = {
+            ...data,
+            category: data.category || "general",
+            map_id: data.map_id || "outdoor_site",
+            location_type: data.location_type || "gps"
+          };
+          if (!getPinById(pin.id)) allPins.push(pin);
+        }
+      }
+
+      if (!pin) {
+        if (itemReportBody) itemReportBody.innerHTML = '<div class="panel-note">Could not find this item report. The item may have been deleted, or Supabase may still be loading. Refresh the app and try again.</div>';
+        if (itemReportModal) itemReportModal.classList.add("open");
+        if (modalBackdrop) modalBackdrop.classList.add("open");
+        return;
+      }
+      currentReportPinId = pin.id;
+      itemReportBody.innerHTML = buildMiniReportHtml(pin);
+      itemReportModal.classList.add("open");
+      modalBackdrop.classList.add("open");
+    }
+
+    function closeItemReportModal() {
+      if (itemReportModal) itemReportModal.classList.remove("open");
+      currentReportPinId = null;
+      if (!pinModal.classList.contains("open") && !clearModal.classList.contains("open") && !editPinModal.classList.contains("open")) {
+        modalBackdrop.classList.remove("open");
+      }
+    }
+
+    function focusPinOnMap(pinId) {
+      const pin = getPinById(pinId);
+      if (!pin) {
+        alert("Could not find that pin. Refresh the app and try again.");
+        return;
+      }
+      closeItemReportModal();
+      const targetMapId = getPinMapId(pin);
+      if (statusFilter) statusFilter.value = getPinStatus(pin);
+      if (categoryFilter) categoryFilter.value = pin.category || "general";
+      switchMapView(targetMapId);
+      setTimeout(() => {
+        if (isFloorPlanMap(targetMapId)) {
+          const x = Number(pin.x_percent ?? pin.lng);
+          const y = Number(pin.y_percent ?? pin.lat);
+          openFloorPlanPopup(pin, Number.isFinite(x) ? x : 50, Number.isFinite(y) ? y : 50);
+        } else {
+          const lat = Number(pin.lat);
+          const lng = Number(pin.lng);
+          if (Number.isFinite(lat) && Number.isFinite(lng)) {
+            map.setView([lat, lng], Math.max(map.getZoom(), 18));
+            L.popup().setLatLng([lat, lng]).setContent(buildPopupHtml(pin)).openOn(map);
+          }
+        }
+      }, 180);
+    }
+
+    function openCurrentReportOnMap() {
+      if (currentReportPinId) focusPinOnMap(currentReportPinId);
+    }
+
+    function printItemReport() {
+      if (!currentReportPinId) return;
+      const pin = getPinById(currentReportPinId);
+      if (!pin) return;
+      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Item Report ${escapeHtml(String(pin.id || ""))}</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#1f2933}.mini-report-card{border:1px solid #d9e0e6;border-radius:10px;padding:14px;line-height:1.45}.mini-report-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px}.mini-report-detail{margin-top:10px;white-space:pre-wrap}.log-photo{display:block;margin:8px 0;max-width:260px;max-height:190px;object-fit:cover;border:1px solid #d9e0e6;border-radius:8px}.photo-gallery{display:flex;gap:8px;flex-wrap:wrap}.photo-gallery img{width:130px;height:100px;object-fit:cover;border:1px solid #d9e0e6;border-radius:8px}.photo-section-title{display:block;font-weight:bold;margin-top:10px}@media print{button{display:none}}</style></head><body><h1>Item Report</h1>${buildMiniReportHtml(pin)}</body></html>`;
+      const win = window.open("", "_blank");
+      if (!win) {
+        alert("Popup blocked. Please allow popups to print the report.");
+        return;
+      }
+      win.document.open();
+      win.document.write(html);
+      win.document.close();
+      setTimeout(() => { win.focus(); win.print(); }, 350);
+    }
+
+    function handleInitialUrlAction() {
+      if (initialUrlActionHandled) return;
+      const params = new URLSearchParams(window.location.search);
+      const reportId = params.get("report");
+      const pinId = params.get("pin");
+      if (!reportId && !pinId) return;
+      initialUrlActionHandled = true;
+      closeDepartmentViewPrompt();
+      if (categoryFilter && categoryFilter.value === "") categoryFilter.value = "all";
+      setTimeout(async () => {
+        if (reportId) await openItemReportModal(reportId);
+        else if (pinId) focusPinOnMap(pinId);
+      }, 250);
+    }
+
+    function splitContactList(value) {
+      return (value || "")
+        .split(/[;,\n]+/)
+        .map(item => item.trim())
+        .filter(Boolean);
+    }
+
+    function cleanPhoneNumber(value) {
+      return (value || "").replace(/[^\d+]/g, "");
+    }
+
+    function buildNotificationMessage(pin) {
+      const categoryLabel = formatDepartmentLabel(pin.category);
+      const mapName = getMapView(getPinMapId(pin)).name;
+      const reportedBy = pin.reported_by || "Not specified";
+      const descriptionLine = pin.description ? `Details: ${pin.description}\n` : "";
+      const reportLink = pin && pin.id ? buildAppUrl({ report: pin.id }) : APP_LINK;
+      return `New ${categoryLabel} Request\n\nReported by: ${reportedBy}\nMap: ${mapName}\nIssue: ${pin.title}\n${descriptionLine}Open item report: ${reportLink}`;
+    }
+function getSelectedSmsRecipientsForDepartment(category) {
+  const dept = getDepartment(category);
+  const checkedIndexes = Array.from(document.querySelectorAll(".sms-group-checkbox:checked"))
+    .map(input => Number(input.value))
+    .filter(index => Number.isInteger(index));
+
+  return checkedIndexes.flatMap(index => {
+    const group = dept.smsGroups[index];
+    return group && Array.isArray(group.numbers) ? group.numbers : [];
+  }).map(cleanPhoneNumber).filter(Boolean);
+}
+
+function getSelectedEditSmsRecipientsForDepartment(category) {
+  const dept = getDepartment(category);
+  const checkedIndexes = Array.from(document.querySelectorAll(".edit-sms-group-checkbox:checked"))
+    .map(input => Number(input.value))
+    .filter(index => Number.isInteger(index));
+
+  return checkedIndexes.flatMap(index => {
+    const group = dept.smsGroups[index];
+    return group && Array.isArray(group.numbers) ? group.numbers : [];
+  }).map(cleanPhoneNumber).filter(Boolean);
+}
+
+function triggerEditSmsNotification(pin) {
+  if (!editNotifySmsNowInput || !editNotifySmsNowInput.checked) return;
+
+  const smsRecipients = getSelectedEditSmsRecipientsForDepartment(pin.category);
+
+  if (!smsRecipients.length) {
+    setStatus("Pin updated. No contacts set for this department.");
+    return;
+  }
+
+  const opened = openSmsDraft(smsRecipients, buildNotificationMessage(pin));
+
+  if (opened) {
+    const categoryLabel = formatDepartmentLabel(pin.category);
+    setStatus(`Pin updated. Text draft opened for selected ${categoryLabel} group(s).`);
+  }
+}
+
+function openSmsDraft(recipients, message) {
+  if (!recipients.length) return false;
+
+  const joinedRecipients = recipients.map(cleanPhoneNumber).filter(Boolean).join(",");
+  if (!joinedRecipients) return false;
+
+  const smsUrl = `sms:${joinedRecipients}?body=${encodeURIComponent(message)}`;
+
+  // Better than window.open for phone SMS handlers
+  window.location.href = smsUrl;
+  return true;
+}
+
+function triggerSmsNotification(pin) {
+  if (!pinNotifySmsNowInput.checked) return;
+
+  const smsRecipients = getSelectedSmsRecipientsForDepartment(pin.category);
+
+  if (!smsRecipients.length) {
+    setStatus("Pin saved. No contacts set for this category.");
+    return;
+  }
+
+  const opened = openSmsDraft(smsRecipients, buildNotificationMessage(pin));
+
+  if (opened) {
+    const categoryLabel = formatDepartmentLabel(pin.category);
+
+    setStatus(`Pin saved. Text draft opened for selected ${categoryLabel} group(s).`);
+  }
+}
+  
+
+    function parseCsv(text) {
+      const rows = text.replace(/\r/g, "").trim().split("\n");
+      if (!rows.length) return [];
+
+      const headers = rows[0].split(",").map(h => h.trim().toLowerCase());
+      return rows.slice(1).filter(Boolean).map(line => {
+        const values = line.split(",");
+        const record = {};
+        headers.forEach((header, index) => {
+          record[header] = (values[index] || "").trim();
+        });
+        return record;
+      });
+    }
+
+
+    function closeAllMapPopups() {
+      map.closePopup();
+      if (floorPlanPopup) floorPlanPopup.style.display = "none";
+    }
+
+    function formatCategoryLabel(category) {
+      const value = category || "general";
+      return value.charAt(0).toUpperCase() + value.slice(1);
+    }
+
+    async function fetchImageAsDataUrl(url) {
+      if (!url) return null;
+      try {
+        const response = await fetch(url, { mode: "cors" });
+        if (!response.ok) return url;
+        const blob = await response.blob();
+        return await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onerror = () => reject(new Error("Could not read exported image."));
+          reader.onloadend = () => resolve(reader.result);
+          reader.readAsDataURL(blob);
+        });
+      } catch (error) {
+        console.warn("Could not inline exported image:", error);
+        return url;
+      }
+    }
+
+
+    function csvEscape(value) {
+      const text = value == null ? "" : String(value);
+      if (/[",\n]/.test(text)) {
+        return '"' + text.replace(/"/g, '""') + '"';
+      }
+      return text;
+    }
+
+    function exportClearLogCsv() {
+      const logPins = allPins.filter(pin => getPinStatus(pin) === "cleared");
+      if (!logPins.length) {
+        alert("There are no cleared pins to export yet.");
+        return;
+      }
+
+      setStatus("Preparing CSV log export...");
+
+      const headers = [
+        "title",
+        "description",
+        "category",
+        "map_id",
+        "location_type",
+        "x_percent",
+        "y_percent",
+        "reported_by",
+        "cleared_by",
+        "clear_comment",
+        "lat",
+        "lng",
+        "created_at",
+        "cleared_at",
+        "photo_url",
+        "photo_urls",
+        "clear_photo_urls"
+      ];
+
+      const lines = [
+        headers.join(","),
+        ...logPins.map(pin => [
+          csvEscape(pin.title),
+          csvEscape(pin.description || ""),
+          csvEscape(pin.category || "general"),
+          csvEscape(getPinMapId(pin)),
+          csvEscape(pin.location_type || "gps"),
+          csvEscape(pin.x_percent ?? ""),
+          csvEscape(pin.y_percent ?? ""),
+          csvEscape(pin.reported_by || ""),
+          csvEscape(pin.cleared_by || ""),
+          csvEscape(pin.clear_comment || ""),
+          csvEscape(Number(pin.lat).toFixed(6)),
+          csvEscape(Number(pin.lng).toFixed(6)),
+          csvEscape(pin.created_at ? new Date(pin.created_at).toISOString() : ""),
+          csvEscape(pin.cleared_at ? new Date(pin.cleared_at).toISOString() : ""),
+          csvEscape(pin.photo_url || ""),
+          csvEscape(JSON.stringify(getPinPhotos(pin))),
+          csvEscape(JSON.stringify(getClearPhotos(pin)))
+        ].join(","))
+      ];
+
+      const csv = "\uFEFF" + lines.join("\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const stamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-");
+      a.href = url;
+      a.download = `cne-clear-log-${stamp}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setStatus("CSV log exported.");
+    }
+
+    async function exportClearLogHtml() {
+      const logPins = allPins.filter(pin => getPinStatus(pin) === "cleared");
+      if (!logPins.length) {
+        alert("There are no cleared pins to export yet.");
+        return;
+      }
+
+      setStatus("Preparing clear log export...");
+
+      const rows = await Promise.all(logPins.map(async pin => ({
+        ...pin,
+        export_photo_srcs: await Promise.all(getPinPhotos(pin).map(url => fetchImageAsDataUrl(url))),
+        export_clear_photo_srcs: await Promise.all(getClearPhotos(pin).map(url => fetchImageAsDataUrl(url)))
+      })));
+
+      const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>CNE Clear Pin Log Export</title>
+<style>
+body { font-family: Arial, sans-serif; margin: 24px; color: #1f2933; }
+h1 { margin: 0 0 6px; }
+.note { color: #52606d; margin-bottom: 20px; }
+.card { border: 1px solid #d9e2ec; border-radius: 10px; padding: 14px; margin-bottom: 14px; page-break-inside: avoid; }
+.card h2 { margin: 0 0 8px; font-size: 18px; }
+.meta { font-size: 13px; color: #52606d; line-height: 1.5; }
+img { display: block; margin-top: 10px; max-width: 260px; max-height: 190px; object-fit: cover; object-position: center center; border-radius: 8px; border: 1px solid #d9e2ec; background: #f2f4f7; }
+</style>
+</head>
+<body>
+<h1>CNE Clear Pin Log</h1>
+<div class="note">Exported ${new Date().toLocaleString()} · ${rows.length} cleared pin${rows.length === 1 ? "" : "s"}</div>
+${rows.map(pin => `
+<div class="card">
+  <h2>${escapeHtml(pin.title)}</h2>
+  <div><strong>Department:</strong> ${escapeHtml(formatDepartmentLabel(pin.category))}</div>
+  ${pin.reported_by ? `<div><strong>Reported by:</strong> ${escapeHtml(pin.reported_by)}</div>` : ""}
+  ${pin.cleared_by ? `<div><strong>Cleared by:</strong> ${escapeHtml(pin.cleared_by)}</div>` : ""}
+  ${pin.clear_comment ? `<div><strong>Clear comments:</strong> ${escapeHtml(pin.clear_comment)}</div>` : ""}
+  ${pin.description ? `<div style="margin-top:6px;">${escapeHtml(pin.description)}</div>` : ""}
+  <div class="meta" style="margin-top:8px;">
+    Original location: ${escapeHtml(getLocationLabel(pin))}<br>
+    ${pin.created_at ? `Created: ${new Date(pin.created_at).toLocaleString()}<br>` : ""}
+    ${pin.cleared_at ? `Cleared: ${new Date(pin.cleared_at).toLocaleString()}` : "Cleared"}
+  </div>
+  ${pin.export_photo_srcs && pin.export_photo_srcs.length ? `<div><strong>Reported photos:</strong></div>${pin.export_photo_srcs.map((src, idx) => `<img src="${src}" alt="Reported photo ${idx + 1}">`).join("")}` : ""}
+  ${pin.export_clear_photo_srcs && pin.export_clear_photo_srcs.length ? `<div style="margin-top:8px;"><strong>Clear photos:</strong></div>${pin.export_clear_photo_srcs.map((src, idx) => `<img src="${src}" alt="Clear photo ${idx + 1}">`).join("")}` : ""}
+</div>`).join("\n")}
+</body>
+</html>`;
+
+      const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const stamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-");
+      a.href = url;
+      a.download = `cne-clear-log-${stamp}.html`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setStatus("Clear log exported.");
+    }
+
+    async function handleCsvImport(event) {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+
+      if (!supabaseClient) {
+        alert("Add your Supabase URL and anon key first.");
+        event.target.value = "";
+        return;
+      }
+
+      const text = await file.text();
+      const rows = parseCsv(text);
+
+      if (!rows.length) {
+        alert("No CSV rows found.");
+        event.target.value = "";
+        return;
+      }
+
+      const payload = rows.map((row, idx) => ({
+        title: row.title || `Imported Pin ${idx + 1}`,
+        description: row.description || "",
+        lat: Number(row.lat),
+        lng: Number(row.lng),
+        category: (row.category || row.department || "general").toLowerCase(),
+        photo_url: row.photo_url || null,
+        map_id: row.map_id || currentMapId,
+        location_type: row.location_type || (row.x_percent && row.y_percent ? "floorplan" : (isFloorPlanMap() ? "floorplan" : "gps")),
+        x_percent: row.x_percent ? Number(row.x_percent) : null,
+        y_percent: row.y_percent ? Number(row.y_percent) : null,
+        is_cleared: false,
+        status: statusValue || "active",
+        cleared_at: null
+      })).filter(row => Number.isFinite(row.lat) && Number.isFinite(row.lng));
+
+      if (!payload.length) {
+        alert("CSV must include valid lat and lng values.");
+        event.target.value = "";
+        return;
+      }
+
+      setStatus(`Importing ${payload.length} pin(s)...`);
+
+      const { error } = await supabaseClient
+        .from(SUPABASE_TABLE)
+        .insert(payload);
+
+      if (error) {
+        console.error(error);
+        alert("CSV import failed. Check the file format and your insert policy.");
+        setStatus("Import failed.");
+        event.target.value = "";
+        return;
+      }
+
+      await loadPins(true);
+      event.target.value = "";
+    }
+
+    function subscribeRealtime() {
+      if (!supabaseClient) return;
+      realtimeChannel = supabaseClient
+        .channel("public:pins-live")
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: SUPABASE_TABLE },
+          () => loadPins(false)
+        )
+        .subscribe((status) => {
+          if (status === "SUBSCRIBED") {
+            setStatus("Realtime sync connected.");
+          }
+        });
+    }
+
+    map.on("click", function(e) {
+      pendingLatLng = {
+        lat: e.latlng.lat,
+        lng: e.latlng.lng,
+        map_id: "outdoor_site",
+        location_type: "gps",
+        x_percent: null,
+        y_percent: null
+      };
+      openPinModalForPending();
+    });
+
+    map.on("contextmenu", function(e) {
+      console.log("Right-click at:", e.latlng.lat.toFixed(6), e.latlng.lng.toFixed(6));
+    });
+
+    floorPlanStage.addEventListener("click", function(event) {
+      if (event.target.closest(".floor-pin") || event.target.closest(".floor-popup")) return;
+      setPendingFloorLocationFromEvent(event);
+    });
+    floorPlanImage.addEventListener("load", function() {
+      if (floorPlanEmptyNote) floorPlanEmptyNote.style.display = floorPlanImage.naturalWidth ? "none" : "block";
+    });
+    floorPlanImage.addEventListener("error", function() {
+      if (floorPlanEmptyNote) floorPlanEmptyNote.style.display = "block";
+    });
+
+    modalBackdrop.addEventListener("click", function() { closePinModal(); closeClearModal(); closeEditPinModal(); closeItemReportModal(); });
+    departmentViewBackdrop.addEventListener("click", function() {
+      if (selectedDepartmentView) closeDepartmentViewPrompt();
+    });
+    pinPhotoFileInput.addEventListener("change", previewSelectedPhoto);
+    if (clearPhotoFileInput) clearPhotoFileInput.addEventListener("change", previewSelectedClearPhoto);
+    if (editReportedPhotoFileInput) editReportedPhotoFileInput.addEventListener("change", function() { previewFileList(editReportedPhotoFileInput, editReportedPhotoPreview); });
+    if (editClearPhotoFileInput) editClearPhotoFileInput.addEventListener("change", function() { previewFileList(editClearPhotoFileInput, editClearPhotoPreview); });
+
+    if (window.innerWidth <= 900) {
+      toggleMobileUi(false);
+    } else {
+      toggleMobileUi(true);
+    }
+
+    async function initializeApp() {
+      populateMapSelector();
+      await loadCentralSettingsFromSupabase();
+      switchMapView(currentMapId);
+      populateDepartmentDropdowns();
+      populateProfileDropdowns();
+      ensureDepartmentViewSelected();
+      await loadPins(true);
+      subscribeRealtime();
+    }
+
+    initializeApp();
+
+    window.loadPins = loadPins;
+    window.toggleMobileUi = toggleMobileUi;
+    window.closeMobileUiAfterAction = closeMobileUiAfterAction;
+    window.toggleAdminPanel = toggleAdminPanel;
+    window.toggleAllLogsPanel = toggleAllLogsPanel;
+    window.renderAllLogs = renderAllLogs;
+    window.populateAllLogsFilters = populateAllLogsFilters;
+    window.cancelPin = cancelPin;
+    window.toggleLogPanel = toggleLogPanel;
+    window.toggleDeleteHistoryPanel = toggleDeleteHistoryPanel;
+    window.populateDeleteHistorySelect = populateDeleteHistorySelect;
+    window.loadDeleteHistoryDetails = loadDeleteHistoryDetails;
+    window.deleteSelectedClearedPin = deleteSelectedClearedPin;
+    window.toggleLegendPanel = toggleLegendPanel;
+    window.switchMapView = switchMapView;
+    window.toggleDepartmentPanel = toggleDepartmentPanel;
+    window.toggleProfilesPanel = toggleProfilesPanel;
+    window.toggleMapsPanel = toggleMapsPanel;
+    window.loadMapEditor = loadMapEditor;
+    window.saveMapEditor = saveMapEditor;
+    window.addNewMapEditor = addNewMapEditor;
+    window.deleteMapEditor = deleteMapEditor;
+    window.resetMapSettings = resetMapSettings;
+    window.openDepartmentViewPrompt = openDepartmentViewPrompt;
+    window.setDepartmentView = setDepartmentView;
+    window.saveProfilesEditor = saveProfilesEditor;
+    window.resetProfilesSettings = resetProfilesSettings;
+    window.closeClearModal = closeClearModal;
+    window.closeItemReportModal = closeItemReportModal;
+    window.openCurrentReportOnMap = openCurrentReportOnMap;
+    window.printItemReport = printItemReport;
+    window.focusPinOnMap = focusPinOnMap;
+    window.submitClearPinForm = submitClearPinForm;
+    window.openEditPinModal = openEditPinModal;
+    window.closeEditPinModal = closeEditPinModal;
+    window.submitEditPinForm = submitEditPinForm;
+    window.onEditPinDepartmentChange = onEditPinDepartmentChange;
+    window.onEditPinStatusChange = onEditPinStatusChange;
+    window.loadDepartmentEditor = loadDepartmentEditor;
+    window.saveDepartmentEditor = saveDepartmentEditor;
+    window.addNewDepartmentEditor = addNewDepartmentEditor;
+    window.deleteDepartmentEditor = deleteDepartmentEditor;
+    window.resetDepartmentSettings = resetDepartmentSettings;
+    window.onPinDepartmentChange = onPinDepartmentChange;
+    window.clearPin = clearPin;
+    window.applyFilters = applyFilters;
+    window.handleCsvImport = handleCsvImport;
+    window.openPinModalForPending = openPinModalForPending;
+    window.closePinModal = closePinModal;
+    window.submitPinForm = submitPinForm;
+    window.closeAllMapPopups = closeAllMapPopups;
+    window.navigateLogPin = navigateLogPin;
+    window.navigateOutstanding = navigateOutstanding;
+    window.exportClearLogHtml = exportClearLogHtml;
+    window.printAllLogs = printAllLogs;
+    window.exportClearLogCsv = exportClearLogCsv;
+  </script>
+</body>
+</html>
