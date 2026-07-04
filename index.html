@@ -375,43 +375,6 @@
       padding: 0 14px 14px;
     }
 
-    #itemReportModal {
-      width: min(720px, calc(100vw - 24px));
-      max-height: calc(100vh - 32px);
-      overflow: hidden;
-    }
-
-    #itemReportBody {
-      max-height: calc(100vh - 130px);
-      overflow-y: auto;
-    }
-
-    .mini-report-card {
-      border: 1px solid #d9e0e6;
-      border-radius: 10px;
-      padding: 12px;
-      background: #f9fbfc;
-      line-height: 1.45;
-    }
-
-    .mini-report-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px 14px;
-      font-size: 13px;
-    }
-
-    .mini-report-detail {
-      margin-top: 10px;
-      white-space: pre-wrap;
-    }
-
-    @media (max-width: 640px) {
-      .mini-report-grid {
-        grid-template-columns: 1fr;
-      }
-    }
-
 
     .department-view-grid {
       display: grid;
@@ -846,7 +809,7 @@
             <option value="active">Active pins only</option>
             <option value="cleared">Cleared pins only</option>
             <option value="cancelled">Cancelled calls only</option>
-            <option value="reported">Report-only items</option>
+            <option value="reported">Inspection / reporting only</option>
             <option value="all">All pins</option>
           </select>
         </label>
@@ -920,7 +883,7 @@
       <button class="panel-close-btn" onclick="toggleAllLogsPanel(false)">&times;</button>
     </div>
     <div class="panel-body">
-      <div class="panel-note">Use the filters to review active, cleared, cancelled, and report records across maps and departments.</div>
+      <div class="panel-note">Use the filters to review active, cleared, and cancelled calls across maps and departments.</div>
       <div class="settings-row">
         <label>Status
           <select id="allLogsStatusFilter" onchange="renderAllLogs()">
@@ -928,7 +891,7 @@
             <option value="active">Active / outstanding</option>
             <option value="cleared">Cleared / completed</option>
             <option value="cancelled">Cancelled calls</option>
-            <option value="reported">Report-only items</option>
+            <option value="reported">Inspection / reporting only</option>
           </select>
         </label>
       </div>
@@ -1187,7 +1150,7 @@
           <option value="active">Active / outstanding</option>
           <option value="cleared">Cleared / completed</option>
           <option value="cancelled">Cancelled call</option>
-          <option value="reported">Report only</option>
+          <option value="reported">Inspection / report only</option>
         </select>
       </label>
       <div id="editClearedFields">
@@ -1224,18 +1187,6 @@
     </div>
   </div>
 
-  <div class="modal" id="itemReportModal">
-    <div class="modal-header">Mini Item Report</div>
-    <div class="modal-body" id="itemReportBody">
-      <div class="panel-note">Loading report...</div>
-    </div>
-    <div class="modal-actions">
-      <button class="action-btn secondary" onclick="printItemReport()">Print Report</button>
-      <button class="action-btn" onclick="openCurrentReportOnMap()">Open on Map</button>
-      <button class="action-btn secondary" onclick="closeItemReportModal()">Close</button>
-    </div>
-  </div>
-
 
   <div id="map"></div>
   <div id="floorPlanView">
@@ -1253,7 +1204,7 @@
     const SUPABASE_TABLE = "pins";
     const SUPABASE_BUCKET = "pin-photos";
     const SETTINGS_TABLE = "app_settings";
-    const APP_LINK = window.location.href.split("#")[0].split("?")[0];
+    const APP_LINK = window.location.href.split("#")[0];
 
     const DEPARTMENT_STORAGE_KEY = "cne_map_departments_v1";
     const PROFILES_STORAGE_KEY = "cne_map_profiles_v1";
@@ -1301,11 +1252,11 @@
       },
       {
         key: "inspection",
-        name: "Report",
+        name: "Inspection",
         color: "#0f766e",
-        titles: ["Report", "Inspection report", "Safety observation", "Site condition", "Follow-up note"],
+        titles: ["Inspection report", "Safety observation", "Site condition", "Follow-up note"],
         smsGroups: [
-          { name: "Report Leads", numbers: [] }
+          { name: "Inspection Leads", numbers: [] }
         ]
       },
       {
@@ -1327,7 +1278,7 @@
       plumbing: ["Plumbing Lead"],
       carpentry: ["Carpentry Lead"],
       electrical: ["Electrical Lead"],
-      inspection: ["Report Lead"],
+      inspection: ["Inspection Lead"],
       labour: ["Labour Lead"]
     };
     let profiles = loadProfilesFromStorage();
@@ -1415,10 +1366,6 @@
     const editClearPhotoFileInput = document.getElementById("editClearPhotoFileInput");
     const editReportedPhotoPreview = document.getElementById("editReportedPhotoPreview");
     const editClearPhotoPreview = document.getElementById("editClearPhotoPreview");
-    const itemReportModal = document.getElementById("itemReportModal");
-    const itemReportBody = document.getElementById("itemReportBody");
-    let currentReportPinId = null;
-    let initialUrlActionHandled = false;
     const floatingUi = document.getElementById("floatingUi");
     const mobileUiToggleIcon = document.getElementById("mobileUiToggleIcon");
 
@@ -1480,18 +1427,6 @@
 
     function getPinMapId(pin) {
       return pin.map_id || "outdoor_site";
-    }
-
-    function getPinById(pinId) {
-      return allPins.find(pin => String(pin.id) === String(pinId));
-    }
-
-    function buildAppUrl(params = {}) {
-      const url = new URL(APP_LINK, window.location.href);
-      Object.entries(params).forEach(([key, value]) => {
-        if (value !== undefined && value !== null && value !== "") url.searchParams.set(key, value);
-      });
-      return url.toString();
     }
 
     function populateMapSelector() {
@@ -2378,7 +2313,7 @@
       const closeButton = '<div class="popup-close-row"><button class="popup-close-btn" onclick="closeAllMapPopups()" title="Close">&times;</button></div>';
 
       const pinStatus = getPinStatus(pin);
-      const canClearOrCancel = pinStatus === "active";
+      const canClearOrCancel = pinStatus === "active" && (pin.category || "general") !== "inspection";
       const editButton = pin.id
         ? '<button class="action-btn secondary" onclick="openEditPinModal(' + pin.id + ')">' + (pinStatus === "cleared" ? 'Admin edit cleared pin' : 'Edit / Reassign') + '</button>'
         : "";
@@ -2499,7 +2434,7 @@
       const status = getPinStatus(pin);
       if (status === "cleared") return "Cleared";
       if (status === "cancelled") return "Cancelled call";
-      if (status === "reported") return "Report only";
+      if (status === "reported") return "Inspection / report only";
       return "Active";
     }
 
@@ -2668,7 +2603,6 @@
 
       applyFilters();
       if (showMessage) setStatus(`Loaded ${allPins.length} total pin${allPins.length === 1 ? "" : "s"}.`);
-      handleInitialUrlAction();
     }
 
     async function savePin(latlng, title, description, photoUrls, category, reportedBy, statusValue = "active") {
@@ -3315,7 +3249,7 @@ function resetPinForm() {
           uploadedPhotoUrls = await uploadPhotoFiles(photoFiles);
         }
 
-        const requestStatus = "active";
+        const requestStatus = pinCategoryInput.value === "inspection" ? "reported" : "active";
         const savedPin = await savePin(
           pendingLatLng,
           title,
@@ -3450,115 +3384,6 @@ function resetPinForm() {
     }
 
 
-    function buildMiniReportHtml(pin) {
-      const status = formatPinStatus(pin);
-      const dept = formatDepartmentLabel(pin.category);
-      const mapName = getMapView(getPinMapId(pin)).name;
-      const created = pin.created_at ? new Date(pin.created_at).toLocaleString() : "";
-      const cleared = pin.cleared_at ? new Date(pin.cleared_at).toLocaleString() : "";
-      const reportedPhotos = buildPhotoGalleryHtml(getPinPhotos(pin), "Reported photos", "log-photo");
-      const clearPhotos = buildPhotoGalleryHtml(getClearPhotos(pin), "Clear/completion photos", "log-photo");
-      return (
-        '<div class="mini-report-card">' +
-          '<h2 style="margin:0 0 10px;">' + escapeHtml(pin.title || "Item Report") + '</h2>' +
-          '<div class="mini-report-grid">' +
-            '<div><strong>Status:</strong> ' + escapeHtml(status) + '</div>' +
-            '<div><strong>Department:</strong> ' + escapeHtml(dept) + '</div>' +
-            '<div><strong>Map / Building:</strong> ' + escapeHtml(mapName) + '</div>' +
-            '<div><strong>Reported by:</strong> ' + escapeHtml(pin.reported_by || "") + '</div>' +
-            (pin.cleared_by ? '<div><strong>Cleared by:</strong> ' + escapeHtml(pin.cleared_by) + '</div>' : '') +
-            (created ? '<div><strong>Saved:</strong> ' + escapeHtml(created) + '</div>' : '') +
-            (cleared ? '<div><strong>Cleared:</strong> ' + escapeHtml(cleared) + '</div>' : '') +
-            '<div><strong>Item ID:</strong> ' + escapeHtml(String(pin.id || "")) + '</div>' +
-          '</div>' +
-          (pin.description ? '<div class="mini-report-detail"><strong>Location and description details:</strong><br>' + escapeHtml(pin.description) + '</div>' : '') +
-          '<div style="margin-top:10px;"><strong>Map link:</strong><br><a href="' + escapeHtml(buildAppUrl({ pin: pin.id })) + '" target="_blank" rel="noopener">Open this item on the map</a></div>' +
-          (reportedPhotos ? '<div style="margin-top:12px;">' + reportedPhotos + '</div>' : '') +
-          (clearPhotos ? '<div style="margin-top:12px;">' + clearPhotos + '</div>' : '') +
-        '</div>'
-      );
-    }
-
-    function openItemReportModal(pinId) {
-      const pin = getPinById(pinId);
-      if (!pin) {
-        alert("Could not find that item report. Refresh the app and try again.");
-        return;
-      }
-      currentReportPinId = pin.id;
-      itemReportBody.innerHTML = buildMiniReportHtml(pin);
-      itemReportModal.classList.add("open");
-      modalBackdrop.classList.add("open");
-    }
-
-    function closeItemReportModal() {
-      if (itemReportModal) itemReportModal.classList.remove("open");
-      currentReportPinId = null;
-      if (!pinModal.classList.contains("open") && !clearModal.classList.contains("open") && !editPinModal.classList.contains("open")) {
-        modalBackdrop.classList.remove("open");
-      }
-    }
-
-    function focusPinOnMap(pinId) {
-      const pin = getPinById(pinId);
-      if (!pin) {
-        alert("Could not find that pin. Refresh the app and try again.");
-        return;
-      }
-      closeItemReportModal();
-      const targetMapId = getPinMapId(pin);
-      if (statusFilter) statusFilter.value = getPinStatus(pin);
-      if (categoryFilter) categoryFilter.value = pin.category || "general";
-      switchMapView(targetMapId);
-      setTimeout(() => {
-        if (isFloorPlanMap(targetMapId)) {
-          const x = Number(pin.x_percent ?? pin.lng);
-          const y = Number(pin.y_percent ?? pin.lat);
-          openFloorPlanPopup(pin, Number.isFinite(x) ? x : 50, Number.isFinite(y) ? y : 50);
-        } else {
-          const lat = Number(pin.lat);
-          const lng = Number(pin.lng);
-          if (Number.isFinite(lat) && Number.isFinite(lng)) {
-            map.setView([lat, lng], Math.max(map.getZoom(), 18));
-            L.popup().setLatLng([lat, lng]).setContent(buildPopupHtml(pin)).openOn(map);
-          }
-        }
-      }, 180);
-    }
-
-    function openCurrentReportOnMap() {
-      if (currentReportPinId) focusPinOnMap(currentReportPinId);
-    }
-
-    function printItemReport() {
-      if (!currentReportPinId) return;
-      const pin = getPinById(currentReportPinId);
-      if (!pin) return;
-      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Item Report ${escapeHtml(String(pin.id || ""))}</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#1f2933}.mini-report-card{border:1px solid #d9e0e6;border-radius:10px;padding:14px;line-height:1.45}.mini-report-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px}.mini-report-detail{margin-top:10px;white-space:pre-wrap}.log-photo{display:block;margin:8px 0;max-width:260px;max-height:190px;object-fit:cover;border:1px solid #d9e0e6;border-radius:8px}.photo-gallery{display:flex;gap:8px;flex-wrap:wrap}.photo-gallery img{width:130px;height:100px;object-fit:cover;border:1px solid #d9e0e6;border-radius:8px}.photo-section-title{display:block;font-weight:bold;margin-top:10px}@media print{button{display:none}}</style></head><body><h1>Item Report</h1>${buildMiniReportHtml(pin)}</body></html>`;
-      const win = window.open("", "_blank");
-      if (!win) {
-        alert("Popup blocked. Please allow popups to print the report.");
-        return;
-      }
-      win.document.open();
-      win.document.write(html);
-      win.document.close();
-      setTimeout(() => { win.focus(); win.print(); }, 350);
-    }
-
-    function handleInitialUrlAction() {
-      if (initialUrlActionHandled) return;
-      const params = new URLSearchParams(window.location.search);
-      const reportId = params.get("report");
-      const pinId = params.get("pin");
-      if (!reportId && !pinId) return;
-      initialUrlActionHandled = true;
-      setTimeout(() => {
-        if (reportId) openItemReportModal(reportId);
-        else if (pinId) focusPinOnMap(pinId);
-      }, 250);
-    }
-
     function splitContactList(value) {
       return (value || "")
         .split(/[;,\n]+/)
@@ -3575,9 +3400,7 @@ function resetPinForm() {
       const mapName = getMapView(getPinMapId(pin)).name;
       const reportedBy = pin.reported_by || "Not specified";
       const descriptionLine = pin.description ? `Details: ${pin.description}\n` : "";
-      const mapLink = pin && pin.id ? buildAppUrl({ pin: pin.id }) : APP_LINK;
-      const reportLink = pin && pin.id ? buildAppUrl({ report: pin.id }) : APP_LINK;
-      return `New ${categoryLabel} Request\n\nReported by: ${reportedBy}\nMap: ${mapName}\nIssue: ${pin.title}\n${descriptionLine}Open map: ${mapLink}\n\nOpen item report: ${reportLink}`;
+      return `New ${categoryLabel} Request\n\nReported by: ${reportedBy}\nMap: ${mapName}\nIssue: ${pin.title}\n${descriptionLine}Open map: ${APP_LINK}`;
     }
 function getSelectedSmsRecipientsForDepartment(category) {
   const dept = getDepartment(category);
@@ -3937,7 +3760,7 @@ ${rows.map(pin => `
       if (floorPlanEmptyNote) floorPlanEmptyNote.style.display = "block";
     });
 
-    modalBackdrop.addEventListener("click", function() { closePinModal(); closeClearModal(); closeEditPinModal(); closeItemReportModal(); });
+    modalBackdrop.addEventListener("click", function() { closePinModal(); closeClearModal(); closeEditPinModal(); });
     departmentViewBackdrop.addEventListener("click", function() {
       if (selectedDepartmentView) closeDepartmentViewPrompt();
     });
@@ -3959,7 +3782,7 @@ ${rows.map(pin => `
       populateDepartmentDropdowns();
       populateProfileDropdowns();
       ensureDepartmentViewSelected();
-      await loadPins(true);
+      loadPins(true);
       subscribeRealtime();
     }
 
@@ -3993,10 +3816,6 @@ ${rows.map(pin => `
     window.saveProfilesEditor = saveProfilesEditor;
     window.resetProfilesSettings = resetProfilesSettings;
     window.closeClearModal = closeClearModal;
-    window.closeItemReportModal = closeItemReportModal;
-    window.openCurrentReportOnMap = openCurrentReportOnMap;
-    window.printItemReport = printItemReport;
-    window.focusPinOnMap = focusPinOnMap;
     window.submitClearPinForm = submitClearPinForm;
     window.openEditPinModal = openEditPinModal;
     window.closeEditPinModal = closeEditPinModal;
