@@ -37,13 +37,15 @@
     .map-toolbar,
     .filter-bar {
       position: absolute;
-      left: 50px;
+      left: 50%;
+      transform: translateX(-50%);
       z-index: 1000;
       background: rgba(255,255,255,0.96);
       padding: 8px 12px;
       border-radius: 6px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.2);
       font-size: 13px;
+      text-align: center;
     }
 
     .map-help {
@@ -61,6 +63,7 @@
       display: flex;
       gap: 8px;
       align-items: center;
+      justify-content: center;
       flex-wrap: wrap;
       max-width: 760px;
     }
@@ -70,6 +73,7 @@
       display: flex;
       gap: 10px;
       align-items: center;
+      justify-content: center;
       flex-wrap: wrap;
       max-width: 820px;
     }
@@ -436,6 +440,7 @@
       display: flex;
       gap: 8px;
       align-items: stretch;
+      justify-content: center;
       flex-wrap: wrap;
       max-width: 820px;
       background: rgba(255,255,255,0.96);
@@ -678,6 +683,23 @@
       pointer-events: none;
     }
 
+
+
+    .leaflet-top.leaflet-left {
+      top: 245px;
+    }
+
+    .mobile-ui-toggle {
+      position: relative;
+      justify-content: center;
+      text-align: center;
+    }
+
+    #mobileUiToggleIcon {
+      position: absolute;
+      right: 12px;
+    }
+
     @media (max-width: 900px) {
       .floating-ui {
         position: absolute;
@@ -715,6 +737,7 @@
         left: auto;
         right: auto;
         top: auto;
+        transform: none;
         max-width: none;
         min-width: 0;
         width: auto;
@@ -745,6 +768,10 @@
       #floorPlanStage {
         margin-top: 150px;
         width: 96vw;
+      }
+
+      .leaflet-top.leaflet-left {
+        top: 70px;
       }
 
       .leaflet-popup-close-button {
@@ -785,6 +812,7 @@
           <select id="statusFilter" onchange="applyFilters()">
             <option value="active">Active pins only</option>
             <option value="cleared">Cleared pins only</option>
+            <option value="cancelled">Cancelled calls only</option>
             <option value="all">All pins</option>
           </select>
         </label>
@@ -815,6 +843,8 @@
         <h3>Logs & Exports</h3>
         <div class="admin-menu-grid">
           <button class="action-btn secondary" onclick="toggleLogPanel(true)">View Clear Log</button>
+          <button class="action-btn secondary" onclick="toggleAllLogsPanel(true)">View All Logs</button>
+          <button class="action-btn secondary" onclick="toggleDeleteHistoryPanel(true)">Delete from History</button>
           <button class="action-btn secondary" onclick="exportClearLogHtml()">Export Clear Log</button>
           <button class="action-btn secondary" onclick="exportClearLogCsv()">Export CSV Log</button>
         </div>
@@ -845,6 +875,62 @@
     <div class="panel-body">
       <div id="logBody">
         <div class="empty-log">No cleared pins yet.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" id="allLogsPanel">
+    <div class="panel-header">
+      <span>All Pin Logs</span>
+      <button class="panel-close-btn" onclick="toggleAllLogsPanel(false)">&times;</button>
+    </div>
+    <div class="panel-body">
+      <div class="panel-note">Use the filters to review active, cleared, and cancelled calls across maps and departments.</div>
+      <div class="settings-row">
+        <label>Status
+          <select id="allLogsStatusFilter" onchange="renderAllLogs()">
+            <option value="all">All statuses</option>
+            <option value="active">Active / outstanding</option>
+            <option value="cleared">Cleared / completed</option>
+            <option value="cancelled">Cancelled calls</option>
+          </select>
+        </label>
+      </div>
+      <div class="settings-row">
+        <label>Department
+          <select id="allLogsDepartmentFilter" onchange="renderAllLogs()"></select>
+        </label>
+      </div>
+      <div class="settings-row">
+        <label>Map / Building
+          <select id="allLogsMapFilter" onchange="renderAllLogs()"></select>
+        </label>
+      </div>
+      <div class="export-actions">
+        <button class="action-btn secondary" onclick="populateAllLogsFilters(); renderAllLogs();">Refresh Logs</button>
+      </div>
+      <div id="allLogsBody" style="margin-top:10px;">
+        <div class="empty-log">No pins found.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" id="deleteHistoryPanel">
+    <div class="panel-header">
+      <span>Delete Cleared Pin History</span>
+      <button class="panel-close-btn" onclick="toggleDeleteHistoryPanel(false)">&times;</button>
+    </div>
+    <div class="panel-body">
+      <div class="panel-note">Admin only. Use this when a cleared item should be permanently removed from the history log.</div>
+      <div class="settings-row">
+        <label>Cleared pin to delete
+          <select id="deleteHistorySelect" onchange="loadDeleteHistoryDetails()"></select>
+        </label>
+      </div>
+      <div id="deleteHistoryDetails" class="panel-note">Choose a cleared pin above.</div>
+      <div class="export-actions">
+        <button class="action-btn secondary" onclick="populateDeleteHistorySelect()">Refresh List</button>
+        <button class="action-btn" style="background:#b71c1c;" onclick="deleteSelectedClearedPin()">Delete Selected From History</button>
       </div>
     </div>
   </div>
@@ -1054,6 +1140,7 @@
         <select id="editPinStatusInput" onchange="onEditPinStatusChange()">
           <option value="active">Active / outstanding</option>
           <option value="cleared">Cleared / completed</option>
+          <option value="cancelled">Cancelled call</option>
         </select>
       </label>
       <div id="editClearedFields">
@@ -1195,6 +1282,14 @@
     const statusBar = document.getElementById("statusBar");
     const outstandingSummary = document.getElementById("outstandingSummary");
     const adminPanel = document.getElementById("adminPanel");
+    const deleteHistoryPanel = document.getElementById("deleteHistoryPanel");
+    const deleteHistorySelect = document.getElementById("deleteHistorySelect");
+    const deleteHistoryDetails = document.getElementById("deleteHistoryDetails");
+    const allLogsPanel = document.getElementById("allLogsPanel");
+    const allLogsBody = document.getElementById("allLogsBody");
+    const allLogsStatusFilter = document.getElementById("allLogsStatusFilter");
+    const allLogsDepartmentFilter = document.getElementById("allLogsDepartmentFilter");
+    const allLogsMapFilter = document.getElementById("allLogsMapFilter");
     const logPanel = document.getElementById("logPanel");
     const legendPanel = document.getElementById("legendPanel");
     const departmentPanel = document.getElementById("departmentPanel");
@@ -1627,7 +1722,7 @@
       const pin = allPins.find(item => item.id === pinId);
       if (!pin) return;
 
-      if (pin.is_cleared) {
+      if (getPinStatus(pin) === "cleared") {
         const password = window.prompt('Enter admin password to update a cleared pin:');
         if (password !== ADMIN_PASSWORD) {
           alert('Incorrect password.');
@@ -1636,16 +1731,16 @@
       }
 
       pendingEditPinId = pinId;
-      if (editPinModalHeader) editPinModalHeader.textContent = pin.is_cleared ? "Admin Edit Cleared Pin" : "Edit / Reassign Pin";
-      if (editPinStatusNote) editPinStatusNote.textContent = pin.is_cleared
+      if (editPinModalHeader) editPinModalHeader.textContent = getPinStatus(pin) === "cleared" ? "Admin Edit Cleared Pin" : "Edit / Reassign Pin";
+      if (editPinStatusNote) editPinStatusNote.textContent = getPinStatus(pin) === "cleared"
         ? "This pin is already cleared. Admins can correct details, add completion photos, or reopen it."
-        : "Update this active request or reassign it to another department.";
+        : (getPinStatus(pin) === "cancelled" ? "This call is cancelled. Admins can correct details or return it to active." : "Update this active request or reassign it to another department.");
 
       populateEditDepartmentDropdown(pin.category || "general");
       populateEditTitleDropdown(pin.title || "");
       if (editPinDescriptionInput) editPinDescriptionInput.value = pin.description || "";
       populateEditProfileDropdowns(pin.reported_by || "", pin.cleared_by || "");
-      if (editPinStatusInput) editPinStatusInput.value = pin.is_cleared ? "cleared" : "active";
+      if (editPinStatusInput) editPinStatusInput.value = getPinStatus(pin);
       onEditPinStatusChange();
 
       if (editReportedPhotoFileInput) editReportedPhotoFileInput.value = "";
@@ -1717,7 +1812,8 @@
       const currentClearPhotos = getClearPhotos(pin);
       const nextReportedPhotos = [...currentReportedPhotos, ...addedReportedPhotos];
       const nextClearPhotos = status === "cleared" ? [...currentClearPhotos, ...addedClearPhotos] : currentClearPhotos;
-      const wasCleared = !!pin.is_cleared;
+      const wasCleared = getPinStatus(pin) === "cleared";
+      const wasCancelled = getPinStatus(pin) === "cancelled";
       const nextClearedAt = status === "cleared" ? (pin.cleared_at || new Date().toISOString()) : null;
 
       const updatePayload = {
@@ -1728,6 +1824,7 @@
         photo_urls: nextReportedPhotos,
         photo_url: nextReportedPhotos[0] || null,
         clear_photo_urls: nextClearPhotos,
+        status: status,
         is_cleared: status === "cleared",
         cleared_at: nextClearedAt,
         cleared_by: status === "cleared" ? clearedBy : null
@@ -1759,7 +1856,7 @@
       }
       closeEditPinModal();
       applyFilters();
-      setStatus(wasCleared && status === "active" ? "Pin reopened and returned to outstanding." : "Pin updated.");
+      setStatus((wasCleared || wasCancelled) && status === "active" ? "Pin reopened and returned to outstanding." : "Pin updated.");
     }
 
 
@@ -2073,7 +2170,7 @@
     }
 
     const map = L.map("map", {
-      minZoom: 16,
+      minZoom: 13,
       maxZoom: 22
     }).setView([43.6326, -79.4148], 17);
 
@@ -2156,16 +2253,21 @@
       const closeButton = '<div class="popup-close-row"><button class="popup-close-btn" onclick="closeAllMapPopups()" title="Close">&times;</button></div>';
 
       const editButton = pin.id
-        ? '<br><button class="action-btn secondary" style="margin-top:8px;" onclick="openEditPinModal(' + pin.id + ')">' + (pin.is_cleared ? 'Admin edit cleared pin' : 'Edit / Reassign') + '</button>'
+        ? '<br><button class="action-btn secondary" style="margin-top:8px;" onclick="openEditPinModal(' + pin.id + ')">' + (getPinStatus(pin) === "cleared" ? 'Admin edit cleared pin' : 'Edit / Reassign') + '</button>'
         : "";
 
-      const clearButton = pin.is_cleared
-        ? ""
-        : (pin.id ? '<br><button class="action-btn clear-btn" onclick="clearPin(' + pin.id + ')">Clear pin</button>' : "");
+      const clearButton = getPinStatus(pin) === "active"
+        ? (pin.id ? '<br><button class="action-btn clear-btn" onclick="clearPin(' + pin.id + ')">Clear pin</button>' : "")
+        : "";
+
+      const cancelButton = getPinStatus(pin) === "active"
+        ? (pin.id ? '<br><button class="action-btn secondary" style="margin-top:8px; background:#8a4b08;" onclick="cancelPin(' + pin.id + ')">Cancel call</button>' : "")
+        : "";
 
       return (
         closeButton +
         "<b>" + escapeHtml(pin.title) + "</b>" +
+        "<br><small><b>Status:</b> " + escapeHtml(formatPinStatus(pin)) + "</small>" +
         "<br><small><b>Department:</b> " + escapeHtml(categoryLabel) + "</small>" +
         (pin.reported_by ? "<br><small><b>Reported by:</b> " + escapeHtml(pin.reported_by) + "</small>" : "") +
         (pin.cleared_by ? "<br><small><b>Cleared by:</b> " + escapeHtml(pin.cleared_by) + "</small>" : "") +
@@ -2174,10 +2276,11 @@
         clearPhotoHtml +
         "<br><br><small>Location: " + escapeHtml(getLocationLabel(pin)) +
         (pin.created_at ? "<br>Saved: " + new Date(pin.created_at).toLocaleString() : "") +
-        (pin.is_cleared && pin.cleared_at ? "<br>Cleared: " + new Date(pin.cleared_at).toLocaleString() : "") +
+        (getPinStatus(pin) === "cleared" && pin.cleared_at ? "<br>Cleared: " + new Date(pin.cleared_at).toLocaleString() : "") +
         "</small>" +
         editButton +
-        clearButton
+        clearButton +
+        cancelButton
       );
     }
 
@@ -2231,6 +2334,7 @@
         return (
           '<div class="log-item">' +
             '<div class="log-title">' + escapeHtml(pin.title) + '</div>' +
+            '<div><small><b>Status:</b> ' + escapeHtml(formatPinStatus(pin)) + '</small></div>' +
             '<div><small><b>Department:</b> ' + escapeHtml(formatDepartmentLabel(pin.category)) + '</small></div>' +
             (pin.reported_by ? '<div><small><b>Reported by:</b> ' + escapeHtml(pin.reported_by) + '</small></div>' : '') +
             (pin.cleared_by ? '<div><small><b>Cleared by:</b> ' + escapeHtml(pin.cleared_by) + '</small></div>' : '') +
@@ -2244,19 +2348,33 @@
             '</div>' +
             '<div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">' +
               '<button class="action-btn secondary" onclick="openEditPinModal(' + pin.id + ')">Admin edit / reopen</button>' +
-              '<button class="action-btn" style="background:#b71c1c;" onclick="deletePinPermanently(' + pin.id + ')">Delete from history</button>' +
             '</div>' +
           '</div>'
         );
       }).join('');
     }
 
+
+    function getPinStatus(pin) {
+      if (!pin) return "active";
+      if (pin.status === "cancelled") return "cancelled";
+      if (pin.status === "cleared" || pin.is_cleared) return "cleared";
+      return "active";
+    }
+
+    function formatPinStatus(pin) {
+      const status = getPinStatus(pin);
+      if (status === "cleared") return "Cleared";
+      if (status === "cancelled") return "Cancelled call";
+      return "Active";
+    }
+
     function getActivePinsForCurrentMap() {
-      return allPins.filter(pin => !pin.is_cleared && getPinMapId(pin) === currentMapId);
+      return allPins.filter(pin => getPinStatus(pin) === "active" && getPinMapId(pin) === currentMapId);
     }
 
     function getActivePinsForAllMaps() {
-      return allPins.filter(pin => !pin.is_cleared);
+      return allPins.filter(pin => getPinStatus(pin) === "active");
     }
 
     function navigateOutstanding(mapId, departmentKey) {
@@ -2320,7 +2438,7 @@
         const countsByMap = countActivePinsByMap(activePins, selected);
 
         outstandingSummary.innerHTML =
-          `<button type="button" class="outstanding-card active" style="border-left-color:${escapeHtml(deptColor)};" onclick="navigateOutstanding('${escapeHtml(currentMapId)}', '${escapeHtml(selected)}')"><span class="outstanding-count">${deptPins.length}</span><span class="outstanding-label">${escapeHtml(deptName)} total outstanding</span></button>` +
+          `<button type="button" class="outstanding-card active" style="border-left-color:${escapeHtml(deptColor)};" onclick="navigateOutstanding('${escapeHtml(currentMapId)}', '${escapeHtml(selected)}')"><span class="outstanding-count">${deptPins.length}</span><span class="outstanding-label">${escapeHtml(deptName)} total outstanding<br><small>Open items by map/building below</small></span></button>` +
           buildOutstandingMapCards(countsByMap, selected);
         return;
       }
@@ -2337,7 +2455,7 @@
         .join(" · ");
 
       outstandingSummary.innerHTML =
-        `<button type="button" class="outstanding-card active" style="border-left-color:#005a9c;" onclick="navigateOutstanding('${escapeHtml(currentMapId)}', 'all')"><span class="outstanding-count">${total}</span><span class="outstanding-label">All outstanding${deptBreakdown ? `<br>${deptBreakdown}` : ""}</span></button>` +
+        `<button type="button" class="outstanding-card active" style="border-left-color:#005a9c;" onclick="navigateOutstanding('${escapeHtml(currentMapId)}', 'all')"><span class="outstanding-count">${total}</span><span class="outstanding-label">All outstanding${deptBreakdown ? `<br>${deptBreakdown}` : ""}<br><small>Open items by map/building below</small></span></button>` +
         buildOutstandingMapCards(countsByMap, "all");
     }
 
@@ -2350,10 +2468,10 @@
       if (floorPlanPopup) floorPlanPopup.style.display = "none";
 
       const filtered = allPins.filter(pin => {
+        const pinStatus = getPinStatus(pin);
         const statusMatch =
           statusValue === "all" ||
-          (statusValue === "active" && !pin.is_cleared) ||
-          (statusValue === "cleared" && !!pin.is_cleared);
+          pinStatus === statusValue;
 
         const categoryMatch =
           categoryValue === "all" ||
@@ -2370,8 +2488,9 @@
         filtered.forEach(pin => addUserPin(pin, false));
       }
 
-      renderLog(allPins.filter(pin => pin.is_cleared).filter(pin => getPinMapId(pin) === currentMapId).filter(pin => categoryValue === "all" || (pin.category || "general") === categoryValue));
+      renderLog(allPins.filter(pin => getPinStatus(pin) === "cleared").filter(pin => getPinMapId(pin) === currentMapId).filter(pin => categoryValue === "all" || (pin.category || "general") === categoryValue));
       updateOutstandingSummary();
+      if (allLogsPanel && allLogsPanel.classList.contains("open")) renderAllLogs();
       setStatus(`Showing ${filtered.length} pin${filtered.length === 1 ? "" : "s"} on ${getMapView(currentMapId).name} (${statusValue}, ${categoryValue}).`);
     }
 
@@ -2385,7 +2504,7 @@
 
       const { data, error } = await supabaseClient
         .from(SUPABASE_TABLE)
-        .select("id, title, description, lat, lng, photo_url, photo_urls, clear_photo_urls, category, is_cleared, created_at, cleared_at, reported_by, cleared_by, map_id, location_type, x_percent, y_percent")
+        .select("id, title, description, lat, lng, photo_url, photo_urls, clear_photo_urls, category, is_cleared, created_at, cleared_at, reported_by, cleared_by, status, map_id, location_type, x_percent, y_percent")
         .order("created_at", { ascending: true });
 
       if (error) {
@@ -2427,6 +2546,7 @@
         x_percent: latlng.x_percent ?? null,
         y_percent: latlng.y_percent ?? null,
         is_cleared: false,
+        status: "active",
         cleared_at: null
       };
 
@@ -2473,6 +2593,40 @@
       }
     }
 
+
+    async function cancelPin(pinId) {
+      if (!supabaseClient || !pinId) return;
+      const pin = allPins.find(item => item.id === pinId);
+      if (!pin) return;
+      const confirmed = window.confirm("Mark this call as cancelled? It will be removed from outstanding items but kept in All Logs.");
+      if (!confirmed) return;
+
+      setStatus("Cancelling call...");
+      const { data, error } = await supabaseClient
+        .from(SUPABASE_TABLE)
+        .update({
+          status: "cancelled",
+          is_cleared: false,
+          cleared_at: null,
+          cleared_by: null
+        })
+        .eq("id", pinId)
+        .select();
+
+      if (error) {
+        console.error(error);
+        alert("Could not cancel this call. Make sure the status column exists in Supabase and check your update policy.");
+        setStatus("Cancel failed.");
+        return;
+      }
+
+      const updatedPin = data && data.length ? data[0] : { ...pin, status: "cancelled", is_cleared: false, cleared_at: null, cleared_by: null };
+      const index = allPins.findIndex(item => item.id === pinId);
+      if (index !== -1) allPins[index] = { ...allPins[index], ...updatedPin };
+      applyFilters();
+      setStatus("Call cancelled and removed from outstanding.");
+    }
+
     async function clearPin(pinId) {
       openClearModal(pinId);
     }
@@ -2511,6 +2665,7 @@
         .from(SUPABASE_TABLE)
         .update({
           is_cleared: true,
+          status: "cleared",
           cleared_at: clearedAt,
           cleared_by: clearedBy,
           clear_photo_urls: clearPhotoUrls
@@ -2527,6 +2682,7 @@
       const target = allPins.find(pin => pin.id === pendingClearPinId);
       if (target) {
         target.is_cleared = true;
+        target.status = "cleared";
         target.cleared_at = clearedAt;
         target.cleared_by = clearedBy;
         target.clear_photo_urls = clearPhotoUrls;
@@ -2534,6 +2690,153 @@
       closeClearModal();
       applyFilters();
       setStatus("Pin cleared and moved to the log.");
+    }
+
+    function getClearedPinsForDeleteList() {
+      return allPins
+        .filter(pin => getPinStatus(pin) === "cleared")
+        .slice()
+        .sort((a, b) => new Date(b.cleared_at || b.created_at || 0) - new Date(a.cleared_at || a.created_at || 0));
+    }
+
+    function populateDeleteHistorySelect() {
+      if (!deleteHistorySelect) return;
+      const clearedPins = getClearedPinsForDeleteList();
+      if (!clearedPins.length) {
+        deleteHistorySelect.innerHTML = '<option value="">No cleared pins in history</option>';
+        if (deleteHistoryDetails) deleteHistoryDetails.innerHTML = 'No cleared pins are available to delete.';
+        return;
+      }
+
+      deleteHistorySelect.innerHTML = clearedPins.map(pin => {
+        const labelParts = [
+          pin.title || 'Untitled pin',
+          formatDepartmentLabel(pin.category),
+          getMapView(getPinMapId(pin)).name,
+          pin.cleared_at ? new Date(pin.cleared_at).toLocaleString() : 'Cleared'
+        ];
+        return `<option value="${escapeHtml(pin.id)}">${escapeHtml(labelParts.join(' | '))}</option>`;
+      }).join('');
+      loadDeleteHistoryDetails();
+    }
+
+    function loadDeleteHistoryDetails() {
+      if (!deleteHistorySelect || !deleteHistoryDetails) return;
+      const pinId = Number(deleteHistorySelect.value);
+      const pin = allPins.find(item => Number(item.id) === pinId);
+      if (!pin) {
+        deleteHistoryDetails.innerHTML = 'Choose a cleared pin above.';
+        return;
+      }
+      deleteHistoryDetails.innerHTML =
+        '<b>' + escapeHtml(pin.title || 'Untitled pin') + '</b><br>' +
+        '<b>Department:</b> ' + escapeHtml(formatDepartmentLabel(pin.category)) + '<br>' +
+        '<b>Map:</b> ' + escapeHtml(getMapView(getPinMapId(pin)).name) + '<br>' +
+        (pin.reported_by ? '<b>Reported by:</b> ' + escapeHtml(pin.reported_by) + '<br>' : '') +
+        (pin.cleared_by ? '<b>Cleared by:</b> ' + escapeHtml(pin.cleared_by) + '<br>' : '') +
+        (pin.cleared_at ? '<b>Cleared:</b> ' + escapeHtml(new Date(pin.cleared_at).toLocaleString()) + '<br>' : '') +
+        '<b>Location:</b> ' + escapeHtml(getLocationLabel(pin)) +
+        '<br><br><span style="color:#b71c1c; font-weight:bold;">Deleting removes this item from Supabase history and removes its stored photos.</span>';
+    }
+
+
+    function populateAllLogsFilters() {
+      if (allLogsDepartmentFilter) {
+        const previous = allLogsDepartmentFilter.value || "all";
+        allLogsDepartmentFilter.innerHTML = '<option value="all">All departments</option>' + departments.map(dept => `<option value="${escapeHtml(dept.key)}">${escapeHtml(dept.name)}</option>`).join("");
+        allLogsDepartmentFilter.value = departments.some(dept => dept.key === previous) ? previous : "all";
+      }
+      if (allLogsMapFilter) {
+        const previous = allLogsMapFilter.value || "all";
+        allLogsMapFilter.innerHTML = '<option value="all">All maps/buildings</option>' + mapViews.map(view => `<option value="${escapeHtml(view.id)}">${escapeHtml(view.name)}</option>`).join("");
+        allLogsMapFilter.value = mapViews.some(view => view.id === previous) ? previous : "all";
+      }
+    }
+
+    function renderAllLogs() {
+      if (!allLogsBody) return;
+      const statusValue = allLogsStatusFilter ? allLogsStatusFilter.value : "all";
+      const deptValue = allLogsDepartmentFilter ? allLogsDepartmentFilter.value : "all";
+      const mapValue = allLogsMapFilter ? allLogsMapFilter.value : "all";
+      const rows = allPins
+        .filter(pin => statusValue === "all" || getPinStatus(pin) === statusValue)
+        .filter(pin => deptValue === "all" || (pin.category || "general") === deptValue)
+        .filter(pin => mapValue === "all" || getPinMapId(pin) === mapValue)
+        .slice()
+        .sort((a, b) => new Date(b.cleared_at || b.created_at || 0) - new Date(a.cleared_at || a.created_at || 0));
+
+      if (!rows.length) {
+        allLogsBody.innerHTML = '<div class="empty-log">No pins match these filters.</div>';
+        return;
+      }
+
+      allLogsBody.innerHTML = rows.map(pin => {
+        const status = getPinStatus(pin);
+        return (
+          '<div class="log-item">' +
+            '<div class="log-title">' + escapeHtml(pin.title || 'Untitled pin') + '</div>' +
+            '<div><small><b>Status:</b> ' + escapeHtml(formatPinStatus(pin)) + '</small></div>' +
+            '<div><small><b>Department:</b> ' + escapeHtml(formatDepartmentLabel(pin.category)) + '</small></div>' +
+            '<div><small><b>Map:</b> ' + escapeHtml(getMapView(getPinMapId(pin)).name) + '</small></div>' +
+            (pin.reported_by ? '<div><small><b>Reported by:</b> ' + escapeHtml(pin.reported_by) + '</small></div>' : '') +
+            (pin.cleared_by ? '<div><small><b>Cleared by:</b> ' + escapeHtml(pin.cleared_by) + '</small></div>' : '') +
+            (pin.description ? '<div>' + escapeHtml(pin.description) + '</div>' : '') +
+            '<div class="log-meta">' +
+              'Location: ' + escapeHtml(getLocationLabel(pin)) + '<br>' +
+              (pin.created_at ? 'Created: ' + new Date(pin.created_at).toLocaleString() + '<br>' : '') +
+              (status === 'cleared' && pin.cleared_at ? 'Cleared: ' + new Date(pin.cleared_at).toLocaleString() : '') +
+            '</div>' +
+            '<div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">' +
+              '<button class="action-btn secondary" onclick="openEditPinModal(' + pin.id + ')">Edit / update</button>' +
+              '<button class="action-btn secondary" onclick="navigateOutstanding(&quot;' + escapeHtml(getPinMapId(pin)) + '&quot;, &quot;' + escapeHtml(pin.category || 'general') + '&quot;)">Open map</button>' +
+            '</div>' +
+          '</div>'
+        );
+      }).join('');
+    }
+
+    function toggleAllLogsPanel(forceOpen) {
+      const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : !allLogsPanel.classList.contains('open');
+      if (shouldOpen) {
+        if (!adminPanel || !adminPanel.classList.contains('open')) {
+          const password = window.prompt('Enter admin password to view all logs:');
+          if (password !== ADMIN_PASSWORD) {
+            alert('Incorrect password.');
+            return;
+          }
+        }
+        populateAllLogsFilters();
+        renderAllLogs();
+        allLogsPanel.classList.add('open');
+      } else {
+        allLogsPanel.classList.remove('open');
+      }
+    }
+
+    function toggleDeleteHistoryPanel(forceOpen) {
+      const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : !deleteHistoryPanel.classList.contains('open');
+      if (shouldOpen) {
+        if (!adminPanel || !adminPanel.classList.contains('open')) {
+          const password = window.prompt('Enter admin password to delete history:');
+          if (password !== ADMIN_PASSWORD) {
+            alert('Incorrect password.');
+            return;
+          }
+        }
+        populateDeleteHistorySelect();
+        deleteHistoryPanel.classList.add('open');
+      } else {
+        deleteHistoryPanel.classList.remove('open');
+      }
+    }
+
+    async function deleteSelectedClearedPin() {
+      if (!deleteHistorySelect || !deleteHistorySelect.value) {
+        alert('Choose a cleared pin to delete first.');
+        return;
+      }
+      await deletePinPermanently(Number(deleteHistorySelect.value));
+      populateDeleteHistorySelect();
     }
 
     async function deletePinPermanently(pinId) {
@@ -2566,6 +2869,7 @@
 
       allPins = allPins.filter(pin => pin.id !== pinId);
       applyFilters();
+      if (deleteHistoryPanel && deleteHistoryPanel.classList.contains("open")) populateDeleteHistorySelect();
       setStatus("Pin deleted from history.");
     }
 
@@ -3046,7 +3350,7 @@ function triggerSmsNotification(pin) {
     }
 
     function exportClearLogCsv() {
-      const logPins = allPins.filter(pin => pin.is_cleared);
+      const logPins = allPins.filter(pin => getPinStatus(pin) === "cleared");
       if (!logPins.length) {
         alert("There are no cleared pins to export yet.");
         return;
@@ -3110,7 +3414,7 @@ function triggerSmsNotification(pin) {
     }
 
     async function exportClearLogHtml() {
-      const logPins = allPins.filter(pin => pin.is_cleared);
+      const logPins = allPins.filter(pin => getPinStatus(pin) === "cleared");
       if (!logPins.length) {
         alert("There are no cleared pins to export yet.");
         return;
@@ -3204,6 +3508,7 @@ ${rows.map(pin => `
         x_percent: row.x_percent ? Number(row.x_percent) : null,
         y_percent: row.y_percent ? Number(row.y_percent) : null,
         is_cleared: false,
+        status: "active",
         cleared_at: null
       })).filter(row => Number.isFinite(row.lat) && Number.isFinite(row.lng));
 
@@ -3306,7 +3611,15 @@ ${rows.map(pin => `
     window.toggleMobileUi = toggleMobileUi;
     window.closeMobileUiAfterAction = closeMobileUiAfterAction;
     window.toggleAdminPanel = toggleAdminPanel;
+    window.toggleAllLogsPanel = toggleAllLogsPanel;
+    window.renderAllLogs = renderAllLogs;
+    window.populateAllLogsFilters = populateAllLogsFilters;
+    window.cancelPin = cancelPin;
     window.toggleLogPanel = toggleLogPanel;
+    window.toggleDeleteHistoryPanel = toggleDeleteHistoryPanel;
+    window.populateDeleteHistorySelect = populateDeleteHistorySelect;
+    window.loadDeleteHistoryDetails = loadDeleteHistoryDetails;
+    window.deleteSelectedClearedPin = deleteSelectedClearedPin;
     window.toggleLegendPanel = toggleLegendPanel;
     window.switchMapView = switchMapView;
     window.toggleDepartmentPanel = toggleDepartmentPanel;
