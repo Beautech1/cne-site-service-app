@@ -1039,6 +1039,58 @@
       -webkit-user-drag: none;
     }
 
+
+
+    .floor-zoom-toolbar {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      z-index: 1100;
+      display: none;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 8px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.96);
+      box-shadow: 0 3px 12px rgba(0,0,0,0.22);
+      border: 1px solid #d9e0e6;
+    }
+
+    #floorPlanView[style*="display: block"] .floor-zoom-toolbar {
+      display: inline-flex;
+    }
+
+    .floor-zoom-btn {
+      border: none;
+      border-radius: 999px;
+      min-width: 34px;
+      height: 34px;
+      padding: 0 10px;
+      background: #005a9c;
+      color: #fff;
+      font-size: 16px;
+      font-weight: 800;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .floor-zoom-btn.reset {
+      background: #5f6b7a;
+      font-size: 12px;
+      min-width: 52px;
+    }
+
+    .floor-zoom-level {
+      min-width: 44px;
+      color: #243447;
+      font-size: 12px;
+      font-weight: 800;
+      text-align: center;
+    }
+
+
     #floorPlanPinLayer {
       position: absolute;
       inset: 0;
@@ -1193,6 +1245,11 @@
       #floorPlanView {
         padding: 112px 8px 18px;
       }
+
+      .floor-zoom-toolbar {
+        display: none !important;
+      }
+
 
       #floorPlanStage {
         max-width: 98vw;
@@ -1880,6 +1937,12 @@
 
   <div id="map"></div>
   <div id="floorPlanView">
+    <div id="floorZoomToolbar" class="floor-zoom-toolbar" aria-label="Floor plan zoom controls">
+      <button class="floor-zoom-btn" type="button" onclick="zoomFloorPlan(-1)" aria-label="Zoom out">−</button>
+      <span id="floorZoomLevel" class="floor-zoom-level">100%</span>
+      <button class="floor-zoom-btn" type="button" onclick="zoomFloorPlan(1)" aria-label="Zoom in">+</button>
+      <button class="floor-zoom-btn reset" type="button" onclick="resetFloorPlanZoom()">Reset</button>
+    </div>
     <div id="floorPlanStage">
       <img id="floorPlanImage" src="./floor-plan-food-building.png" alt="Building floor plan">
       <div id="floorPlanPinLayer"></div>
@@ -1951,12 +2014,14 @@
     let pendingOutdoorMarker = null;
     let previewObjectUrl = null;
     let pendingPinPhotoFiles = [];
+    let floorPlanZoom = 1;
 
     const mapSelector = document.getElementById("mapSelector");
     const currentViewSummary = document.getElementById("currentViewSummary");
     const floorPlanView = document.getElementById("floorPlanView");
     const floorPlanStage = document.getElementById("floorPlanStage");
     const floorPlanImage = document.getElementById("floorPlanImage");
+    const floorZoomLevel = document.getElementById("floorZoomLevel");
     const floorPlanPinLayer = document.getElementById("floorPlanPinLayer");
     const floorPlanPendingDot = document.getElementById("floorPlanPendingDot");
     const floorPlanPopup = document.getElementById("floorPlanPopup");
@@ -2506,12 +2571,58 @@
         floorPlanView.style.display = "block";
         floorPlanImage.src = view.image || "./floor-plan-food-building.png";
         if (floorPlanEmptyNote) floorPlanEmptyNote.style.display = "block";
+        setTimeout(applyFloorPlanZoom, 60);
       } else {
         floorPlanView.style.display = "none";
         document.getElementById("map").style.display = "block";
         setTimeout(() => map.invalidateSize(), 80);
       }
       applyFilters();
+    }
+
+
+    function applyFloorPlanZoom() {
+      if (!floorPlanStage) return;
+      const zoom = Math.max(0.75, Math.min(3, Number(floorPlanZoom) || 1));
+      floorPlanZoom = zoom;
+
+      if (zoom === 1) {
+        floorPlanStage.style.width = "";
+        floorPlanStage.style.maxWidth = "min(96vw, 1800px)";
+      } else {
+        floorPlanStage.style.width = Math.round(zoom * 100) + "%";
+        floorPlanStage.style.maxWidth = "none";
+      }
+
+      if (floorZoomLevel) floorZoomLevel.textContent = Math.round(zoom * 100) + "%";
+      positionFloorPopup();
+    }
+
+    function zoomFloorPlan(direction) {
+      const oldZoom = floorPlanZoom || 1;
+      const step = direction > 0 ? 0.25 : -0.25;
+      const nextZoom = Math.max(0.75, Math.min(3, oldZoom + step));
+      if (nextZoom === oldZoom) return;
+
+      const oldScrollLeft = floorPlanView ? floorPlanView.scrollLeft : 0;
+      const oldScrollTop = floorPlanView ? floorPlanView.scrollTop : 0;
+      floorPlanZoom = nextZoom;
+      applyFloorPlanZoom();
+
+      if (floorPlanView && oldZoom > 0) {
+        const ratio = nextZoom / oldZoom;
+        floorPlanView.scrollLeft = Math.max(0, oldScrollLeft * ratio);
+        floorPlanView.scrollTop = Math.max(0, oldScrollTop * ratio);
+      }
+    }
+
+    function resetFloorPlanZoom() {
+      floorPlanZoom = 1;
+      applyFloorPlanZoom();
+      if (floorPlanView) {
+        floorPlanView.scrollLeft = 0;
+        floorPlanView.scrollTop = 0;
+      }
     }
 
     function getLocationLabel(pin) {
