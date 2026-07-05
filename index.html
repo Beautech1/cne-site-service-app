@@ -41,10 +41,10 @@
       position: static;
       z-index: 1000;
       background: rgba(255,255,255,0.96);
-      padding: 8px 12px;
+      padding: 7px 10px;
       border-radius: 6px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-      font-size: 13px;
+      font-size: 12px;
       text-align: center;
       width: auto;
       max-width: 100%;
@@ -57,14 +57,128 @@
 
     .status-bar {
       min-width: 0;
+      max-width: 220px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      padding: 5px 8px;
+      border: 1px solid #d9e0e6;
+      box-shadow: none;
+      background: #f7fafc;
+      color: #334155;
+      font-size: 11px;
+      text-align: left;
+      flex: 0 0 190px;
     }
 
     .map-toolbar {
       display: flex;
-      gap: 8px;
+      gap: 6px;
       align-items: center;
       justify-content: center;
       flex-wrap: wrap;
+    }
+
+    .compact-control-grid {
+      display: grid;
+      grid-template-rows: auto auto;
+      gap: 5px;
+    }
+
+    .control-row {
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 6px;
+      flex-wrap: wrap;
+      background: rgba(255,255,255,0.96);
+      padding: 6px 8px;
+      border-radius: 6px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.16);
+      box-sizing: border-box;
+    }
+
+    .control-row.summary-row {
+      justify-content: flex-start;
+      flex-wrap: nowrap;
+      overflow: hidden;
+    }
+
+    .toolbar-select-label,
+    .toolbar-filter-label {
+      font-weight: bold;
+      color: #243447;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      white-space: nowrap;
+    }
+
+    .toolbar-filter-label select,
+    .toolbar-select-label select {
+      border: 1px solid #c9d2dc;
+      border-radius: 4px;
+      padding: 5px 7px;
+      font-size: 12px;
+      background: white;
+      max-width: 170px;
+    }
+
+    .map-view-label {
+      background: #ffffff;
+      border: 1px solid #b7c5d4;
+      border-radius: 8px;
+      padding: 5px 7px;
+    }
+
+    .map-view-title,
+    .current-view-title {
+      display: inline-flex;
+      align-items: center;
+      font-size: 11px;
+      font-weight: 800;
+      color: #003f70;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+    }
+
+    .current-view-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #e7f3ff;
+      border: 2px solid #005a9c;
+      border-radius: 8px;
+      padding: 5px 7px;
+      box-shadow: 0 0 0 3px rgba(0,90,156,0.12);
+      color: #003f70;
+      white-space: nowrap;
+    }
+
+    .current-view-summary {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: #005a9c;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 800;
+      line-height: 1.2;
+      max-width: 300px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .current-view-select {
+      border: 2px solid #005a9c !important;
+      font-weight: 700;
+      color: #003f70;
+      background: #ffffff !important;
+      min-width: 170px;
+      max-width: 210px;
     }
 
     .filter-bar {
@@ -80,7 +194,7 @@
     .file-label {
       border: none;
       border-radius: 4px;
-      padding: 7px 10px;
+      padding: 6px 8px;
       font-size: 12px;
       cursor: pointer;
       color: #fff;
@@ -131,7 +245,7 @@
       max-height: min(58vh, 520px);
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 6px;
       pointer-events: none;
     }
 
@@ -143,8 +257,8 @@
       display: flex;
       border: none;
       border-radius: 8px;
-      padding: 10px 44px 10px 44px;
-      font-size: 14px;
+      padding: 8px 40px 8px 40px;
+      font-size: 13px;
       font-weight: bold;
       cursor: pointer;
       color: #fff;
@@ -158,10 +272,38 @@
       text-align: center;
     }
 
-    .mobile-ui-toggle span:first-child {
+    .mobile-ui-toggle-main {
       flex: 1;
-      text-align: center;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
       line-height: 1.25;
+      min-width: 0;
+      flex-wrap: wrap;
+    }
+
+    .map-controls-title {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      white-space: nowrap;
+    }
+
+    .header-view-summary {
+      display: inline-flex;
+      align-items: center;
+      max-width: min(340px, 48vw);
+      padding: 3px 9px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.18);
+      border: 1px solid rgba(255,255,255,0.38);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 800;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     #mobileUiToggleIcon {
@@ -176,7 +318,7 @@
     .floating-ui-content {
       display: none;
       flex-direction: column;
-      gap: 8px;
+      gap: 5px;
       overflow-y: auto;
       max-height: calc(min(58vh, 520px) - 52px);
       padding-right: 2px;
@@ -237,6 +379,55 @@
       font-size: 12px;
       font-weight: bold;
       color: #243447;
+    }
+
+
+    .photo-upload-control {
+      display: grid;
+      gap: 6px;
+    }
+
+    .photo-upload-button {
+      border: 1px dashed #9fb5c8;
+      border-radius: 8px;
+      padding: 8px 10px;
+      background: #f8fbfe;
+      color: #243447;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .photo-upload-button:hover {
+      border-color: #005a9c;
+      background: #eef7ff;
+    }
+
+    .photo-upload-icon {
+      width: 24px;
+      height: 24px;
+      border-radius: 999px;
+      background: #005a9c;
+      color: #fff;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      flex: none;
+    }
+
+    .photo-upload-button input[type="file"] {
+      display: none;
+    }
+
+    .photo-upload-help {
+      color: #607084;
+      font-size: 11px;
+      font-weight: normal;
+      line-height: 1.25;
     }
 
     .panel {
@@ -662,26 +853,34 @@
 
     .outstanding-summary {
       display: flex;
-      gap: 8px;
-      align-items: stretch;
-      justify-content: center;
-      flex-wrap: wrap;
-      max-width: 820px;
-      background: rgba(255,255,255,0.96);
+      gap: 5px;
+      align-items: center;
+      justify-content: flex-start;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      max-width: 100%;
+      min-width: 0;
+      flex: 1 1 auto;
+      background: transparent;
       border-radius: 6px;
-      padding: 8px 12px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      padding: 0;
+      box-shadow: none;
+      scrollbar-width: thin;
     }
 
     .outstanding-card {
       border: 1px solid #d9e0e6;
-      border-left: 5px solid #005a9c;
+      border-left: 4px solid #005a9c;
       background: #f9fbfc;
-      border-radius: 8px;
-      padding: 7px 9px;
-      min-width: 112px;
+      border-radius: 7px;
+      padding: 5px 7px;
+      min-width: 0;
       cursor: pointer;
       text-align: left;
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
     }
 
     .outstanding-card:hover,
@@ -693,7 +892,7 @@
 
     .outstanding-count {
       display: block;
-      font-size: 20px;
+      font-size: 16px;
       font-weight: bold;
       color: #1f2933;
       line-height: 1;
@@ -701,10 +900,15 @@
 
     .outstanding-label {
       display: block;
-      margin-top: 3px;
+      margin-top: 0;
       color: #55606e;
-      font-size: 11px;
-      line-height: 1.2;
+      font-size: 10px;
+      line-height: 1.15;
+      white-space: nowrap;
+    }
+
+    .outstanding-label small {
+      display: none;
     }
 
     .admin-menu-grid {
@@ -738,7 +942,7 @@
       overscroll-behavior: contain;
       -webkit-overflow-scrolling: touch;
       background: #eef2f6;
-      padding: 170px 16px 24px;
+      padding: 118px 16px 24px;
       box-sizing: border-box;
       text-align: center;
     }
@@ -877,22 +1081,35 @@
 
       .status-bar,
       .map-toolbar,
-      .filter-bar {
+      .filter-bar,
+      .compact-control-grid,
+      .control-row {
         max-width: none;
         min-width: 0;
         width: auto;
       }
 
       .map-toolbar,
-      .filter-bar {
+      .filter-bar,
+      .control-row {
         gap: 6px;
+      }
+
+      .current-view-select {
+        min-width: 150px;
+      }
+
+      .control-row.summary-row {
+        overflow-x: auto;
       }
 
       .toolbar-btn,
       .action-btn,
       .file-label,
-      .filter-bar select {
-        min-height: 40px;
+      .filter-bar select,
+      .toolbar-filter-label select,
+      .toolbar-select-label select {
+        min-height: 34px;
       }
 
       .filter-bar label {
@@ -906,7 +1123,7 @@
       }
 
       #floorPlanView {
-        padding: 138px 8px 18px;
+        padding: 112px 8px 18px;
       }
 
       #floorPlanStage {
@@ -984,6 +1201,21 @@
     }
 
     @media (max-width: 420px) {
+      .map-view-label,
+      .current-view-label {
+        display: grid;
+        grid-template-columns: 1fr;
+        justify-items: stretch;
+        text-align: center;
+      }
+
+      .current-view-select,
+      .current-view-summary {
+        max-width: none;
+        width: 100%;
+        justify-content: center;
+      }
+
       .modal-actions {
         flex-wrap: wrap;
       }
@@ -1001,7 +1233,7 @@
         max-height: calc(70vh - 52px);
       }
       #floorPlanView {
-        padding-top: 150px;
+        padding-top: 116px;
       }
     }
   </style>
@@ -1009,46 +1241,44 @@
 <body>
   <div class="floating-ui" id="floatingUi">
     <button class="mobile-ui-toggle" id="mobileUiToggle" type="button" onclick="toggleMobileUi()">
-      <span>Map Controls <small style="font-weight:normal; opacity:0.95;">(Collapse / Expand Menu)</small></span>
+      <span class="mobile-ui-toggle-main">
+        <span class="map-controls-title">Map Controls <small style="font-weight:normal; opacity:0.95;">(Expand/Collapse Menu)</small></span>
+        <span id="headerViewSummary" class="header-view-summary">All Departments • 0 active</span>
+      </span>
       <span id="mobileUiToggleIcon">☰</span>
     </button>
 
     <div class="floating-ui-content" id="floatingUiContent">
-      <div class="status-bar" id="statusBar">Starting map...</div>
+      <div class="compact-control-grid">
+        <div class="control-row map-toolbar">
+          <label class="toolbar-select-label map-view-label">
+            <span class="map-view-title">Map View</span>
+            <select id="mapSelector" class="current-view-select" onchange="switchMapView(this.value)"></select>
+          </label>
+          <label class="toolbar-filter-label">Status
+            <select id="statusFilter" onchange="applyFilters()">
+              <option value="active">Active</option>
+              <option value="cleared">Cleared</option>
+              <option value="cancelled">Cancelled</option>
+              <option value="reported">Reports</option>
+              <option value="all">All</option>
+            </select>
+          </label>
+          <button class="toolbar-btn secondary" onclick="openDepartmentViewPrompt(false); closeMobileUiAfterAction();">Change Department Default View</button>
+          <button class="toolbar-btn" onclick="loadPins(true); closeMobileUiAfterAction();">Refresh</button>
+          <button class="toolbar-btn" onclick="openPinModalForPending(); closeMobileUiAfterAction();">Add Pin</button>
+          <button class="toolbar-btn secondary" onclick="toggleLogPanel(); closeMobileUiAfterAction();">Clear Log</button>
+          <button class="toolbar-btn secondary" onclick="toggleLegendPanel(); closeMobileUiAfterAction();">Legend</button>
+          <button class="toolbar-btn secondary" onclick="toggleAdminPanel(); closeMobileUiAfterAction();">Admin</button>
+          <input class="hidden-input" id="csvInput" type="file" accept=".csv,text/csv" onchange="handleCsvImport(event)">
+        </div>
 
-      <div class="map-toolbar">
-        <label style="font-weight:bold; color:#243447; display:inline-flex; align-items:center; gap:6px;">Map
-          <select id="mapSelector" onchange="switchMapView(this.value)" style="border:1px solid #c9d2dc; border-radius:4px; padding:6px 8px; font-size:12px; background:white;"></select>
-        </label>
-        <button class="toolbar-btn secondary" onclick="openDepartmentViewPrompt(false); closeMobileUiAfterAction();">Change View</button>
-        <button class="toolbar-btn" onclick="loadPins(true); closeMobileUiAfterAction();">Refresh Pins</button>
-        <button class="toolbar-btn" onclick="openPinModalForPending(); closeMobileUiAfterAction();">Add Pin</button>
-        <button class="toolbar-btn secondary" onclick="toggleLogPanel(); closeMobileUiAfterAction();">View Clear Log</button>
-        <button class="toolbar-btn secondary" onclick="toggleLegendPanel(); closeMobileUiAfterAction();">Legend</button>
-        <button class="toolbar-btn secondary" onclick="toggleAdminPanel(); closeMobileUiAfterAction();">Admin Menu</button>
-        <input class="hidden-input" id="csvInput" type="file" accept=".csv,text/csv" onchange="handleCsvImport(event)">
-      </div>
-
-      <div class="filter-bar">
-        <label>Status
-          <select id="statusFilter" onchange="applyFilters()">
-            <option value="active">Active pins only</option>
-            <option value="cleared">Cleared pins only</option>
-            <option value="cancelled">Cancelled calls only</option>
-            <option value="reported">Report-only items</option>
-            <option value="all">All pins</option>
-          </select>
-        </label>
-
-        <label>Department
-          <select id="categoryFilter" onchange="setDepartmentView(this.value, true)">
-            <option value="all">All departments</option>
-          </select>
-        </label>
-      </div>
-
-      <div class="outstanding-summary" id="outstandingSummary" aria-label="Outstanding pins by department">
-        <div class="panel-note" style="padding:0;">Loading outstanding counts...</div>
+        <div class="control-row summary-row">
+          <div class="status-bar" id="statusBar">Starting map...</div>
+          <div class="outstanding-summary" id="outstandingSummary" aria-label="Outstanding pins by department">
+            <div class="panel-note" style="padding:0;">Loading outstanding counts...</div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -1079,6 +1309,7 @@
           <button class="action-btn secondary" onclick="toggleDepartmentPanel(true)">Manage Departments</button>
           <button class="action-btn secondary" onclick="toggleProfilesPanel(true)">Manage Profiles</button>
           <button class="action-btn secondary" onclick="toggleMapsPanel(true)">Manage Maps / Buildings</button>
+          <button class="action-btn secondary" onclick="changeDeviceUserProfile()">Change Device User</button>
         </div>
       </div>
       <div class="admin-menu-section">
@@ -1315,9 +1546,15 @@
       <label>Location and description details <span style="color:#b71c1c;">*</span>
         <textarea id="pinDescriptionInput" placeholder="Required. Example: west washroom, beside sink. Add any issue details here." required></textarea>
       </label>
-      <label>Photos from phone or device
-        <input type="file" id="pinPhotoFileInput" accept="image/*" capture="environment" multiple>
-      </label>
+      <div class="photo-upload-control">
+        <span style="font-size:12px; font-weight:bold; color:#243447;">Photo / file upload</span>
+        <label class="photo-upload-button" for="pinPhotoFileInput">
+          <span class="photo-upload-icon" aria-hidden="true">📷</span>
+          <span>Add photos from phone or device</span>
+          <input type="file" id="pinPhotoFileInput" accept="image/*" capture="environment" multiple>
+        </label>
+        <span class="photo-upload-help">Optional. Add one or more photos to help identify the issue.</span>
+      </div>
       <div class="sms-group-card-header">
         <div>
           <div class="sms-group-card-title">Text selected groups to be text messaged</div>
@@ -1434,11 +1671,11 @@
   <div class="modal" id="departmentViewModal">
     <div class="modal-header">Choose Your Department View</div>
     <div class="modal-body">
-      <div class="panel-note" style="padding-top:0;">Choose the department you want to see by default on this device. Your selection will stay saved only on this device. Choose <b>All</b> to see every department.</div>
+      <div class="panel-note" style="padding-top:0;">Choose your department default view for this device. Your selection will stay saved on this device.</div>
       <div class="department-view-grid" id="departmentViewOptions"></div>
     </div>
     <div class="modal-actions">
-      <button class="action-btn secondary" onclick="setDepartmentView('all', true)">Show All</button>
+      <button class="action-btn secondary" onclick="closeDepartmentViewPrompt()">Close</button>
     </div>
   </div>
 
@@ -1481,7 +1718,12 @@
     const MAP_VIEWS_STORAGE_KEY = "cne_map_views_v1";
     const CURRENT_MAP_STORAGE_KEY = "cne_current_map_view_v1";
     const DEPARTMENT_VIEW_STORAGE_KEY = "cne_map_department_view_v1";
-    const ADMIN_PASSWORD = "admin123"; // Change this password before sharing the file.
+    const DEVICE_ID_STORAGE_KEY = "cne_service_device_id_v1";
+    const DEVICE_PROFILE_STORAGE_KEY = "cne_service_device_profile_v1";
+    const SITE_ACCESS_STORAGE_KEY = "cne_service_site_access_v1";
+    const SITE_ACCESS_PASSWORD_VERSION = "v1";
+    const SITE_ACCESS_PASSWORD = "cne2026"; // Change this primary site password before sharing the file.
+    const ADMIN_PASSWORD = "admin123"; // Change this admin password before sharing the file.
     const DEFAULT_MAP_VIEWS = [
       { id: "outdoor_site", name: "Outdoor Site Map", type: "outdoor", image: null },
       { id: "food_building_main", name: "Food Building - Main Floor", type: "floorplan", image: "./floor-plan-food-building.png" }
@@ -1511,6 +1753,7 @@
     let previewObjectUrl = null;
 
     const mapSelector = document.getElementById("mapSelector");
+    const currentViewSummary = document.getElementById("currentViewSummary");
     const floorPlanView = document.getElementById("floorPlanView");
     const floorPlanStage = document.getElementById("floorPlanStage");
     const floorPlanImage = document.getElementById("floorPlanImage");
@@ -1593,6 +1836,7 @@
     let currentReportPinId = null;
     let initialUrlActionHandled = false;
     const floatingUi = document.getElementById("floatingUi");
+    const headerViewSummary = document.getElementById("headerViewSummary");
     const mobileUiToggleIcon = document.getElementById("mobileUiToggleIcon");
     const movePinNotice = document.getElementById("movePinNotice");
 
@@ -1697,6 +1941,214 @@
       return url.toString();
     }
 
+    function getDepartmentViewName(value) {
+      const view = isValidDepartmentView(value) ? value : "all";
+      if (view === "all") return "All Departments";
+      const dept = departments.find(item => item.key === view);
+      return dept ? dept.name : formatCategoryLabel(view);
+    }
+
+    function updateHeaderViewSummary(activeCountOverride) {
+      if (!headerViewSummary) return;
+      const selected = isValidDepartmentView(selectedDepartmentView) ? selectedDepartmentView : "all";
+      const departmentName = getDepartmentViewName(selected);
+      let activeCount = activeCountOverride;
+      if (!Number.isFinite(Number(activeCount))) {
+        const activePins = getActivePinsForAllMaps();
+        activeCount = selected === "all"
+          ? activePins.length
+          : activePins.filter(pin => (pin.category || "general") === selected).length;
+      }
+      const activeLabel = Number(activeCount) === 1 ? "active" : "active";
+      headerViewSummary.textContent = `${departmentName} • ${Number(activeCount) || 0} ${activeLabel}`;
+      headerViewSummary.title = `${departmentName}: ${Number(activeCount) || 0} active outstanding pin${Number(activeCount) === 1 ? "" : "s"}`;
+    }
+
+    function updateCurrentViewDisplay() {
+      const mapName = getMapView(currentMapId).name || "Current Map";
+      const departmentName = getDepartmentViewName(isValidDepartmentView(selectedDepartmentView) ? selectedDepartmentView : "all");
+      if (currentViewSummary) {
+        currentViewSummary.textContent = `${mapName} / ${departmentName}`;
+        currentViewSummary.title = `Current View: ${mapName} / ${departmentName}`;
+      }
+      updateHeaderViewSummary();
+    }
+
+    function getOrCreateDeviceId() {
+      try {
+        let id = localStorage.getItem(DEVICE_ID_STORAGE_KEY);
+        if (!id) {
+          id = "CNE-" + Math.random().toString(36).slice(2, 6).toUpperCase() + "-" + Date.now().toString(36).slice(-5).toUpperCase();
+          localStorage.setItem(DEVICE_ID_STORAGE_KEY, id);
+        }
+        return id;
+      } catch (error) {
+        return "CNE-SESSION-" + Math.random().toString(36).slice(2, 8).toUpperCase();
+      }
+    }
+
+    function getDeviceProfile() {
+      const deviceId = getOrCreateDeviceId();
+      try {
+        const saved = JSON.parse(localStorage.getItem(DEVICE_PROFILE_STORAGE_KEY) || "null") || {};
+        return {
+          device_id: deviceId,
+          user_name: String(saved.user_name || "").trim(),
+          device_label: String(saved.device_label || "").trim()
+        };
+      } catch (error) {
+        return { device_id: deviceId, user_name: "", device_label: "" };
+      }
+    }
+
+    function saveDeviceProfile(profile) {
+      const normalized = {
+        user_name: String((profile && profile.user_name) || "").trim(),
+        device_label: String((profile && profile.device_label) || "").trim()
+      };
+      try { localStorage.setItem(DEVICE_PROFILE_STORAGE_KEY, JSON.stringify(normalized)); } catch (error) {}
+      return { device_id: getOrCreateDeviceId(), ...normalized };
+    }
+
+    function getDefaultUserName() {
+      return getDeviceProfile().user_name || "";
+    }
+
+    function getDefaultDeviceLabel() {
+      const profile = getDeviceProfile();
+      return profile.device_label || profile.user_name || profile.device_id;
+    }
+
+    function hasSavedSiteAccess() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(SITE_ACCESS_STORAGE_KEY) || "null");
+        return !!(saved && saved.approved === true && saved.version === SITE_ACCESS_PASSWORD_VERSION);
+      } catch (error) {
+        return false;
+      }
+    }
+
+    function saveSiteAccessApproval() {
+      try {
+        localStorage.setItem(SITE_ACCESS_STORAGE_KEY, JSON.stringify({
+          approved: true,
+          version: SITE_ACCESS_PASSWORD_VERSION,
+          approved_at: new Date().toISOString()
+        }));
+      } catch (error) {}
+    }
+
+    function resetSiteAccessApproval() {
+      try { localStorage.removeItem(SITE_ACCESS_STORAGE_KEY); } catch (error) {}
+    }
+
+    function showAccessBlockedMessage() {
+      const blocker = document.createElement("div");
+      blocker.id = "siteAccessBlocker";
+      blocker.style.cssText = "position:fixed; inset:0; z-index:3000; display:flex; align-items:center; justify-content:center; background:#eef2f6; padding:18px; box-sizing:border-box; font-family:Arial,sans-serif;";
+      blocker.innerHTML = `
+        <div style="width:min(420px,100%); background:white; border-radius:12px; box-shadow:0 12px 32px rgba(0,0,0,0.25); padding:18px; text-align:center; color:#243447;">
+          <div style="font-size:18px; font-weight:bold; margin-bottom:8px;">CNE Service App Access Required</div>
+          <div style="font-size:13px; line-height:1.4; color:#55606e; margin-bottom:14px;">Enter the site access password to use this app on this device.</div>
+          <button class="action-btn" type="button" onclick="retrySiteAccess()" style="justify-content:center;">Enter Password</button>
+        </div>`;
+      document.body.appendChild(blocker);
+    }
+
+    function hideAccessBlockedMessage() {
+      const blocker = document.getElementById("siteAccessBlocker");
+      if (blocker) blocker.remove();
+    }
+
+    function ensureSiteAccess(forcePrompt = false) {
+      if (!forcePrompt && hasSavedSiteAccess()) return true;
+      const entered = window.prompt("Enter the CNE Service App access password:");
+      if (entered === SITE_ACCESS_PASSWORD) {
+        saveSiteAccessApproval();
+        hideAccessBlockedMessage();
+        return true;
+      }
+      if (entered !== null) alert("Incorrect access password.");
+      showAccessBlockedMessage();
+      return false;
+    }
+
+    function retrySiteAccess() {
+      if (ensureSiteAccess(true)) {
+        initializeApp();
+      }
+    }
+
+    function ensureDeviceUserProfile(forcePrompt = false) {
+      const profile = getDeviceProfile();
+      if (profile.user_name && !forcePrompt) return profile;
+
+      const currentName = profile.user_name || "";
+      const enteredName = window.prompt("Enter your name for this device. This will be used as the default Reported By / Cleared By.", currentName);
+      if (enteredName === null && profile.user_name) return profile;
+      const userName = String(enteredName || profile.user_name || "").trim();
+      if (!userName) return profile;
+
+      const currentLabel = profile.device_label || userName;
+      const enteredLabel = window.prompt("Optional: name this device/location for the logs. Example: Plumbing Phone 1, Operations Tablet.", currentLabel);
+      const deviceLabel = String(enteredLabel || currentLabel || userName).trim();
+      const saved = saveDeviceProfile({ user_name: userName, device_label: deviceLabel });
+      populateProfileDropdowns();
+      setStatus(`Device user set to ${userName}.`);
+      return saved;
+    }
+
+    function changeDeviceUserProfile() {
+      ensureDeviceUserProfile(true);
+    }
+
+    function fillDefaultUser(inputElement) {
+      if (!inputElement) return;
+      const defaultName = getDefaultUserName();
+      if (defaultName && !String(inputElement.value || "").trim()) {
+        inputElement.value = defaultName;
+      }
+    }
+
+    function rememberUserNameFromInput(inputElement) {
+      if (!inputElement) return;
+      const name = String(inputElement.value || "").trim();
+      if (!name) return;
+      const profile = getDeviceProfile();
+      if (profile.user_name !== name) {
+        saveDeviceProfile({ user_name: name, device_label: profile.device_label || name });
+      }
+    }
+
+    function getDeviceAuditFields(actionName, personName) {
+      const profile = getDeviceProfile();
+      return {
+        last_action: actionName || null,
+        last_action_by: personName || profile.user_name || null,
+        last_action_device_id: profile.device_id,
+        last_action_device_label: getDefaultDeviceLabel(),
+        last_action_user_agent: navigator.userAgent || null
+      };
+    }
+
+    async function recordSiteVisit() {
+      if (!supabaseClient) return;
+      const profile = getDeviceProfile();
+      try {
+        await supabaseClient.from("site_visits").insert([{
+          device_id: profile.device_id,
+          device_label: getDefaultDeviceLabel(),
+          user_name: profile.user_name || null,
+          map_id: currentMapId || null,
+          department_view: isValidDepartmentView(selectedDepartmentView) ? selectedDepartmentView : "all",
+          user_agent: navigator.userAgent || null,
+          page_url: window.location.href.split("#")[0]
+        }]);
+      } catch (error) {
+        console.warn("Site visit could not be recorded. Run the site_visits SQL setup if you want visit tracking.", error);
+      }
+    }
+
     function populateMapSelector() {
       if (!mapSelector) return;
       mapSelector.innerHTML = mapViews.map(view => `<option value="${escapeHtml(view.id)}">${escapeHtml(view.name)}</option>`).join("");
@@ -1704,12 +2156,14 @@
       try { localStorage.setItem(CURRENT_MAP_STORAGE_KEY, currentMapId); } catch (error) {}
       mapSelector.value = currentMapId;
       populateManageMapSelect();
+      updateCurrentViewDisplay();
     }
 
     function switchMapView(mapId) {
       currentMapId = getMapView(mapId).id;
       try { localStorage.setItem(CURRENT_MAP_STORAGE_KEY, currentMapId); } catch (error) {}
       if (mapSelector) mapSelector.value = currentMapId;
+      updateCurrentViewDisplay();
       pendingLatLng = null;
       closeAllMapPopups();
 
@@ -2104,6 +2558,7 @@
           dataList.innerHTML = names.map(name => `<option value="${escapeHtml(name)}"></option>`).join("");
         }
         if (previousValue) selectElement.value = previousValue;
+        else fillDefaultUser(selectElement);
         return;
       }
       selectElement.innerHTML = '<option value="">Select name...</option>' + names.map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("");
@@ -2231,6 +2686,7 @@
       const title = editPinTitleInput.value || "General request";
       const description = editPinDescriptionInput.value.trim();
       const reportedBy = editPinReportedByInput.value.trim();
+      rememberUserNameFromInput(editPinReportedByInput);
       const status = editPinStatusInput.value;
       const clearedBy = editPinClearedByInput.value.trim();
       const clearComment = editPinClearCommentInput ? editPinClearCommentInput.value.trim() : "";
@@ -2289,7 +2745,13 @@
         is_cleared: status === "cleared",
         cleared_at: nextClearedAt,
         cleared_by: status === "cleared" ? clearedBy : null,
-        clear_comment: status === "cleared" ? clearComment : null
+        clear_comment: status === "cleared" ? clearComment : null,
+        ...(status === "cleared" ? {
+          cleared_device_id: getDeviceProfile().device_id,
+          cleared_device_label: getDefaultDeviceLabel(),
+          cleared_user_agent: navigator.userAgent || null
+        } : {}),
+        ...getDeviceAuditFields("edited", reportedBy)
       };
 
       const { data, error } = await supabaseClient
@@ -2468,7 +2930,7 @@
 
 
     function getDepartmentsAvailableForDepartmentView() {
-      // The Change View menu should only show departments that are enabled in Admin > Manage Departments.
+      // The Change Department Default View menu should only show departments that are enabled in Admin > Manage Departments.
       // Hidden departments can still remain on old pins/logs, but they should not be offered as a normal working view.
       return departments.filter(dept => dept && dept.availableForPins !== false);
     }
@@ -2510,6 +2972,7 @@
       selectedDepartmentView = view;
       if (categoryFilter) categoryFilter.value = view;
       if (saveChoice) localStorage.setItem(DEPARTMENT_VIEW_STORAGE_KEY, view);
+      updateCurrentViewDisplay();
       closeDepartmentViewPrompt();
       buildDepartmentViewOptions();
       applyFilters();
@@ -2607,6 +3070,7 @@
       populateReportedByDropdown();
       buildLegend();
       buildDepartmentViewOptions();
+      updateCurrentViewDisplay();
       applyFilters();
     }
 
@@ -2904,7 +3368,9 @@
             '<div><small><b>Status:</b> ' + escapeHtml(formatPinStatus(pin)) + '</small></div>' +
             '<div><small><b>Department:</b> ' + escapeHtml(formatDepartmentLabel(pin.category)) + '</small></div>' +
             (pin.reported_by ? '<div><small><b>Reported by:</b> ' + escapeHtml(pin.reported_by) + '</small></div>' : '') +
+            (pin.created_device_label ? '<div><small><b>Created from:</b> ' + escapeHtml(pin.created_device_label) + '</small></div>' : '') +
             (pin.cleared_by ? '<div><small><b>Cleared by:</b> ' + escapeHtml(pin.cleared_by) + '</small></div>' : '') +
+            (pin.cleared_device_label ? '<div><small><b>Cleared from:</b> ' + escapeHtml(pin.cleared_device_label) + '</small></div>' : '') +
             (formatTimeToClear(pin) ? '<div><small><b>Time to clear:</b> ' + escapeHtml(formatTimeToClear(pin)) + '</small></div>' : '') +
             (pin.clear_comment ? '<div><small><b>Clear comments:</b> ' + escapeHtml(pin.clear_comment) + '</small></div>' : '') +
             (pin.description ? '<div>' + escapeHtml(pin.description) + '</div>' : '') +
@@ -3087,7 +3553,7 @@
     function updateOutstandingSummary() {
       if (!outstandingSummary) return;
       const activePins = getActivePinsForAllMaps();
-      const selected = categoryFilter ? categoryFilter.value : "all";
+      const selected = isValidDepartmentView(selectedDepartmentView) ? selectedDepartmentView : "all";
 
       if (selected !== "all") {
         const selectedDept = departments.find(dept => dept.key === selected);
@@ -3095,6 +3561,7 @@
         const deptColor = selectedDept ? (selectedDept.color || "#005a9c") : "#005a9c";
         const deptPins = activePins.filter(pin => (pin.category || "general") === selected);
         const countsByMap = countActivePinsByMap(activePins, selected);
+        updateHeaderViewSummary(deptPins.length);
 
         outstandingSummary.innerHTML =
           `<button type="button" class="outstanding-card active" style="border-left-color:${escapeHtml(deptColor)};" onclick="navigateOutstanding('${escapeHtml(currentMapId)}', '${escapeHtml(selected)}')"><span class="outstanding-count">${deptPins.length}</span><span class="outstanding-label">${escapeHtml(deptName)} total outstanding<br><small>Open items by map/building below</small></span></button>` +
@@ -3103,6 +3570,7 @@
       }
 
       const total = activePins.length;
+      updateHeaderViewSummary(total);
       const countsByMap = countActivePinsByMap(activePins, "all");
       const countsByDept = countActivePinsByDepartment(activePins);
       const deptBreakdown = departments
@@ -3120,7 +3588,7 @@
 
     function applyFilters() {
       const statusValue = statusFilter.value;
-      const categoryValue = categoryFilter.value;
+      const categoryValue = isValidDepartmentView(selectedDepartmentView) ? selectedDepartmentView : "all";
 
       userPinsLayer.clearLayers();
       if (floorPlanPinLayer) floorPlanPinLayer.innerHTML = "";
@@ -3164,7 +3632,7 @@
 
       const { data, error } = await supabaseClient
         .from(SUPABASE_TABLE)
-        .select("id, title, description, lat, lng, photo_url, photo_urls, clear_photo_urls, map_snapshot_url, category, is_cleared, created_at, cleared_at, reported_by, cleared_by, clear_comment, status, map_id, location_type, x_percent, y_percent")
+        .select("id, title, description, lat, lng, photo_url, photo_urls, clear_photo_urls, map_snapshot_url, category, is_cleared, created_at, cleared_at, reported_by, cleared_by, clear_comment, status, map_id, location_type, x_percent, y_percent, created_device_id, created_device_label, created_user_agent, cleared_device_id, cleared_device_label, cleared_user_agent, last_action, last_action_by, last_action_device_id, last_action_device_label, last_action_user_agent")
         .order("created_at", { ascending: true });
 
       if (error) {
@@ -3203,6 +3671,10 @@
         map_snapshot_url: null,
         category: category || "general",
         reported_by: reportedBy || null,
+        created_device_id: getDeviceProfile().device_id,
+        created_device_label: getDefaultDeviceLabel(),
+        created_user_agent: navigator.userAgent || null,
+        ...getDeviceAuditFields("created", reportedBy),
         map_id: latlng.map_id || currentMapId,
         location_type: latlng.location_type || (isFloorPlanMap() ? "floorplan" : "gps"),
         x_percent: latlng.x_percent ?? null,
@@ -3237,6 +3709,7 @@
       if (!pin) return;
       pendingClearPinId = pinId;
       populateClearedByDropdown(pin);
+      fillDefaultUser(clearByInput);
       if (clearPinNote) clearPinNote.textContent = `Clearing ${formatDepartmentLabel(pin.category)} request: ${pin.title}`;
       clearModal.classList.add("open");
       modalBackdrop.classList.add("open");
@@ -3271,7 +3744,8 @@
           status: "cancelled",
           is_cleared: false,
           cleared_at: null,
-          cleared_by: null
+          cleared_by: null,
+          ...getDeviceAuditFields("cancelled", getDefaultUserName())
         })
         .eq("id", pinId)
         .select();
@@ -3298,6 +3772,7 @@
       if (!supabaseClient || !pendingClearPinId) return;
 
       const clearedBy = clearByInput.value.trim();
+      rememberUserNameFromInput(clearByInput);
       if (!clearedBy) {
         alert("Cleared By is required.");
         clearByInput.focus();
@@ -3335,11 +3810,15 @@
           status: "cleared",
           cleared_at: clearedAt,
           cleared_by: clearedBy,
+          cleared_device_id: getDeviceProfile().device_id,
+          cleared_device_label: getDefaultDeviceLabel(),
+          cleared_user_agent: navigator.userAgent || null,
+          ...getDeviceAuditFields("cleared", clearedBy),
           clear_comment: clearComment,
           clear_photo_urls: clearPhotoUrls
         })
         .eq("id", clearingPinId)
-        .select("id, title, description, lat, lng, photo_url, photo_urls, clear_photo_urls, map_snapshot_url, category, is_cleared, created_at, cleared_at, reported_by, cleared_by, clear_comment, status, map_id, location_type, x_percent, y_percent")
+        .select("id, title, description, lat, lng, photo_url, photo_urls, clear_photo_urls, map_snapshot_url, category, is_cleared, created_at, cleared_at, reported_by, cleared_by, clear_comment, status, map_id, location_type, x_percent, y_percent, created_device_id, created_device_label, created_user_agent, cleared_device_id, cleared_device_label, cleared_user_agent, last_action, last_action_by, last_action_device_id, last_action_device_label, last_action_user_agent")
         .maybeSingle();
 
       if (error) {
@@ -3447,7 +3926,9 @@
         '<b>Department:</b> ' + escapeHtml(formatDepartmentLabel(pin.category)) + '<br>' +
         '<b>Map:</b> ' + escapeHtml(getMapView(getPinMapId(pin)).name) + '<br>' +
         (pin.reported_by ? '<b>Reported by:</b> ' + escapeHtml(pin.reported_by) + '<br>' : '') +
+        (pin.created_device_label ? '<b>Created from:</b> ' + escapeHtml(pin.created_device_label) + '<br>' : '') +
         (pin.cleared_by ? '<b>Cleared by:</b> ' + escapeHtml(pin.cleared_by) + '<br>' : '') +
+        (pin.cleared_device_label ? '<b>Cleared from:</b> ' + escapeHtml(pin.cleared_device_label) + '<br>' : '') +
         (pin.clear_comment ? '<b>Clear comments:</b> ' + escapeHtml(pin.clear_comment) + '<br>' : '') +
         (pin.cleared_at ? '<b>Cleared:</b> ' + escapeHtml(new Date(pin.cleared_at).toLocaleString()) + '<br>' : '') +
         '<b>Location:</b> ' + escapeHtml(getLocationLabel(pin)) +
@@ -3508,7 +3989,9 @@
             '<div><small><b>Department:</b> ' + escapeHtml(formatDepartmentLabel(pin.category)) + '</small></div>' +
             '<div><small><b>Map:</b> ' + escapeHtml(getMapView(getPinMapId(pin)).name) + '</small></div>' +
             (pin.reported_by ? '<div><small><b>Reported by:</b> ' + escapeHtml(pin.reported_by) + '</small></div>' : '') +
+            (pin.created_device_label ? '<div><small><b>Created from:</b> ' + escapeHtml(pin.created_device_label) + '</small></div>' : '') +
             (pin.cleared_by ? '<div><small><b>Cleared by:</b> ' + escapeHtml(pin.cleared_by) + '</small></div>' : '') +
+            (pin.cleared_device_label ? '<div><small><b>Cleared from:</b> ' + escapeHtml(pin.cleared_device_label) + '</small></div>' : '') +
             (formatTimeToClear(pin) ? '<div><small><b>Time to clear:</b> ' + escapeHtml(formatTimeToClear(pin)) + '</small></div>' : '') +
             (pin.clear_comment ? '<div><small><b>Clear comments:</b> ' + escapeHtml(pin.clear_comment) + '</small></div>' : '') +
             (pin.description ? '<div>' + escapeHtml(pin.description) + '</div>' : '') +
@@ -3854,7 +4337,7 @@ function resetPinForm() {
   } else {
     pinCategoryInput.disabled = true;
   }
-  if (pinReportedByInput) pinReportedByInput.value = "";
+  if (pinReportedByInput) pinReportedByInput.value = getDefaultUserName();
   populateTitleDropdown();
   populateSmsGroupCheckboxes();
   pinPhotoFileInput.value = "";
@@ -3883,6 +4366,7 @@ function resetPinForm() {
       if (pinInstructionsDetails) pinInstructionsDetails.open = false;
       pinModal.classList.add("open");
       modalBackdrop.classList.add("open");
+      fillDefaultUser(pinReportedByInput);
       if (pinReportedByInput) pinReportedByInput.focus();
     }
 
@@ -3906,6 +4390,7 @@ function resetPinForm() {
       }
 
       const reportedBy = pinReportedByInput.value.trim();
+      rememberUserNameFromInput(pinReportedByInput);
       if (!reportedBy) {
         alert("Reported By is required.");
         pinReportedByInput.focus();
@@ -4272,7 +4757,7 @@ function resetPinForm() {
       if (!pin && supabaseClient && pinId) {
         const { data, error } = await supabaseClient
           .from(SUPABASE_TABLE)
-          .select("id, title, description, lat, lng, photo_url, photo_urls, clear_photo_urls, map_snapshot_url, category, is_cleared, created_at, cleared_at, reported_by, cleared_by, clear_comment, status, map_id, location_type, x_percent, y_percent")
+          .select("id, title, description, lat, lng, photo_url, photo_urls, clear_photo_urls, map_snapshot_url, category, is_cleared, created_at, cleared_at, reported_by, cleared_by, clear_comment, status, map_id, location_type, x_percent, y_percent, created_device_id, created_device_label, created_user_agent, cleared_device_id, cleared_device_label, cleared_user_agent, last_action, last_action_by, last_action_device_id, last_action_device_label, last_action_user_agent")
           .eq("id", pinId)
           .maybeSingle();
 
@@ -4320,7 +4805,10 @@ function resetPinForm() {
       closeItemReportModal();
       const targetMapId = getPinMapId(pin);
       if (statusFilter) statusFilter.value = getPinStatus(pin);
-      if (categoryFilter) categoryFilter.value = pin.category || "general";
+      const focusDepartment = pin.category || "general";
+      if (isValidDepartmentView(focusDepartment)) selectedDepartmentView = focusDepartment;
+      if (categoryFilter) categoryFilter.value = focusDepartment;
+      updateCurrentViewDisplay();
       switchMapView(targetMapId);
       setTimeout(() => {
         if (isFloorPlanMap(targetMapId)) {
@@ -4922,14 +5410,21 @@ ${rows.map(pin => `
       }, { passive: false });
     }
 
+    let appInitialized = false;
+
     async function initializeApp() {
+      if (appInitialized) return;
+      if (!ensureSiteAccess(false)) return;
+      appInitialized = true;
       populateMapSelector();
+      ensureDeviceUserProfile(false);
       await loadCentralSettingsFromSupabase();
       switchMapView(currentMapId);
       populateDepartmentDropdowns();
       populateProfileDropdowns();
       ensureDepartmentViewSelected();
       await loadPins(true);
+      await recordSiteVisit();
       subscribeRealtime();
     }
 
@@ -4985,6 +5480,9 @@ ${rows.map(pin => `
     window.openPinModalForPending = openPinModalForPending;
     window.closePinModal = closePinModal;
     window.submitPinForm = submitPinForm;
+    window.changeDeviceUserProfile = changeDeviceUserProfile;
+    window.retrySiteAccess = retrySiteAccess;
+    window.resetSiteAccessApproval = resetSiteAccessApproval;
     window.copySmsFallbackMessage = copySmsFallbackMessage;
     window.copySmsFallbackRecipients = copySmsFallbackRecipients;
     window.closeSmsFallbackModal = closeSmsFallbackModal;
