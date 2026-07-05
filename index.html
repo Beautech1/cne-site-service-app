@@ -757,6 +757,40 @@
       font-weight: normal;
     }
 
+    .custom-sms-row {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      align-items: center;
+      gap: 6px 8px;
+      border: 1px solid #d7e0ea;
+      border-radius: 8px;
+      padding: 7px 8px;
+      background: #f8fbfe;
+      font-size: 12px;
+      color: #243447;
+    }
+
+    .custom-sms-row input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      margin: 0;
+      accent-color: #005a9c;
+    }
+
+    .custom-sms-row input[type="tel"] {
+      min-width: 0;
+      padding: 6px 7px !important;
+      font-size: 12px !important;
+    }
+
+    .custom-sms-help {
+      grid-column: 1 / -1;
+      color: #607084;
+      font-size: 10px;
+      line-height: 1.25;
+    }
+
+
     @media (max-width: 640px) {
       .mini-report-grid {
         grid-template-columns: 1fr;
@@ -1654,6 +1688,7 @@
       </label>
       <label>Photo / file upload
         <input type="file" id="pinPhotoFileInput" accept="image/*" multiple>
+        <small style="color:#607084; font-weight:normal; line-height:1.25;">Phone camera: take one photo, then choose again to add another. Laptop: select multiple photos at once.</small>
       </label>
       <div class="sms-group-card-header">
         <div>
@@ -1661,6 +1696,11 @@
         </div>
       </div>
       <div id="smsGroupCheckboxes" class="sms-group-list"></div>
+      <div class="custom-sms-row">
+        <input type="checkbox" id="pinCustomSmsEnabled">
+        <input type="tel" id="pinCustomSmsInput" placeholder="Custom text number">
+        <div class="custom-sms-help">Uncheck group(s) if sending only to this number. Use commas for multiple numbers.</div>
+      </div>
       <label style="display:flex; align-items:center; gap:8px; font-weight:normal;">
         <input type="checkbox" id="pinNotifySmsNowInput" style="width:auto; margin:0;" checked> Open text message after saving this pin
       </label>
@@ -1668,7 +1708,7 @@
         <summary>Instructions / tips</summary>
         <div class="pin-instructions-body">
           <div class="panel-note">Check one or more text groups. Leave the box above unchecked if you only want to save the pin.</div>
-          <div class="panel-note">You can attach multiple photos. Images are compressed before upload to keep storage and data use low.</div>
+          <div class="panel-note">You can attach multiple photos. On phones, choose the camera/photo picker again to add another image.</div>
           <div class="panel-note" id="pinLocationNote">Click the map first to choose a pin location.</div>
         </div>
       </details>
@@ -1724,6 +1764,11 @@
         </div>
       </div>
       <div id="editSmsGroupCheckboxes" class="sms-group-list"></div>
+      <div class="custom-sms-row">
+        <input type="checkbox" id="editCustomSmsEnabled">
+        <input type="tel" id="editCustomSmsInput" placeholder="Custom text number">
+        <div class="custom-sms-help">Uncheck group(s) if sending only to this number. Use commas for multiple numbers.</div>
+      </div>
       <label style="display:flex; align-items:center; gap:8px; font-weight:normal;">
         <input type="checkbox" id="editNotifySmsNowInput" style="width:auto; margin:0;" checked> Open text message after saving this update/reassignment
       </label>
@@ -1851,6 +1896,7 @@
     let pendingMovePinId = null;
     let pendingOutdoorMarker = null;
     let previewObjectUrl = null;
+    let pendingPinPhotoFiles = [];
 
     const mapSelector = document.getElementById("mapSelector");
     const currentViewSummary = document.getElementById("currentViewSummary");
@@ -1892,6 +1938,8 @@
     const pinReportedByInput = document.getElementById("pinReportedByInput");
     const pinPhotoFileInput = document.getElementById("pinPhotoFileInput");
     const pinNotifySmsNowInput = document.getElementById("pinNotifySmsNowInput");
+    const pinCustomSmsEnabled = document.getElementById("pinCustomSmsEnabled");
+    const pinCustomSmsInput = document.getElementById("pinCustomSmsInput");
     const pinPhotoPreview = document.getElementById("pinPhotoPreview");
     const pinLocationNote = document.getElementById("pinLocationNote");
     const smsGroupCheckboxes = document.getElementById("smsGroupCheckboxes");
@@ -1921,6 +1969,8 @@
     const editPinTitleInput = document.getElementById("editPinTitleInput");
     const editSmsGroupCheckboxes = document.getElementById("editSmsGroupCheckboxes");
     const editNotifySmsNowInput = document.getElementById("editNotifySmsNowInput");
+    const editCustomSmsEnabled = document.getElementById("editCustomSmsEnabled");
+    const editCustomSmsInput = document.getElementById("editCustomSmsInput");
     const editPinDescriptionInput = document.getElementById("editPinDescriptionInput");
     const editPinReportedByInput = document.getElementById("editPinReportedByInput");
     const editPinStatusInput = document.getElementById("editPinStatusInput");
@@ -2698,6 +2748,8 @@
 
     function populateEditSmsGroupCheckboxes() {
       if (!editSmsGroupCheckboxes || !editPinCategoryInput) return;
+      if (editCustomSmsEnabled) editCustomSmsEnabled.checked = false;
+      if (editCustomSmsInput) editCustomSmsInput.value = "";
       const dept = getDepartment(editPinCategoryInput.value);
       if (!dept.smsGroups.length) {
         editSmsGroupCheckboxes.innerHTML = '<div class="panel-note" style="padding:0;">No text groups set for this department.</div>';
@@ -4441,6 +4493,9 @@ function resetPinForm() {
   populateTitleDropdown();
   populateSmsGroupCheckboxes();
   pinPhotoFileInput.value = "";
+  pendingPinPhotoFiles = [];
+  if (pinCustomSmsEnabled) pinCustomSmsEnabled.checked = false;
+  if (pinCustomSmsInput) pinCustomSmsInput.value = "";
   pinNotifySmsNowInput.checked = shouldDefaultSmsOpen();
   if (previewObjectUrl) {
     previewObjectUrl.forEach(url => URL.revokeObjectURL(url));
@@ -4512,7 +4567,7 @@ function resetPinForm() {
       }
 
       let uploadedPhotoUrls = [];
-      const photoFiles = Array.from((pinPhotoFileInput.files || []));
+      const photoFiles = Array.from(pendingPinPhotoFiles || []);
 
       try {
         if (photoFiles.length) {
@@ -4746,8 +4801,35 @@ function resetPinForm() {
       previewElement.style.display = "grid";
     }
 
+    function renderPinPhotoPreview() {
+      if (!pinPhotoPreview) return;
+      if (previewObjectUrl) {
+        previewObjectUrl.forEach(url => URL.revokeObjectURL(url));
+      }
+      previewObjectUrl = [];
+      pinPhotoPreview.innerHTML = "";
+      if (!pendingPinPhotoFiles.length) {
+        pinPhotoPreview.style.display = "none";
+        return;
+      }
+      pendingPinPhotoFiles.forEach((file, index) => {
+        const url = URL.createObjectURL(file);
+        previewObjectUrl.push(url);
+        const img = document.createElement("img");
+        img.src = url;
+        img.alt = `Photo preview ${index + 1}`;
+        pinPhotoPreview.appendChild(img);
+      });
+      pinPhotoPreview.style.display = "grid";
+    }
+
     function previewSelectedPhoto() {
-      previewFileList(pinPhotoFileInput, pinPhotoPreview);
+      const newFiles = Array.from((pinPhotoFileInput && pinPhotoFileInput.files) || []);
+      if (newFiles.length) {
+        pendingPinPhotoFiles = pendingPinPhotoFiles.concat(newFiles);
+      }
+      if (pinPhotoFileInput) pinPhotoFileInput.value = "";
+      renderPinPhotoPreview();
     }
 
     function previewSelectedClearPhoto() {
@@ -4981,16 +5063,27 @@ function resetPinForm() {
       const reportLink = pin && pin.id ? buildAppUrl({ report: pin.id }) : APP_LINK;
       return `New ${categoryLabel} Request\n\nReported by: ${reportedBy}\nMap: ${mapName}\nIssue: ${pin.title}\n${descriptionLine}Open item report: ${reportLink}`;
     }
+function getCustomSmsRecipients(enabledEl, inputEl) {
+  if (!enabledEl || !enabledEl.checked || !inputEl) return [];
+  return splitContactList(inputEl.value).map(cleanPhoneNumber).filter(Boolean);
+}
+
+function uniqueSmsRecipients(values) {
+  return Array.from(new Set((values || []).map(cleanPhoneNumber).filter(Boolean)));
+}
+
 function getSelectedSmsRecipientsForDepartment(category) {
   const dept = getDepartment(category);
   const checkedIndexes = Array.from(document.querySelectorAll(".sms-group-checkbox:checked"))
     .map(input => Number(input.value))
     .filter(index => Number.isInteger(index));
 
-  return checkedIndexes.flatMap(index => {
+  const groupRecipients = checkedIndexes.flatMap(index => {
     const group = dept.smsGroups[index];
     return group && Array.isArray(group.numbers) ? group.numbers : [];
-  }).map(cleanPhoneNumber).filter(Boolean);
+  });
+
+  return uniqueSmsRecipients(groupRecipients.concat(getCustomSmsRecipients(pinCustomSmsEnabled, pinCustomSmsInput)));
 }
 
 function getSelectedEditSmsRecipientsForDepartment(category) {
@@ -4999,10 +5092,12 @@ function getSelectedEditSmsRecipientsForDepartment(category) {
     .map(input => Number(input.value))
     .filter(index => Number.isInteger(index));
 
-  return checkedIndexes.flatMap(index => {
+  const groupRecipients = checkedIndexes.flatMap(index => {
     const group = dept.smsGroups[index];
     return group && Array.isArray(group.numbers) ? group.numbers : [];
-  }).map(cleanPhoneNumber).filter(Boolean);
+  });
+
+  return uniqueSmsRecipients(groupRecipients.concat(getCustomSmsRecipients(editCustomSmsEnabled, editCustomSmsInput)));
 }
 
 function shouldDefaultSmsOpen() {
@@ -5479,6 +5574,8 @@ ${rows.map(pin => `
       if (selectedDepartmentView) closeDepartmentViewPrompt();
     });
     pinPhotoFileInput.addEventListener("change", previewSelectedPhoto);
+    if (pinCustomSmsInput && pinCustomSmsEnabled) pinCustomSmsInput.addEventListener("input", function() { if (pinCustomSmsInput.value.trim()) pinCustomSmsEnabled.checked = true; });
+    if (editCustomSmsInput && editCustomSmsEnabled) editCustomSmsInput.addEventListener("input", function() { if (editCustomSmsInput.value.trim()) editCustomSmsEnabled.checked = true; });
     if (clearPhotoFileInput) clearPhotoFileInput.addEventListener("change", previewSelectedClearPhoto);
     if (editReportedPhotoFileInput) editReportedPhotoFileInput.addEventListener("change", function() { previewFileList(editReportedPhotoFileInput, editReportedPhotoPreview); });
     if (editClearPhotoFileInput) editClearPhotoFileInput.addEventListener("change", function() { previewFileList(editClearPhotoFileInput, editClearPhotoPreview); });
