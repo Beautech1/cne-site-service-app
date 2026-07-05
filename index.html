@@ -1236,27 +1236,28 @@
 
 
     /* Mobile floor-plan popup safety: when the user is zoomed into a floor plan,
-       show the pin popup as a small fixed bottom sheet so it is always visible
-       without needing to zoom back out. */
-    @media (max-width: 700px), (pointer: coarse) {
-      .floor-popup.mobile-floor-popup {
-        position: fixed !important;
-        left: 8px !important;
-        right: 8px !important;
-        top: auto !important;
-        bottom: 8px !important;
-        width: auto !important;
-        max-width: none !important;
-        max-height: min(56dvh, 420px) !important;
-        overflow-y: auto;
-        z-index: 1800;
-        box-sizing: border-box;
-      }
+       move the pin popup into a fixed bottom sheet so it stays fully visible. */
+    .floor-popup.mobile-floor-popup {
+      position: fixed !important;
+      left: 8px !important;
+      right: auto !important;
+      top: auto !important;
+      bottom: auto !important;
+      width: calc(100vw - 16px) !important;
+      max-width: calc(100vw - 16px) !important;
+      max-height: min(50dvh, 360px) !important;
+      overflow-y: auto !important;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
+      z-index: 3000 !important;
+      box-sizing: border-box;
+      transform: none !important;
+    }
 
-      .floor-popup.mobile-floor-popup:has(.photo-details[open]) {
-        width: auto !important;
-        max-height: min(62dvh, 480px) !important;
-      }
+    .floor-popup.mobile-floor-popup:has(.photo-details[open]) {
+      width: calc(100vw - 16px) !important;
+      max-width: calc(100vw - 16px) !important;
+      max-height: min(54dvh, 390px) !important;
     }
 
     .floor-pending-dot {
@@ -3944,7 +3945,66 @@
 
     function isMobileFloorPopupMode() {
       const viewportWidth = window.visualViewport ? window.visualViewport.width : window.innerWidth;
-      return viewportWidth <= 700 || window.matchMedia("(pointer: coarse)").matches;
+      const viewportHeight = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+      return viewportWidth <= 760 || viewportHeight <= 640 || window.matchMedia("(pointer: coarse)").matches;
+    }
+
+    function resetFloorPopupInlinePosition() {
+      if (!floorPlanPopup) return;
+      floorPlanPopup.style.position = "";
+      floorPlanPopup.style.left = "";
+      floorPlanPopup.style.right = "";
+      floorPlanPopup.style.top = "";
+      floorPlanPopup.style.bottom = "";
+      floorPlanPopup.style.width = "";
+      floorPlanPopup.style.maxWidth = "";
+      floorPlanPopup.style.maxHeight = "";
+      floorPlanPopup.style.zIndex = "";
+    }
+
+    function showMobileFloorPopupAsSheet() {
+      if (!floorPlanPopup) return;
+
+      // Move it outside the floor-plan stage. This is important because a popup
+      // inside a zoomed/scrolling image can still be hard to reach on phones.
+      if (floorPlanPopup.parentElement !== document.body) {
+        document.body.appendChild(floorPlanPopup);
+      }
+
+      const visualViewport = window.visualViewport;
+      const viewportWidth = Math.round(visualViewport ? visualViewport.width : window.innerWidth);
+      const viewportHeight = Math.round(visualViewport ? visualViewport.height : window.innerHeight);
+      const offsetLeft = Math.round(visualViewport ? visualViewport.offsetLeft : 0);
+      const offsetTop = Math.round(visualViewport ? visualViewport.offsetTop : 0);
+      const popupHeight = Math.min(360, Math.max(220, Math.round(viewportHeight * 0.50)));
+      const top = offsetTop + Math.max(8, viewportHeight - popupHeight - 10);
+
+      floorPlanPopup.classList.add("mobile-floor-popup");
+      floorPlanPopup.style.position = "fixed";
+      floorPlanPopup.style.left = (offsetLeft + 8) + "px";
+      floorPlanPopup.style.top = top + "px";
+      floorPlanPopup.style.right = "auto";
+      floorPlanPopup.style.bottom = "auto";
+      floorPlanPopup.style.width = Math.max(260, viewportWidth - 16) + "px";
+      floorPlanPopup.style.maxWidth = Math.max(260, viewportWidth - 16) + "px";
+      floorPlanPopup.style.maxHeight = popupHeight + "px";
+      floorPlanPopup.style.zIndex = "3000";
+    }
+
+    function restoreFloorPopupToStage() {
+      if (!floorPlanPopup || !floorPlanStage) return;
+      if (floorPlanPopup.parentElement !== floorPlanStage) {
+        floorPlanStage.appendChild(floorPlanPopup);
+      }
+      floorPlanPopup.classList.remove("mobile-floor-popup");
+      resetFloorPopupInlinePosition();
+    }
+
+    function positionFloorPopup() {
+      if (!floorPlanPopup || floorPlanPopup.style.display !== "block") return;
+      if (isMobileFloorPopupMode()) {
+        showMobileFloorPopupAsSheet();
+      }
     }
 
     function openFloorPlanPopup(pin, xPercent, yPercent) {
@@ -3954,15 +4014,11 @@
       floorPlanPopup.scrollTop = 0;
 
       if (isMobileFloorPopupMode()) {
-        floorPlanPopup.classList.add("mobile-floor-popup");
-        floorPlanPopup.style.left = "";
-        floorPlanPopup.style.top = "";
-        floorPlanPopup.style.bottom = "";
+        showMobileFloorPopupAsSheet();
         return;
       }
 
-      floorPlanPopup.classList.remove("mobile-floor-popup");
-      floorPlanPopup.style.bottom = "";
+      restoreFloorPopupToStage();
 
       const stageWidth = floorPlanStage.clientWidth || floorPlanStage.getBoundingClientRect().width || 1;
       const stageHeight = floorPlanStage.clientHeight || floorPlanStage.getBoundingClientRect().height || 1;
@@ -5775,7 +5831,11 @@ function closeSmsFallbackModal() {
 
     function closeAllMapPopups() {
       map.closePopup();
-      if (floorPlanPopup) floorPlanPopup.style.display = "none";
+      if (floorPlanPopup) {
+        floorPlanPopup.style.display = "none";
+        floorPlanPopup.scrollTop = 0;
+        if (!isMobileFloorPopupMode()) restoreFloorPopupToStage();
+      }
     }
 
     function formatCategoryLabel(category) {
@@ -6186,6 +6246,16 @@ ${rows.map(pin => `
     window.exportClearLogHtml = exportClearLogHtml;
     window.printAllLogs = printAllLogs;
     window.exportClearLogCsv = exportClearLogCsv;
+
+    window.addEventListener("resize", positionFloorPopup);
+    window.addEventListener("orientationchange", function() {
+      setTimeout(positionFloorPopup, 150);
+    });
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", positionFloorPopup);
+      window.visualViewport.addEventListener("scroll", positionFloorPopup);
+    }
+
   </script>
 </body>
 </html>
