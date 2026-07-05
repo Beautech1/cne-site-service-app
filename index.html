@@ -430,6 +430,45 @@
       margin-top: 0;
     }
 
+    /* Collapsed photos stay as small thumbnails. When the user expands the
+       photo section inside a pin popup or mini report, show images large
+       enough to inspect details. */
+    .photo-details[open] .popup-photo,
+    .photo-details[open] .log-photo {
+      width: 100%;
+      max-width: min(520px, calc(100vw - 64px));
+      max-height: 70vh;
+      height: auto;
+      object-fit: contain;
+      object-position: center center;
+      background: #f8fafc;
+    }
+
+    .photo-details[open] .photo-gallery {
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+
+    .photo-details[open] .photo-gallery img {
+      width: 100%;
+      max-width: min(520px, calc(100vw - 64px));
+      height: auto;
+      max-height: 70vh;
+      object-fit: contain;
+      object-position: center center;
+      background: #f8fafc;
+    }
+
+    .leaflet-popup-content:has(.photo-details[open]) {
+      width: min(540px, calc(100vw - 56px)) !important;
+      max-width: min(540px, calc(100vw - 56px)) !important;
+    }
+
+    .floor-popup:has(.photo-details[open]) {
+      width: min(560px, calc(100vw - 28px));
+      max-height: min(82vh, 680px);
+    }
+
 
     .photo-upload-control {
       display: grid;
@@ -3839,7 +3878,7 @@
     function addUserPin(pin, openPopup = false) {
       const marker = L.marker([pin.lat, pin.lng], { icon: makePinIcon(pin.category) }).addTo(userPinsLayer);
       marker.pinId = pin.id || null;
-      marker.bindPopup(buildPopupHtml(pin));
+      marker.bindPopup(buildPopupHtml(pin), { maxWidth: 560, minWidth: 260 });
       if (openPopup) marker.openPopup();
     }
 
@@ -5400,7 +5439,7 @@ function resetPinForm() {
           const lng = Number(pin.lng);
           if (Number.isFinite(lat) && Number.isFinite(lng)) {
             map.setView([lat, lng], Math.max(map.getZoom(), 18));
-            L.popup().setLatLng([lat, lng]).setContent(buildPopupHtml(pin)).openOn(map);
+            L.popup({ maxWidth: 560, minWidth: 260 }).setLatLng([lat, lng]).setContent(buildPopupHtml(pin)).openOn(map);
           }
         }
       }, 180);
