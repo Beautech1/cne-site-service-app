@@ -1181,7 +1181,7 @@
       <button class="panel-close-btn" onclick="toggleDepartmentPanel(false)">&times;</button>
     </div>
     <div class="panel-body">
-      <div class="panel-note">Edit the department list, dropdown titles, and text message groups. Saved centrally in Supabase so all devices see the same settings.</div>
+      <div class="panel-note">Edit the department list, dropdown titles, and text message groups. Only departments saved here/Supabase will appear in menus; there are no built-in department defaults.</div>
       <div class="settings-row">
         <label>Choose department
           <select id="manageDepartmentSelect" onchange="loadDepartmentEditor()"></select>
@@ -1219,7 +1219,7 @@
         <button class="action-btn" onclick="saveDepartmentEditor()">Save Department</button>
         <button class="action-btn secondary" onclick="addNewDepartmentEditor()">Add New</button>
         <button class="action-btn secondary" style="background:#b71c1c;" onclick="deleteDepartmentEditor()">Delete</button>
-        <button class="action-btn secondary" onclick="resetDepartmentSettings()">Reset Defaults</button>
+        <button class="action-btn secondary" onclick="resetDepartmentSettings()">Clear All</button>
       </div>
     </div>
   </div>
@@ -1231,7 +1231,7 @@
       <button class="panel-close-btn" onclick="toggleProfilesPanel(false)">&times;</button>
     </div>
     <div class="panel-body">
-      <div class="panel-note">Add names under each heading. Reported By and Cleared By will show only the selected department list plus the Admin list. Saved centrally in Supabase.</div>
+      <div class="panel-note">Add names under each heading. Reported By and Cleared By will show only names saved here/Supabase; there are no built-in name defaults.</div>
       <div class="settings-row">
         <label>Profile names by department
           <textarea id="manageProfilesList" placeholder="[Admin]&#10;Beau Felipe&#10;Operations Manager&#10;&#10;[Plumbing]&#10;Plumbing Lead&#10;Plumber 1&#10;&#10;[Electrical]&#10;Electrical Lead"></textarea>
@@ -1239,7 +1239,7 @@
       </div>
       <div class="export-actions">
         <button class="action-btn" onclick="saveProfilesEditor()">Save Profiles</button>
-        <button class="action-btn secondary" onclick="resetProfilesSettings()">Reset Defaults</button>
+        <button class="action-btn secondary" onclick="resetProfilesSettings()">Clear All</button>
       </div>
     </div>
   </div>
@@ -1486,78 +1486,16 @@
       { id: "outdoor_site", name: "Outdoor Site Map", type: "outdoor", image: null },
       { id: "food_building_main", name: "Food Building - Main Floor", type: "floorplan", image: "./floor-plan-food-building.png" }
     ];
-    const DEFAULT_DEPARTMENTS = [
-      {
-        key: "general",
-        name: "General",
-        color: "#0078d7",
-        availableForPins: true,
-        titles: ["General request", "Follow up", "Inspection"],
-        smsGroups: []
-      },
-      {
-        key: "plumbing",
-        name: "Plumbing",
-        color: "#00838f",
-        availableForPins: true,
-        titles: ["Water leak", "Blocked drain", "Washroom issue", "Repair"],
-        smsGroups: [
-          { name: "Plumbing Team", numbers: [] }
-        ]
-      },
-      {
-        key: "carpentry",
-        name: "Carpentry",
-        color: "#8d6e63",
-        availableForPins: true,
-        titles: ["Repair", "Build item", "Door or hardware", "Sign support"],
-        smsGroups: [
-          { name: "Carpentry Team", numbers: [] }
-        ]
-      },
-      {
-        key: "electrical",
-        name: "Electrical",
-        color: "#ff8f00",
-        availableForPins: true,
-        titles: ["Power issue", "Light out", "Trip hazard cable", "Repair"],
-        smsGroups: [
-          { name: "Electrical Team", numbers: [] }
-        ]
-      },
-      {
-        key: "inspection",
-        name: "Report",
-        color: "#0f766e",
-        availableForPins: true,
-        titles: ["Report", "Inspection report", "Safety observation", "Site condition", "Follow-up note"],
-        smsGroups: [
-          { name: "Report Leads", numbers: [] }
-        ]
-      },
-      {
-        key: "labour",
-        name: "Labour",
-        color: "#3949ab",
-        availableForPins: true,
-        titles: ["Move item", "Setup support", "Clean up", "Delivery"],
-        smsGroups: [
-          { name: "Labour Leads", numbers: ["6472825087", "4164350485", "6474824760", "4165534029"] }
-        ]
-      }
-    ];
+    // No built-in departments. Departments should come only from Supabase / Admin Menu settings.
+    // This prevents deleted or hidden departments from being automatically re-created in dropdowns.
+    const DEFAULT_DEPARTMENTS = [];
 
     let mapViews = loadMapViewsFromStorage();
     let departments = loadDepartmentsFromStorage();
-    const DEFAULT_PROFILES = {
-      admin: ["Beau Felipe", "Operations Manager", "Admin"],
-      general: ["General Lead"],
-      plumbing: ["Plumbing Lead"],
-      carpentry: ["Carpentry Lead"],
-      electrical: ["Electrical Lead"],
-      inspection: ["Report Lead"],
-      labour: ["Labour Lead"]
-    };
+    // No built-in Reported By / Cleared By profile names.
+    // Names should come only from Supabase / Admin Menu > Manage Profiles.
+    const DEFAULT_PROFILES = {};
+
     let profiles = loadProfilesFromStorage();
     let pendingClearPinId = null;
     let pendingEditPinId = null;
@@ -2077,15 +2015,11 @@
       };
 
       if (Array.isArray(value)) {
-        // Backward compatible: old profile lists become Admin profiles.
-        addToGroup("admin", value.length ? value : DEFAULT_PROFILES.admin);
+        // Backward compatible: old profile lists become Admin profiles, but do not add fallback names.
+        if (value.length) addToGroup("admin", value);
       } else if (value && typeof value === "object") {
         Object.keys(value).forEach(key => addToGroup(key, value[key]));
       }
-
-      Object.keys(DEFAULT_PROFILES).forEach(key => {
-        if (!result[key] || !result[key].length) addToGroup(key, DEFAULT_PROFILES[key]);
-      });
 
       return result;
     }
@@ -2150,7 +2084,7 @@
         return normalizeProfiles(saved);
       } catch (error) {
         console.warn("Could not load profile settings:", error);
-        return normalizeProfiles(DEFAULT_PROFILES);
+        return normalizeProfiles({});
       }
     }
 
@@ -2409,12 +2343,12 @@
     }
 
     function resetProfilesSettings() {
-      if (!window.confirm("Reset profile names to defaults?")) return;
-      profiles = normalizeProfiles(DEFAULT_PROFILES);
+      if (!window.confirm("Clear all saved profile names? This removes built-in/fallback names from the dropdowns.")) return;
+      profiles = normalizeProfiles({});
       saveProfilesToStorage();
       populateProfileDropdowns();
       if (manageProfilesList) manageProfilesList.value = profilesToEditorText();
-      setStatus("Profiles reset.");
+      setStatus("Profiles cleared. Add names in Admin Menu > Manage Profiles.");
     }
 
 
@@ -2430,7 +2364,7 @@
       // Use saved department settings exactly as saved.
       // Do not automatically re-add DEFAULT_DEPARTMENTS here, because that makes
       // departments deleted in Admin come back in the main Department dropdown.
-      const source = Array.isArray(value) && value.length ? [...value] : [...DEFAULT_DEPARTMENTS];
+      const source = Array.isArray(value) ? [...value] : [];
       const seen = new Set();
       return source.map((dept, index) => {
         const name = String(dept.name || dept.key || `Department ${index + 1}`).trim();
@@ -2442,7 +2376,7 @@
           name,
           color: /^#[0-9a-f]{6}$/i.test(dept.color || "") ? dept.color : "#0078d7",
           availableForPins: dept.availableForPins !== false,
-          titles: Array.isArray(dept.titles) && dept.titles.length ? dept.titles.map(String).filter(Boolean) : ["General request"],
+          titles: Array.isArray(dept.titles) ? dept.titles.map(String).filter(Boolean) : [],
           smsGroups: Array.isArray(dept.smsGroups) ? dept.smsGroups.map(group => ({
             name: String(group.name || "Text Group").trim(),
             numbers: Array.isArray(group.numbers) ? group.numbers.map(String).filter(Boolean) : []
@@ -2457,7 +2391,7 @@
         return normalizeDepartments(saved);
       } catch (error) {
         console.warn("Could not load department settings:", error);
-        return normalizeDepartments(DEFAULT_DEPARTMENTS);
+        return normalizeDepartments([]);
       }
     }
 
@@ -2603,8 +2537,17 @@
     }
 
     function getDepartment(category) {
-      const key = normalizeDepartmentKey(category);
-      return departments.find(dept => dept.key === key) || departments[0] || DEFAULT_DEPARTMENTS[0];
+      const key = normalizeDepartmentKey(category || "general");
+      const found = departments.find(dept => dept.key === key);
+      if (found) return found;
+      return {
+        key,
+        name: category ? formatCategoryLabel(category) : "Unassigned",
+        color: "#0078d7",
+        availableForPins: false,
+        titles: [],
+        smsGroups: []
+      };
     }
 
     function getDepartmentColor(category) {
@@ -2616,10 +2559,8 @@
     }
 
     function getDepartmentsAvailableForNewPins() {
-      const available = departments.filter(dept => dept && dept.availableForPins !== false);
-      // Do not show unchecked departments in the Add Pin dropdown.
-      // If an admin accidentally hides every department, keep one safe option so the form can still save.
-      return available.length ? available : departments.slice(0, 1);
+      // Do not show unchecked/deleted departments in the Add Pin dropdown.
+      return departments.filter(dept => dept && dept.availableForPins !== false);
     }
 
     function isDepartmentAvailableForNewPin(key) {
@@ -2627,24 +2568,39 @@
     }
 
     function populateDepartmentDropdowns(selectedKey) {
-      const currentFilterKey = categoryFilter.value || "all";
-      const currentEditorKey = manageDepartmentSelect.value || selectedKey || pinCategoryInput.value || (departments[0] && departments[0].key) || "general";
+      const currentFilterKey = categoryFilter ? (categoryFilter.value || "all") : "all";
+      const currentEditorKey = manageDepartmentSelect ? (manageDepartmentSelect.value || selectedKey || pinCategoryInput.value || "") : "";
 
       const newPinDepartments = getDepartmentsAvailableForNewPins();
-      const currentPinKey = selectedKey || pinCategoryInput.value || (newPinDepartments[0] && newPinDepartments[0].key) || "general";
-      pinCategoryInput.innerHTML = newPinDepartments.map(dept => `<option value="${escapeHtml(dept.key)}">${escapeHtml(dept.name)}</option>`).join("");
-      if (newPinDepartments.some(dept => dept.key === currentPinKey)) pinCategoryInput.value = currentPinKey;
-      else if (newPinDepartments.length) pinCategoryInput.value = newPinDepartments[0].key;
+      const currentPinKey = selectedKey || (pinCategoryInput ? pinCategoryInput.value : "") || (newPinDepartments[0] && newPinDepartments[0].key) || "";
+      if (pinCategoryInput) {
+        if (newPinDepartments.length) {
+          pinCategoryInput.disabled = false;
+          pinCategoryInput.innerHTML = newPinDepartments.map(dept => `<option value="${escapeHtml(dept.key)}">${escapeHtml(dept.name)}</option>`).join("");
+          if (newPinDepartments.some(dept => dept.key === currentPinKey)) pinCategoryInput.value = currentPinKey;
+          else pinCategoryInput.value = newPinDepartments[0].key;
+        } else {
+          pinCategoryInput.disabled = true;
+          pinCategoryInput.innerHTML = '<option value="">No departments configured</option>';
+        }
+      }
 
       const viewDepartments = getDepartmentsAvailableForDepartmentView();
-      categoryFilter.innerHTML = '<option value="all">All departments</option>' + viewDepartments.map(dept => `<option value="${escapeHtml(dept.key)}">${escapeHtml(dept.name)}</option>`).join("");
-      const storedView = selectedDepartmentView || localStorage.getItem(DEPARTMENT_VIEW_STORAGE_KEY) || currentFilterKey;
-      if (storedView === "all" || viewDepartments.some(dept => dept.key === storedView)) categoryFilter.value = storedView;
-      else if (currentFilterKey === "all" || viewDepartments.some(dept => dept.key === currentFilterKey)) categoryFilter.value = currentFilterKey;
-      else categoryFilter.value = "all";
+      if (categoryFilter) {
+        categoryFilter.innerHTML = '<option value="all">All departments</option>' + viewDepartments.map(dept => `<option value="${escapeHtml(dept.key)}">${escapeHtml(dept.name)}</option>`).join("");
+        const storedView = selectedDepartmentView || localStorage.getItem(DEPARTMENT_VIEW_STORAGE_KEY) || currentFilterKey;
+        if (storedView === "all" || viewDepartments.some(dept => dept.key === storedView)) categoryFilter.value = storedView;
+        else if (currentFilterKey === "all" || viewDepartments.some(dept => dept.key === currentFilterKey)) categoryFilter.value = currentFilterKey;
+        else categoryFilter.value = "all";
+      }
 
-      manageDepartmentSelect.innerHTML = departments.map(dept => `<option value="${escapeHtml(dept.key)}">${escapeHtml(dept.name)}</option>`).join("");
-      if (departments.some(dept => dept.key === currentEditorKey)) manageDepartmentSelect.value = currentEditorKey;
+      if (manageDepartmentSelect) {
+        manageDepartmentSelect.innerHTML = departments.length
+          ? departments.map(dept => `<option value="${escapeHtml(dept.key)}">${escapeHtml(dept.name)}</option>`).join("")
+          : '<option value="">No departments configured</option>';
+        if (departments.some(dept => dept.key === currentEditorKey)) manageDepartmentSelect.value = currentEditorKey;
+        else if (departments.length) manageDepartmentSelect.value = departments[0].key;
+      }
 
       populateTitleDropdown();
       populateSmsGroupCheckboxes();
@@ -2655,8 +2611,14 @@
     }
 
     function populateTitleDropdown() {
-      const dept = getDepartment(pinCategoryInput.value);
-      pinTitleInput.innerHTML = dept.titles.map(title => `<option value="${escapeHtml(title)}">${escapeHtml(title)}</option>`).join("");
+      if (!pinTitleInput) return;
+      const dept = getDepartment(pinCategoryInput ? pinCategoryInput.value : "");
+      const titles = Array.isArray(dept.titles) ? dept.titles : [];
+      if (!titles.length) {
+        pinTitleInput.innerHTML = '<option value="">No title options configured</option>';
+        return;
+      }
+      pinTitleInput.innerHTML = titles.map(title => `<option value="${escapeHtml(title)}">${escapeHtml(title)}</option>`).join("");
     }
 
     function populateSmsGroupCheckboxes() {
@@ -3776,14 +3738,23 @@
     }
 
     function loadDepartmentEditor() {
-      const dept = getDepartment(manageDepartmentSelect.value);
+      if (!departments.length) {
+        if (manageDepartmentSelect) manageDepartmentSelect.innerHTML = '<option value="">No departments configured</option>';
+        manageDepartmentName.value = "";
+        manageDepartmentColor.value = "#0078d7";
+        if (manageDepartmentAvailableForPins) manageDepartmentAvailableForPins.checked = true;
+        manageDepartmentTitles.value = "";
+        manageDepartmentGroups.value = "";
+        return;
+      }
+      const dept = getDepartment(manageDepartmentSelect.value || departments[0].key);
       manageDepartmentSelect.value = dept.key;
       manageDepartmentName.value = dept.name;
       manageDepartmentColor.value = dept.color;
       if (manageDepartmentAvailableForPins) {
         manageDepartmentAvailableForPins.checked = dept.availableForPins !== false;
       }
-      manageDepartmentTitles.value = dept.titles.join('\n');
+      manageDepartmentTitles.value = (dept.titles || []).join('\n');
       manageDepartmentGroups.value = groupsToText(dept.smsGroups);
     }
 
@@ -3834,8 +3805,8 @@
         name: baseName,
         color: '#0078d7',
         availableForPins: true,
-        titles: ['New request'],
-        smsGroups: [{ name: 'Team', numbers: [] }]
+        titles: [],
+        smsGroups: []
       });
       saveDepartmentsToStorage();
       populateDepartmentDropdowns(key);
@@ -3846,39 +3817,43 @@
 
     function deleteDepartmentEditor() {
       const key = manageDepartmentSelect.value;
-      if (departments.length <= 1) {
-        alert('You need at least one department.');
+      if (!key || !departments.length) {
+        alert('There are no departments to delete.');
         return;
       }
       const dept = getDepartment(key);
-      if (!window.confirm(`Delete ${dept.name}? Existing pins will show under General if this department is removed.`)) return;
+      if (!window.confirm(`Delete ${dept.name}? Existing pins/logs will keep their saved department text, but the department will be removed from menus.`)) return;
       departments = departments.filter(item => item.key !== key);
       if (selectedDepartmentView === key) {
         selectedDepartmentView = "all";
         localStorage.setItem(DEPARTMENT_VIEW_STORAGE_KEY, "all");
       }
-      allPins.forEach(pin => {
-        if ((pin.category || 'general') === key) pin.category = departments[0].key;
-      });
       saveDepartmentsToStorage();
-      populateDepartmentDropdowns(departments[0].key);
+      populateDepartmentDropdowns(departments[0] ? departments[0].key : "");
       loadDepartmentEditor();
-      setStatus('Department deleted.');
+      setStatus('Department deleted. It will no longer appear in menus.');
     }
 
     function resetDepartmentSettings() {
-      if (!window.confirm('Reset departments, title options, colours, and text groups to defaults?')) return;
-      departments = normalizeDepartments(DEFAULT_DEPARTMENTS);
+      if (!window.confirm('Clear all saved departments, title options, colours, and text groups?')) return;
+      departments = normalizeDepartments([]);
       saveDepartmentsToStorage();
-      populateDepartmentDropdowns(departments[0].key);
+      selectedDepartmentView = "all";
+      localStorage.setItem(DEPARTMENT_VIEW_STORAGE_KEY, "all");
+      populateDepartmentDropdowns("");
       loadDepartmentEditor();
-      setStatus('Department settings reset.');
+      setStatus('Departments cleared. Add departments in Admin Menu > Manage Departments.');
     }
 
 function resetPinForm() {
   pinDescriptionInput.value = "";
   const availableDepartments = getDepartmentsAvailableForNewPins();
-  pinCategoryInput.value = availableDepartments[0] ? availableDepartments[0].key : (departments[0] ? departments[0].key : "general");
+  if (availableDepartments[0]) {
+    pinCategoryInput.disabled = false;
+    pinCategoryInput.value = availableDepartments[0].key;
+  } else {
+    pinCategoryInput.disabled = true;
+  }
   if (pinReportedByInput) pinReportedByInput.value = "";
   populateTitleDropdown();
   populateSmsGroupCheckboxes();
@@ -3922,6 +3897,11 @@ function resetPinForm() {
     async function submitPinForm() {
       if (!pendingLatLng) {
         alert(isFloorPlanMap() ? "Click the floor plan first to choose a pin location." : "Click the map first to choose a pin location.");
+        return;
+      }
+
+      if (!getDepartmentsAvailableForNewPins().length || !pinCategoryInput.value) {
+        alert("No active departments are configured. Go to Admin Menu > Manage Departments, add/check a department, and add at least one title option.");
         return;
       }
 
