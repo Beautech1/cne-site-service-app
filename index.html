@@ -1234,6 +1234,31 @@
       box-sizing: border-box;
     }
 
+
+    /* Mobile floor-plan popup safety: when the user is zoomed into a floor plan,
+       show the pin popup as a small fixed bottom sheet so it is always visible
+       without needing to zoom back out. */
+    @media (max-width: 700px), (pointer: coarse) {
+      .floor-popup.mobile-floor-popup {
+        position: fixed !important;
+        left: 8px !important;
+        right: 8px !important;
+        top: auto !important;
+        bottom: 8px !important;
+        width: auto !important;
+        max-width: none !important;
+        max-height: min(56dvh, 420px) !important;
+        overflow-y: auto;
+        z-index: 1800;
+        box-sizing: border-box;
+      }
+
+      .floor-popup.mobile-floor-popup:has(.photo-details[open]) {
+        width: auto !important;
+        max-height: min(62dvh, 480px) !important;
+      }
+    }
+
     .floor-pending-dot {
       position: absolute;
       width: 24px;
@@ -3917,10 +3942,27 @@
       });
     }
 
+    function isMobileFloorPopupMode() {
+      const viewportWidth = window.visualViewport ? window.visualViewport.width : window.innerWidth;
+      return viewportWidth <= 700 || window.matchMedia("(pointer: coarse)").matches;
+    }
+
     function openFloorPlanPopup(pin, xPercent, yPercent) {
       if (!floorPlanPopup || !floorPlanStage) return;
       floorPlanPopup.innerHTML = buildPopupHtml(pin);
       floorPlanPopup.style.display = "block";
+      floorPlanPopup.scrollTop = 0;
+
+      if (isMobileFloorPopupMode()) {
+        floorPlanPopup.classList.add("mobile-floor-popup");
+        floorPlanPopup.style.left = "";
+        floorPlanPopup.style.top = "";
+        floorPlanPopup.style.bottom = "";
+        return;
+      }
+
+      floorPlanPopup.classList.remove("mobile-floor-popup");
+      floorPlanPopup.style.bottom = "";
 
       const stageWidth = floorPlanStage.clientWidth || floorPlanStage.getBoundingClientRect().width || 1;
       const stageHeight = floorPlanStage.clientHeight || floorPlanStage.getBoundingClientRect().height || 1;
@@ -4191,7 +4233,10 @@
 
       userPinsLayer.clearLayers();
       if (floorPlanPinLayer) floorPlanPinLayer.innerHTML = "";
-      if (floorPlanPopup) floorPlanPopup.style.display = "none";
+      if (floorPlanPopup) {
+        floorPlanPopup.style.display = "none";
+        floorPlanPopup.classList.remove("mobile-floor-popup");
+      }
       clearPendingLocationIndicators();
 
       const filtered = allPins.filter(pin => {
