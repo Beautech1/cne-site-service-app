@@ -683,20 +683,20 @@
     }
 
     .sms-group-card-title {
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 700;
       color: #243447;
     }
 
     .sms-group-card-subtitle {
-      font-size: 11px;
+      font-size: 10px;
       font-weight: normal;
       color: #637083;
     }
 
     .sms-group-list {
       display: grid;
-      gap: 8px;
+      gap: 5px;
       margin-top: 2px;
     }
 
@@ -704,13 +704,13 @@
       display: flex !important;
       grid-template-columns: none !important;
       align-items: center;
-      gap: 10px !important;
+      gap: 7px !important;
       border: 1px solid #d7e0ea;
-      border-radius: 10px;
-      padding: 9px 10px;
+      border-radius: 8px;
+      padding: 6px 8px;
       background: #f8fbfe;
       cursor: pointer;
-      font-size: 13px !important;
+      font-size: 11px !important;
       font-weight: normal !important;
       color: #243447;
       transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
@@ -723,8 +723,8 @@
     }
 
     .sms-group-option input[type="checkbox"] {
-      width: 18px;
-      height: 18px;
+      width: 15px;
+      height: 15px;
       margin: 0;
       flex: none;
       accent-color: #005a9c;
@@ -734,13 +734,13 @@
 
     .sms-group-text {
       display: grid;
-      gap: 2px;
+      gap: 1px;
       min-width: 0;
       flex: 1;
     }
 
     .sms-group-name {
-      font-size: 13px;
+      font-size: 11px;
       font-weight: 700;
       color: #1f2933;
       overflow: hidden;
@@ -752,42 +752,76 @@
       display: inline-flex;
       align-items: center;
       gap: 4px;
-      font-size: 11px;
+      font-size: 9px;
       color: #607084;
       font-weight: normal;
+    }
+
+    .custom-sms-details {
+      border: 1px solid #d7e0ea;
+      border-radius: 8px;
+      background: #f8fbfe;
+      color: #243447;
+      font-size: 11px;
+      overflow: hidden;
+    }
+
+    .custom-sms-details summary {
+      cursor: pointer;
+      list-style: none;
+      padding: 6px 8px;
+      font-weight: 700;
+      color: #334155;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .custom-sms-details summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .custom-sms-details summary::after {
+      content: "+";
+      font-weight: 800;
+      color: #005a9c;
+    }
+
+    .custom-sms-details[open] summary::after {
+      content: "−";
     }
 
     .custom-sms-row {
       display: grid;
       grid-template-columns: auto 1fr;
       align-items: center;
-      gap: 6px 8px;
-      border: 1px solid #d7e0ea;
-      border-radius: 8px;
-      padding: 7px 8px;
-      background: #f8fbfe;
-      font-size: 12px;
+      gap: 5px 7px;
+      border-top: 1px solid #d7e0ea;
+      padding: 6px 8px 7px;
+      background: #fff;
+      font-size: 11px;
       color: #243447;
     }
 
     .custom-sms-row input[type="checkbox"] {
-      width: 16px;
-      height: 16px;
+      width: 14px;
+      height: 14px;
       margin: 0;
       accent-color: #005a9c;
     }
 
     .custom-sms-row input[type="tel"] {
       min-width: 0;
-      padding: 6px 7px !important;
-      font-size: 12px !important;
+      padding: 5px 6px !important;
+      font-size: 11px !important;
     }
 
     .custom-sms-help {
       grid-column: 1 / -1;
       color: #607084;
-      font-size: 10px;
-      line-height: 1.25;
+      font-size: 9px;
+      line-height: 1.2;
     }
 
 
@@ -1407,7 +1441,7 @@
           <button class="toolbar-btn secondary" onclick="openDepartmentViewPrompt(false); closeMobileUiAfterAction();">Change Department Default View</button>
           <button class="toolbar-btn" onclick="loadPins(true); closeMobileUiAfterAction();">Refresh</button>
           <button class="toolbar-btn" onclick="openPinModalForPending(); closeMobileUiAfterAction();">Add Pin</button>
-          <button class="toolbar-btn secondary" onclick="toggleLogPanel(); closeMobileUiAfterAction();">Clear Log</button>
+          <button class="toolbar-btn secondary" onclick="toggleLogPanel(); closeMobileUiAfterAction();">Cleared History Log</button>
           <button class="toolbar-btn secondary" onclick="toggleLegendPanel(); closeMobileUiAfterAction();">Legend</button>
           <button class="toolbar-btn secondary" onclick="toggleAdminPanel(); closeMobileUiAfterAction();">Admin</button>
           <input class="hidden-input" id="csvInput" type="file" accept=".csv,text/csv" onchange="handleCsvImport(event)">
@@ -1696,11 +1730,14 @@
         </div>
       </div>
       <div id="smsGroupCheckboxes" class="sms-group-list"></div>
-      <div class="custom-sms-row">
-        <input type="checkbox" id="pinCustomSmsEnabled">
-        <input type="tel" id="pinCustomSmsInput" placeholder="Custom text number">
-        <div class="custom-sms-help">Uncheck group(s) if sending only to this number. Use commas for multiple numbers.</div>
-      </div>
+      <details class="custom-sms-details">
+        <summary>Custom number</summary>
+        <div class="custom-sms-row">
+          <input type="checkbox" id="pinCustomSmsEnabled" aria-label="Use custom text number">
+          <input type="tel" id="pinCustomSmsInput" placeholder="Custom text number">
+          <div class="custom-sms-help">Use only when needed. Uncheck group(s) to send only to custom number. Use commas for multiple numbers.</div>
+        </div>
+      </details>
       <label style="display:flex; align-items:center; gap:8px; font-weight:normal;">
         <input type="checkbox" id="pinNotifySmsNowInput" style="width:auto; margin:0;" checked> Open text message after saving this pin
       </label>
@@ -1764,11 +1801,14 @@
         </div>
       </div>
       <div id="editSmsGroupCheckboxes" class="sms-group-list"></div>
-      <div class="custom-sms-row">
-        <input type="checkbox" id="editCustomSmsEnabled">
-        <input type="tel" id="editCustomSmsInput" placeholder="Custom text number">
-        <div class="custom-sms-help">Uncheck group(s) if sending only to this number. Use commas for multiple numbers.</div>
-      </div>
+      <details class="custom-sms-details">
+        <summary>Custom number</summary>
+        <div class="custom-sms-row">
+          <input type="checkbox" id="editCustomSmsEnabled" aria-label="Use custom text number">
+          <input type="tel" id="editCustomSmsInput" placeholder="Custom text number">
+          <div class="custom-sms-help">Use only when needed. Uncheck group(s) to send only to custom number. Use commas for multiple numbers.</div>
+        </div>
+      </details>
       <label style="display:flex; align-items:center; gap:8px; font-weight:normal;">
         <input type="checkbox" id="editNotifySmsNowInput" style="width:auto; margin:0;" checked> Open text message after saving this update/reassignment
       </label>
