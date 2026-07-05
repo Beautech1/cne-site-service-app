@@ -1236,6 +1236,112 @@
         padding-top: 116px;
       }
     }
+
+    /* Mobile visibility + compact upload refinements */
+    @media (max-width: 520px) {
+      .floating-ui {
+        top: 6px;
+        left: 6px;
+        right: 6px;
+        max-height: calc(100dvh - 12px);
+        gap: 4px;
+      }
+
+      .mobile-ui-toggle {
+        padding: 7px 36px 7px 10px;
+        font-size: 12px;
+      }
+
+      .mobile-ui-toggle-main {
+        justify-content: flex-start;
+        gap: 6px;
+      }
+
+      .map-controls-title {
+        white-space: normal;
+        text-align: left;
+      }
+
+      .header-view-summary {
+        max-width: 100%;
+        font-size: 11px;
+        padding: 2px 7px;
+      }
+
+      .floating-ui-content {
+        max-height: calc(100dvh - 56px);
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        padding-right: 0;
+      }
+
+      .compact-control-grid {
+        gap: 4px;
+      }
+
+      .control-row {
+        padding: 5px 6px;
+        gap: 5px;
+      }
+
+      .control-row.map-toolbar {
+        max-height: 38dvh;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      .control-row.summary-row {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 4px;
+        overflow: visible;
+      }
+
+      .status-bar {
+        display: none;
+      }
+
+      .outstanding-summary {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: auto;
+        overflow-y: hidden;
+        padding: 2px 0 5px;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: thin;
+      }
+
+      .outstanding-card {
+        padding: 4px 6px;
+        gap: 5px;
+      }
+
+      .outstanding-count {
+        font-size: 14px;
+      }
+
+      .outstanding-label {
+        font-size: 9.5px;
+      }
+
+      #floorPlanView {
+        padding-top: 100px;
+      }
+    }
+
+    @media (max-width: 520px), (max-height: 720px) {
+      .photo-preview-grid {
+        grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+        gap: 5px;
+        margin-top: 5px;
+      }
+
+      .photo-preview-grid img {
+        height: 58px;
+      }
+    }
+
   </style>
 </head>
 <body>
@@ -1543,18 +1649,12 @@
       <label>Title
         <select id="pinTitleInput"></select>
       </label>
-      <label>Location and description details <span style="color:#b71c1c;">*</span>
+      <label>Location and service details <span style="color:#b71c1c;">*</span>
         <textarea id="pinDescriptionInput" placeholder="Required. Example: west washroom, beside sink. Add any issue details here." required></textarea>
       </label>
-      <div class="photo-upload-control">
-        <span style="font-size:12px; font-weight:bold; color:#243447;">Photo / file upload</span>
-        <label class="photo-upload-button" for="pinPhotoFileInput">
-          <span class="photo-upload-icon" aria-hidden="true">📷</span>
-          <span>Add photos from phone or device</span>
-          <input type="file" id="pinPhotoFileInput" accept="image/*" capture="environment" multiple>
-        </label>
-        <span class="photo-upload-help">Optional. Add one or more photos to help identify the issue.</span>
-      </div>
+      <label>Photo / file upload
+        <input type="file" id="pinPhotoFileInput" accept="image/*" multiple>
+      </label>
       <div class="sms-group-card-header">
         <div>
           <div class="sms-group-card-title">Text selected groups to be text messaged</div>
@@ -1627,7 +1727,7 @@
       <label style="display:flex; align-items:center; gap:8px; font-weight:normal;">
         <input type="checkbox" id="editNotifySmsNowInput" style="width:auto; margin:0;" checked> Open text message after saving this update/reassignment
       </label>
-      <label>Location and description details
+      <label>Location and service details
         <textarea id="editPinDescriptionInput" placeholder="Example: west washroom, beside sink. Add any issue details here."></textarea>
       </label>
       <label>Reported By <span style="color:#b71c1c;">*</span>
@@ -2084,13 +2184,13 @@
       if (profile.user_name && !forcePrompt) return profile;
 
       const currentName = profile.user_name || "";
-      const enteredName = window.prompt("Enter your name for this device. This will be used as the default Reported By / Cleared By.", currentName);
+      const enteredName = window.prompt("Enter your name for this device. This will be used as the default Name used for service order details.", currentName);
       if (enteredName === null && profile.user_name) return profile;
       const userName = String(enteredName || profile.user_name || "").trim();
       if (!userName) return profile;
 
       const currentLabel = profile.device_label || userName;
-      const enteredLabel = window.prompt("Optional: name this device/location for the logs. Example: Plumbing Phone 1, Operations Tablet.", currentLabel);
+      const enteredLabel = window.prompt("Optional: Name this device. Example: Explace Plumbing On Duty Phone.", currentLabel);
       const deviceLabel = String(enteredLabel || currentLabel || userName).trim();
       const saved = saveDeviceProfile({ user_name: userName, device_label: deviceLabel });
       populateProfileDropdowns();
@@ -4406,7 +4506,7 @@ function resetPinForm() {
 
       const locationDetails = pinDescriptionInput.value.trim();
       if (!locationDetails) {
-        alert("Location and description details are required.");
+        alert("Location and service details are required.");
         pinDescriptionInput.focus();
         return;
       }
@@ -4742,7 +4842,7 @@ function resetPinForm() {
             (cleared ? '<div><strong>Cleared:</strong> ' + escapeHtml(cleared) + '</div>' : '') +
             '<div><strong>Item ID:</strong> ' + escapeHtml(String(pin.id || "")) + '</div>' +
           '</div>' +
-          (pin.description ? '<div class="mini-report-detail"><strong>Location and description details:</strong><br>' + escapeHtml(pin.description) + '</div>' : '') +
+          (pin.description ? '<div class="mini-report-detail"><strong>Location and service details:</strong><br>' + escapeHtml(pin.description) + '</div>' : '') +
           '<div style="margin-top:10px;"><strong>Map link:</strong><br><a href="' + escapeHtml(buildAppUrl({ pin: pin.id })) + '" target="_blank" rel="noopener">Open this item on the map</a></div>' +
           mapSnapshotHtml +
           (reportedPhotos ? '<div style="margin-top:12px;">' + reportedPhotos + '</div>' : '') +
