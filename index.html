@@ -430,14 +430,26 @@
       margin-top: 0;
     }
 
-    /* Collapsed photos stay as small thumbnails. When the user expands the
-       photo section inside a pin popup or mini report, show images large
-       enough to inspect details. */
+    /* Keep the normal photos visible at their regular thumbnail size.
+       The expandable area shows a larger inspection copy, but reduced for
+       small phones so the popup stays easy to navigate. */
+    .photo-inline-preview {
+      margin-top: 6px;
+    }
+
+    .photo-inline-preview .photo-gallery {
+      margin-top: 0;
+    }
+
+    .photo-details {
+      margin-top: 6px;
+    }
+
     .photo-details[open] .popup-photo,
     .photo-details[open] .log-photo {
       width: 100%;
-      max-width: min(520px, calc(100vw - 64px));
-      max-height: 70vh;
+      max-width: min(300px, calc(100vw - 96px));
+      max-height: 38vh;
       height: auto;
       object-fit: contain;
       object-position: center center;
@@ -446,22 +458,22 @@
 
     .photo-details[open] .photo-gallery {
       grid-template-columns: 1fr;
-      gap: 10px;
+      gap: 8px;
     }
 
     .photo-details[open] .photo-gallery img {
       width: 100%;
-      max-width: min(520px, calc(100vw - 64px));
+      max-width: min(300px, calc(100vw - 96px));
       height: auto;
-      max-height: 70vh;
+      max-height: 38vh;
       object-fit: contain;
       object-position: center center;
       background: #f8fafc;
     }
 
     .leaflet-popup-content:has(.photo-details[open]) {
-      width: min(540px, calc(100vw - 56px)) !important;
-      max-width: min(540px, calc(100vw - 56px)) !important;
+      width: min(340px, calc(100vw - 44px)) !important;
+      max-width: min(340px, calc(100vw - 44px)) !important;
     }
 
     .floor-popup:has(.photo-details[open]) {
@@ -3821,10 +3833,11 @@
         return '<span class="photo-section-title">' + escapeHtml(label) + ' (' + escapeHtml(countText) + ')</span>' + imagesHtml;
       }
 
-      return '<details class="photo-details"' + (startOpen ? ' open' : '') + '>' +
-        '<summary>' + escapeHtml(label) + ' • ' + escapeHtml(countText) + '</summary>' +
-        '<div class="photo-details-body">' + imagesHtml + '</div>' +
-      '</details>';
+      return '<div class="photo-inline-preview">' + imagesHtml + '</div>' +
+        '<details class="photo-details"' + (startOpen ? ' open' : '') + '>' +
+          '<summary>View larger • ' + escapeHtml(countText) + '</summary>' +
+          '<div class="photo-details-body">' + imagesHtml + '</div>' +
+        '</details>';
     }
 
     function buildPopupHtml(pin) {
