@@ -2427,14 +2427,10 @@
     }
 
     function normalizeDepartments(value) {
-      const baseSource = Array.isArray(value) && value.length ? value : DEFAULT_DEPARTMENTS;
-      const source = [...baseSource];
-      DEFAULT_DEPARTMENTS.forEach(defaultDept => {
-        const defaultKey = normalizeDepartmentKey(defaultDept.key || defaultDept.name);
-        if (!source.some(dept => normalizeDepartmentKey(dept.key || dept.name) === defaultKey)) {
-          source.push(defaultDept);
-        }
-      });
+      // Use saved department settings exactly as saved.
+      // Do not automatically re-add DEFAULT_DEPARTMENTS here, because that makes
+      // departments deleted in Admin come back in the main Department dropdown.
+      const source = Array.isArray(value) && value.length ? [...value] : [...DEFAULT_DEPARTMENTS];
       const seen = new Set();
       return source.map((dept, index) => {
         const name = String(dept.name || dept.key || `Department ${index + 1}`).trim();
@@ -2640,10 +2636,12 @@
       if (newPinDepartments.some(dept => dept.key === currentPinKey)) pinCategoryInput.value = currentPinKey;
       else if (newPinDepartments.length) pinCategoryInput.value = newPinDepartments[0].key;
 
-      categoryFilter.innerHTML = '<option value="all">All departments</option>' + departments.map(dept => `<option value="${escapeHtml(dept.key)}">${escapeHtml(dept.name)}</option>`).join("");
+      const viewDepartments = getDepartmentsAvailableForDepartmentView();
+      categoryFilter.innerHTML = '<option value="all">All departments</option>' + viewDepartments.map(dept => `<option value="${escapeHtml(dept.key)}">${escapeHtml(dept.name)}</option>`).join("");
       const storedView = selectedDepartmentView || localStorage.getItem(DEPARTMENT_VIEW_STORAGE_KEY) || currentFilterKey;
-      if (storedView === "all" || departments.some(dept => dept.key === storedView)) categoryFilter.value = storedView;
-      else if (currentFilterKey === "all" || departments.some(dept => dept.key === currentFilterKey)) categoryFilter.value = currentFilterKey;
+      if (storedView === "all" || viewDepartments.some(dept => dept.key === storedView)) categoryFilter.value = storedView;
+      else if (currentFilterKey === "all" || viewDepartments.some(dept => dept.key === currentFilterKey)) categoryFilter.value = currentFilterKey;
+      else categoryFilter.value = "all";
 
       manageDepartmentSelect.innerHTML = departments.map(dept => `<option value="${escapeHtml(dept.key)}">${escapeHtml(dept.name)}</option>`).join("");
       if (departments.some(dept => dept.key === currentEditorKey)) manageDepartmentSelect.value = currentEditorKey;
