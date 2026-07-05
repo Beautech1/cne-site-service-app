@@ -1675,13 +1675,11 @@
 
   <div class="panel" id="legendPanel">
     <div class="panel-header">
-      <span>Category Legend</span>
+      <span>Legend</span>
       <button class="panel-close-btn" onclick="toggleLegendPanel(false)">&times;</button>
     </div>
     <div class="panel-body">
-      <div class="panel-note">Pin colors can be changed later if you want a different legend.</div>
       <div class="legend" id="legendBody"></div>
-      <div class="panel-note">CSV columns supported: title, description, lat, lng, category/department, photo_url</div>
     </div>
   </div>
 
@@ -1891,11 +1889,11 @@
 
 
   <div class="modal" id="editPinModal">
-    <div class="modal-header" id="editPinModalHeader">Edit / Reassign Pin</div>
+    <div class="modal-header" id="editPinModalHeader">Edit / Reassign / Relocate Pin</div>
     <div class="modal-body">
-      <div class="panel-note" id="editPinStatusNote" style="padding-top:0;">Update this request. For cleared pins, this is intended for admin corrections or adding completion photos.</div>
-      <div class="panel-note" id="editPinLocationNote" style="padding-top:0;">Current location will remain unless you move it.</div>
-      <button class="action-btn secondary" type="button" onclick="startMovePinLocation()">Move pin location</button>
+      <div class="panel-note" id="editPinStatusNote" style="padding-top:0;">Update this request, reassign it, or relocate the pin.</div>
+      <div class="panel-note" id="editPinLocationNote" style="padding-top:0;">Current location stays unless you relocate it.</div>
+      <button class="action-btn secondary" type="button" onclick="startMovePinLocation()">Relocate Pin</button>
       <label>Department
         <select id="editPinCategoryInput" onchange="onEditPinDepartmentChange()"></select>
       </label>
@@ -3136,11 +3134,11 @@
       }
 
       pendingEditPinId = pinId;
-      if (editPinModalHeader) editPinModalHeader.textContent = getPinStatus(pin) === "cleared" ? "Admin Edit Cleared Pin" : "Edit / Reassign Pin";
+      if (editPinModalHeader) editPinModalHeader.textContent = getPinStatus(pin) === "cleared" ? "Admin Edit Cleared Pin" : "Edit / Reassign / Relocate Pin";
       if (editPinStatusNote) editPinStatusNote.textContent = getPinStatus(pin) === "cleared"
         ? "This pin is already cleared. Admins can correct details, add completion photos, or reopen it."
         : (getPinStatus(pin) === "cancelled" ? "This call is cancelled. Admins can correct details or return it to active." : "Update this active request or reassign it to another department.");
-      if (editPinLocationNote) editPinLocationNote.textContent = "Current location: " + getLocationLabel(pin) + ". Use Move pin location only if the pin was placed in the wrong spot.";
+      if (editPinLocationNote) editPinLocationNote.textContent = "Current location: " + getLocationLabel(pin) + ". Use Relocate Pin only if the pin was placed in the wrong spot.";
 
       populateEditDepartmentDropdown(pin.category || "general");
       populateEditTitleDropdown(pin.title || "");
@@ -3800,7 +3798,7 @@
       const pinStatus = getPinStatus(pin);
       const canClearOrCancel = pinStatus === "active";
       const editButton = pin.id
-        ? '<button class="action-btn secondary" onclick="openEditPinModal(' + pin.id + ')">' + (pinStatus === "cleared" ? 'Admin edit cleared pin' : 'Edit / Reassign') + '</button>'
+        ? '<button class="action-btn secondary" onclick="openEditPinModal(' + pin.id + ')">' + (pinStatus === "cleared" ? 'Admin edit cleared pin' : 'Edit / Reassign / Relocate Pin') + '</button>'
         : "";
 
       const clearButton = canClearOrCancel
