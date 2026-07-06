@@ -1126,7 +1126,7 @@
       box-shadow: 0 6px 18px rgba(0,0,0,0.18);
       overflow: visible;
       line-height: 0;
-      touch-action: pan-x pan-y pinch-zoom;
+      touch-action: pan-x pan-y;
       cursor: pointer;
     }
 
@@ -2148,6 +2148,9 @@
     let previewObjectUrl = null;
     let pendingPinPhotoFiles = [];
     let floorPlanZoom = 1;
+    let floorPinchStartDistance = null;
+    let floorPinchStartZoom = 1;
+    let floorPinchMidpoint = null;
 
     const mapSelector = document.getElementById("mapSelector");
     const currentViewSummary = document.getElementById("currentViewSummary");
@@ -2749,6 +2752,59 @@
       }
     }
 
+    function getTouchDistance(touches) {
+      if (!touches || touches.length < 2) return 0;
+      const dx = touches[0].clientX - touches[1].clientX;
+      const dy = touches[0].clientY - touches[1].clientY;
+      return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    function getTouchMidpoint(touches) {
+      if (!touches || touches.length < 2) return null;
+      return {
+        x: (touches[0].clientX + touches[1].clientX) / 2,
+        y: (touches[0].clientY + touches[1].clientY) / 2
+      };
+    }
+
+    function handleFloorPinchStart(event) {
+      if (!floorPlanView || !floorPlanStage || !event.touches || event.touches.length < 2) return;
+      floorPinchStartDistance = getTouchDistance(event.touches);
+      floorPinchStartZoom = floorPlanZoom || 1;
+      floorPinchMidpoint = getTouchMidpoint(event.touches);
+    }
+
+    function handleFloorPinchMove(event) {
+      if (!floorPlanView || !floorPlanStage || !event.touches || event.touches.length < 2 || !floorPinchStartDistance) return;
+      event.preventDefault();
+      const distance = getTouchDistance(event.touches);
+      if (!distance) return;
+      const oldZoom = floorPlanZoom || 1;
+      const nextZoom = Math.max(1, Math.min(3, floorPinchStartZoom * (distance / floorPinchStartDistance)));
+      if (Math.abs(nextZoom - oldZoom) < 0.01) return;
+
+      const midpoint = getTouchMidpoint(event.touches) || floorPinchMidpoint;
+      const beforeLeft = floorPlanView.scrollLeft;
+      const beforeTop = floorPlanView.scrollTop;
+      const viewRect = floorPlanView.getBoundingClientRect();
+      const midXInView = midpoint ? midpoint.x - viewRect.left : floorPlanView.clientWidth / 2;
+      const midYInView = midpoint ? midpoint.y - viewRect.top : floorPlanView.clientHeight / 2;
+
+      floorPlanZoom = nextZoom;
+      applyFloorPlanZoom();
+
+      const ratio = oldZoom > 0 ? nextZoom / oldZoom : 1;
+      floorPlanView.scrollLeft = Math.max(0, (beforeLeft + midXInView) * ratio - midXInView);
+      floorPlanView.scrollTop = Math.max(0, (beforeTop + midYInView) * ratio - midYInView);
+    }
+
+    function handleFloorPinchEnd(event) {
+      if (!event.touches || event.touches.length < 2) {
+        floorPinchStartDistance = null;
+        floorPinchMidpoint = null;
+      }
+    }
+
     function resetFloorPlanZoom() {
       floorPlanZoom = 1;
       applyFloorPlanZoom();
@@ -2769,15 +2825,10 @@
     }
 
     function forceMobileViewportZoomOut() {
-      // Mobile browsers do not expose a perfect "reset pinch zoom" API, but
-      // temporarily refreshing the viewport tag helps many phones snap back to
-      // normal scale before the modal/popup opens.
-      const viewportMeta = document.querySelector('meta[name="viewport"]');
-      if (!viewportMeta) return;
-      const originalContent = viewportMeta.getAttribute("content") || "";
-      viewportMeta.setAttribute("content", "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no");
+      // The floor plan now uses app-controlled zoom on mobile instead of browser pinch zoom.
+      // This keeps the popup/modals from staying enlarged after a user zooms in.
+      if (document.activeElement && typeof document.activeElement.blur === "function") document.activeElement.blur();
       window.scrollTo(0, 0);
-      setTimeout(() => viewportMeta.setAttribute("content", originalContent), 350);
     }
 
     function autoZoomOutFloorPlanForPopup(xPercent, yPercent, callback) {
@@ -2801,7 +2852,7 @@
         floorPlanView.scrollLeft = Math.max(0, targetLeft - (floorPlanView.clientWidth * 0.5));
         floorPlanView.scrollTop = Math.max(0, targetTop - (floorPlanView.clientHeight * 0.32));
         if (typeof callback === "function") callback();
-      }, 180);
+      }, 260);
     }
 
     function setPendingFloorLocationFromEvent(event) {
@@ -6182,6 +6233,12 @@ ${rows.map(pin => `
       }
       setPendingFloorLocationFromEvent(event);
     });
+    if (floorPlanView) {
+      floorPlanView.addEventListener("touchstart", handleFloorPinchStart, { passive: true });
+      floorPlanView.addEventListener("touchmove", handleFloorPinchMove, { passive: false });
+      floorPlanView.addEventListener("touchend", handleFloorPinchEnd, { passive: true });
+      floorPlanView.addEventListener("touchcancel", handleFloorPinchEnd, { passive: true });
+    }
     floorPlanImage.addEventListener("load", function() {
       if (floorPlanEmptyNote) floorPlanEmptyNote.style.display = floorPlanImage.naturalWidth ? "none" : "block";
       applyFilters();
