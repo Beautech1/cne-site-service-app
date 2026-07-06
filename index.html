@@ -757,7 +757,15 @@
       border-radius: 10px;
       padding: 12px;
       background: #f9fbfc;
+      font-size: 13px;
       line-height: 1.45;
+    }
+
+    .mini-report-card h2,
+    .log-item .log-title,
+    .leaflet-popup-content b:first-child {
+      font-size: 15px;
+      line-height: 1.25;
     }
 
     .mini-report-grid {
@@ -765,6 +773,47 @@
       grid-template-columns: 1fr 1fr;
       gap: 8px 14px;
       font-size: 13px;
+    }
+
+    .report-map-photo,
+    .mini-report-card .log-photo,
+    .mini-report-card .report-photo,
+    .mini-report-card .photo-gallery img,
+    .log-item .report-photo,
+    .log-item .photo-gallery img.report-photo {
+      display: block;
+      width: auto;
+      max-width: min(100%, 420px);
+      max-height: 300px;
+      object-fit: contain;
+      border: 1px solid #d9e0e6;
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+
+    .mini-report-card .photo-gallery,
+    .log-item .photo-gallery.report-gallery {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: flex-start;
+    }
+
+    .mini-report-card .photo-gallery img.report-photo,
+    .mini-report-card .photo-gallery img.log-photo,
+    .log-item .photo-gallery img.report-photo,
+    .log-item .photo-gallery img.log-photo {
+      width: min(100%, 420px);
+      height: auto;
+      max-height: 300px;
+      object-fit: contain;
+    }
+
+    .report-text-row,
+    .log-item small,
+    .leaflet-popup-content small {
+      font-size: 12px;
+      line-height: 1.4;
     }
 
     .mini-report-detail {
@@ -4133,10 +4182,11 @@
       const collapsible = options.collapsible !== false;
       const startOpen = options.open === true;
       const countText = list.length === 1 ? "1 photo" : list.length + " photos";
+      const galleryClass = imageClass.indexOf("report") !== -1 || imageClass.indexOf("print") !== -1 || imageClass.indexOf("log-photo") !== -1 ? "photo-gallery report-gallery" : "photo-gallery";
       const imagesHtml = list.length === 1
         ? '<img class="' + imageClass + '" src="' + escapeHtml(list[0]) + '" alt="' + escapeHtml(label) + '" onerror="this.style.display=\'none\'">'
-        : '<div class="photo-gallery">' + list.map((url, index) =>
-          '<img src="' + escapeHtml(url) + '" alt="' + escapeHtml(label) + ' ' + (index + 1) + '" onerror="this.style.display=\'none\'">'
+        : '<div class="' + galleryClass + '">' + list.map((url, index) =>
+          '<img class="' + imageClass + '" src="' + escapeHtml(url) + '" alt="' + escapeHtml(label) + ' ' + (index + 1) + '" onerror="this.style.display=\'none\'">'
         ).join("") + '</div>';
 
       if (!collapsible) {
@@ -4183,6 +4233,7 @@
         "<b>" + escapeHtml(pin.title) + "</b>" +
         "<br><small><b>Status:</b> " + escapeHtml(formatPinStatus(pin)) + "</small>" +
         "<br><small><b>Department:</b> " + escapeHtml(categoryLabel) + "</small>" +
+        "<br><small><b>Map / Building:</b> " + escapeHtml(getMapView(getPinMapId(pin)).name) + "</small>" +
         (pin.reported_by ? "<br><small><b>Reported by:</b> " + escapeHtml(pin.reported_by) + "</small>" : "") +
         (pin.cleared_by ? "<br><small><b>Cleared by:</b> " + escapeHtml(pin.cleared_by) + "</small>" : "") +
         (formatTimeToClear(pin) ? "<br><small><b>Time to clear:</b> " + escapeHtml(formatTimeToClear(pin)) + "</small>" : "") +
@@ -4190,7 +4241,7 @@
         (pin.description && pin.description.trim() !== "" ? "<br>" + escapeHtml(pin.description) : "") +
         photoHtml +
         clearPhotoHtml +
-        "<br><br><small>Location: " + escapeHtml(getLocationLabel(pin)) +
+        "<br><br><small><b>Pin location:</b> " + escapeHtml(getLocationLabel(pin)) +
         (pin.created_at ? "<br>Saved: " + new Date(pin.created_at).toLocaleString() : "") +
         (getPinStatus(pin) === "cleared" && pin.cleared_at ? "<br>Cleared: " + new Date(pin.cleared_at).toLocaleString() : "") +
         "</small>" +
@@ -4369,6 +4420,7 @@
             '<div class="log-title">' + escapeHtml(pin.title) + '</div>' +
             '<div><small><b>Status:</b> ' + escapeHtml(formatPinStatus(pin)) + '</small></div>' +
             '<div><small><b>Department:</b> ' + escapeHtml(formatDepartmentLabel(pin.category)) + '</small></div>' +
+            '<div><small><b>Map / Building:</b> ' + escapeHtml(getMapView(getPinMapId(pin)).name) + '</small></div>' +
             (pin.reported_by ? '<div><small><b>Reported by:</b> ' + escapeHtml(pin.reported_by) + '</small></div>' : '') +
             (pin.created_device_label ? '<div><small><b>Created from:</b> ' + escapeHtml(pin.created_device_label) + '</small></div>' : '') +
             (pin.cleared_by ? '<div><small><b>Cleared by:</b> ' + escapeHtml(pin.cleared_by) + '</small></div>' : '') +
@@ -4992,7 +5044,7 @@
             '<div class="log-title">' + escapeHtml(pin.title || 'Untitled pin') + '</div>' +
             '<div><small><b>Status:</b> ' + escapeHtml(formatPinStatus(pin)) + '</small></div>' +
             '<div><small><b>Department:</b> ' + escapeHtml(formatDepartmentLabel(pin.category)) + '</small></div>' +
-            '<div><small><b>Map:</b> ' + escapeHtml(getMapView(getPinMapId(pin)).name) + '</small></div>' +
+            '<div><small><b>Map / Building:</b> ' + escapeHtml(getMapView(getPinMapId(pin)).name) + '</small></div>' +
             (pin.reported_by ? '<div><small><b>Reported by:</b> ' + escapeHtml(pin.reported_by) + '</small></div>' : '') +
             (pin.created_device_label ? '<div><small><b>Created from:</b> ' + escapeHtml(pin.created_device_label) + '</small></div>' : '') +
             (pin.cleared_by ? '<div><small><b>Cleared by:</b> ' + escapeHtml(pin.cleared_by) + '</small></div>' : '') +
@@ -5041,14 +5093,14 @@
             <h2>${escapeHtml(pin.title || 'Untitled pin')}</h2>
             <div><strong>Status:</strong> ${escapeHtml(formatPinStatus(pin))}</div>
             <div><strong>Department:</strong> ${escapeHtml(formatDepartmentLabel(pin.category))}</div>
-            <div><strong>Map:</strong> ${escapeHtml(getMapView(getPinMapId(pin)).name)}</div>
+            <div><strong>Map / Building:</strong> ${escapeHtml(getMapView(getPinMapId(pin)).name)}</div>
             ${pin.reported_by ? `<div><strong>Reported by:</strong> ${escapeHtml(pin.reported_by)}</div>` : ""}
             ${pin.cleared_by ? `<div><strong>Cleared by:</strong> ${escapeHtml(pin.cleared_by)}</div>` : ""}
             ${formatTimeToClear(pin) ? `<div><strong>Time to clear:</strong> ${escapeHtml(formatTimeToClear(pin))}</div>` : ""}
             ${pin.clear_comment ? `<div><strong>Clear comments:</strong> ${escapeHtml(pin.clear_comment)}</div>` : ""}
             ${pin.description ? `<div style="margin-top:6px;"><strong>Location/details:</strong> ${escapeHtml(pin.description)}</div>` : ""}
             <div class="meta">
-              Location: ${escapeHtml(getLocationLabel(pin))}<br>
+              Pin location: ${escapeHtml(getLocationLabel(pin))}<br>
               ${pin.created_at ? `Created: ${new Date(pin.created_at).toLocaleString()}<br>` : ""}
               ${getPinStatus(pin) === 'cleared' && pin.cleared_at ? `Cleared: ${new Date(pin.cleared_at).toLocaleString()}` : ""}
             </div>
@@ -5063,14 +5115,14 @@
           body { font-family: Arial, sans-serif; margin: 24px; color:#1f2933; }
           h1 { margin: 0 0 6px; }
           .note { color:#52606d; margin-bottom:18px; }
-          .card { border:1px solid #d9e2ec; border-radius:10px; padding:14px; margin-bottom:14px; page-break-inside:avoid; }
-          .card h2 { margin:0 0 8px; font-size:18px; }
+          .card { border:1px solid #d9e2ec; border-radius:10px; padding:14px; margin-bottom:14px; page-break-inside:avoid; font-size:13px; line-height:1.45; }
+          .card h2 { margin:0 0 8px; font-size:17px; line-height:1.25; }
           .meta { font-size:13px; color:#52606d; line-height:1.5; margin-top:8px; }
           .photo-section-title { display:block; font-weight:bold; margin-top:10px; font-size:13px; }
-          .log-photo, .popup-photo, .print-log-photo { display:block; margin-top:8px; max-width:360px; max-height:270px; object-fit:contain; border:1px solid #d9e2ec; border-radius:8px; }
-          .map-photo { display:block; margin-top:8px; max-width:460px; max-height:330px; object-fit:contain; border:1px solid #d9e2ec; border-radius:8px; }
-          .photo-gallery { display:flex; gap:10px; flex-wrap:wrap; margin-top:8px; }
-          .photo-gallery img { width:220px; height:165px; object-fit:contain; border:1px solid #d9e2ec; border-radius:8px; background:#f8fafc; }
+          .log-photo, .popup-photo, .print-log-photo, .print-report-photo { display:block; margin-top:8px; max-width:460px; max-height:330px; object-fit:contain; border:1px solid #d9e2ec; border-radius:8px; background:#f8fafc; }
+          .map-photo { display:block; margin-top:8px; max-width:460px; max-height:330px; object-fit:contain; border:1px solid #d9e2ec; border-radius:8px; background:#f8fafc; }
+          .photo-gallery { display:flex; gap:10px; flex-wrap:wrap; margin-top:8px; align-items:flex-start; }
+          .photo-gallery img { width:460px; max-width:100%; height:auto; max-height:330px; object-fit:contain; border:1px solid #d9e2ec; border-radius:8px; background:#f8fafc; }
           .photo-section-title { break-after: avoid; }
           @media print { button { display:none; } body { margin: 12mm; } }
         </style></head><body>
@@ -5768,7 +5820,7 @@ function resetPinForm() {
       const created = pin.created_at ? new Date(pin.created_at).toLocaleString() : "";
       const cleared = pin.cleared_at ? new Date(pin.cleared_at).toLocaleString() : "";
       const photoOptions = options.print ? { collapsible: false } : {};
-      const photoClass = options.print ? "print-report-photo" : "log-photo";
+      const photoClass = options.print ? "print-report-photo" : "report-photo";
       const reportedPhotos = buildPhotoGalleryHtml(getPinPhotos(pin), "Reported photos", photoClass, photoOptions);
       const clearPhotos = buildPhotoGalleryHtml(getClearPhotos(pin), "Clear/completion photos", photoClass, photoOptions);
       const mapSnapshotHtml = pin.map_snapshot_url
@@ -5788,6 +5840,7 @@ function resetPinForm() {
             '<div><strong>Status:</strong> ' + escapeHtml(status) + '</div>' +
             '<div><strong>Department:</strong> ' + escapeHtml(dept) + '</div>' +
             '<div><strong>Map / Building:</strong> ' + escapeHtml(mapName) + '</div>' +
+            '<div><strong>Pin location:</strong> ' + escapeHtml(getLocationLabel(pin)) + '</div>' +
             '<div><strong>Reported by:</strong> ' + escapeHtml(pin.reported_by || "") + '</div>' +
             (pin.cleared_by ? '<div><strong>Cleared by:</strong> ' + escapeHtml(pin.cleared_by) + '</div>' : '') +
             (formatTimeToClear(pin) ? '<div><strong>Time to clear:</strong> ' + escapeHtml(formatTimeToClear(pin)) + '</div>' : '') +
@@ -5915,7 +5968,7 @@ function resetPinForm() {
       const pin = getPinById(currentReportPinId);
       if (!pin) return;
       if (!pin.map_snapshot_url) await ensureMapSnapshotForPin(pin);
-      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Item Report ${escapeHtml(String(pin.id || ""))}</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#1f2933}.mini-report-card{border:1px solid #d9e0e6;border-radius:10px;padding:14px;line-height:1.45}.mini-report-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px}.mini-report-detail{margin-top:10px;white-space:pre-wrap}.log-photo,.print-report-photo{display:block;margin:8px 0;max-width:420px;max-height:320px;object-fit:contain;border:1px solid #d9e0e6;border-radius:8px}.photo-gallery{display:flex;gap:10px;flex-wrap:wrap}.photo-gallery img{width:240px;height:180px;object-fit:contain;border:1px solid #d9e0e6;border-radius:8px;background:#f8fafc}.photo-section-title{display:block;font-weight:bold;margin-top:10px}@media print{button{display:none}}</style></head><body><h1>Item Report</h1>${buildMiniReportHtml(pin, { print: true })}</body></html>`;
+      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Item Report ${escapeHtml(String(pin.id || ""))}</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#1f2933;font-size:13px}.mini-report-card{border:1px solid #d9e0e6;border-radius:10px;padding:14px;line-height:1.45;font-size:13px}.mini-report-card h2{font-size:17px;line-height:1.25}.mini-report-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;font-size:13px}.mini-report-detail{margin-top:10px;white-space:pre-wrap}.report-map-photo,.log-photo,.print-report-photo{display:block;margin:8px 0;max-width:460px;max-height:330px;object-fit:contain;border:1px solid #d9e0e6;border-radius:8px;background:#f8fafc}.photo-gallery{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start}.photo-gallery img{width:460px;max-width:100%;height:auto;max-height:330px;object-fit:contain;border:1px solid #d9e0e6;border-radius:8px;background:#f8fafc}.photo-section-title{display:block;font-weight:bold;margin-top:10px;font-size:13px}@media print{button{display:none}}</style></head><body><h1>Item Report</h1>${buildMiniReportHtml(pin, { print: true })}</body></html>`;
       const win = window.open("", "_blank");
       if (!win) {
         alert("Popup blocked. Please allow popups to print the report.");
