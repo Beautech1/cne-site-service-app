@@ -2768,6 +2768,42 @@
       return `Lat: ${Number(pin.lat).toFixed(6)}, Lng: ${Number(pin.lng).toFixed(6)}`;
     }
 
+    function forceMobileViewportZoomOut() {
+      // Mobile browsers do not expose a perfect "reset pinch zoom" API, but
+      // temporarily refreshing the viewport tag helps many phones snap back to
+      // normal scale before the modal/popup opens.
+      const viewportMeta = document.querySelector('meta[name="viewport"]');
+      if (!viewportMeta) return;
+      const originalContent = viewportMeta.getAttribute("content") || "";
+      viewportMeta.setAttribute("content", "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no");
+      window.scrollTo(0, 0);
+      setTimeout(() => viewportMeta.setAttribute("content", originalContent), 350);
+    }
+
+    function autoZoomOutFloorPlanForPopup(xPercent, yPercent, callback) {
+      const isMobile = typeof isMobileFloorPopupMode === "function" ? isMobileFloorPopupMode() : window.innerWidth <= 760;
+      if (!isMobile || !floorPlanView || !floorPlanStage) {
+        if (typeof callback === "function") callback();
+        return;
+      }
+
+      // Reset the app's own floor-plan zoom first.
+      resetFloorPlanZoom();
+      forceMobileViewportZoomOut();
+
+      // Let the browser finish reflowing after the zoom reset, then keep the
+      // selected pin roughly in view before opening the popup/modal.
+      setTimeout(() => {
+        const stageWidth = floorPlanStage.scrollWidth || floorPlanStage.clientWidth || 1;
+        const stageHeight = floorPlanStage.scrollHeight || floorPlanStage.clientHeight || 1;
+        const targetLeft = (Number(xPercent) / 100) * stageWidth;
+        const targetTop = (Number(yPercent) / 100) * stageHeight;
+        floorPlanView.scrollLeft = Math.max(0, targetLeft - (floorPlanView.clientWidth * 0.5));
+        floorPlanView.scrollTop = Math.max(0, targetTop - (floorPlanView.clientHeight * 0.32));
+        if (typeof callback === "function") callback();
+      }, 180);
+    }
+
     function setPendingFloorLocationFromEvent(event) {
       const rect = floorPlanStage.getBoundingClientRect();
       const xPercent = ((event.clientX - rect.left) / rect.width) * 100;
@@ -2782,7 +2818,7 @@
         y_percent: yPercent
       };
       showPendingFloorDot(xPercent, yPercent);
-      openPinModalForPending();
+      autoZoomOutFloorPlanForPopup(xPercent, yPercent, openPinModalForPending);
     }
 
     function showPendingFloorDot(xPercent, yPercent) {
@@ -4029,8 +4065,16 @@
       }
     }
 
-    function openFloorPlanPopup(pin, xPercent, yPercent) {
+    function openFloorPlanPopup(pin, xPercent, yPercent, skipAutoZoomOut = false) {
       if (!floorPlanPopup || !floorPlanStage) return;
+
+      if (isMobileFloorPopupMode() && !skipAutoZoomOut) {
+        autoZoomOutFloorPlanForPopup(xPercent, yPercent, function() {
+          openFloorPlanPopup(pin, xPercent, yPercent, true);
+        });
+        return;
+      }
+
       floorPlanPopup.innerHTML = buildPopupHtml(pin);
       floorPlanPopup.style.display = "block";
       floorPlanPopup.scrollTop = 0;
