@@ -1239,25 +1239,34 @@
        move the pin popup into a fixed bottom sheet so it stays fully visible. */
     .floor-popup.mobile-floor-popup {
       position: fixed !important;
-      left: 8px !important;
       right: auto !important;
-      top: auto !important;
       bottom: auto !important;
-      width: calc(100vw - 16px) !important;
-      max-width: calc(100vw - 16px) !important;
-      max-height: min(50dvh, 360px) !important;
       overflow-y: auto !important;
       overscroll-behavior: contain;
       -webkit-overflow-scrolling: touch;
       z-index: 3000 !important;
       box-sizing: border-box;
-      transform: none !important;
+      transform-origin: top left !important;
+      /* Values below are set by JS using visualViewport so the popup stays usable even after pinch zoom. */
+      transform: scale(var(--floor-popup-inverse-zoom, 1)) !important;
+      font-size: 13px;
+      line-height: 1.32;
+    }
+
+    .floor-popup.mobile-floor-popup .popup-photo {
+      max-width: 150px;
+      max-height: 115px;
+    }
+
+    .floor-popup.mobile-floor-popup .expanded-photo-img,
+    .floor-popup.mobile-floor-popup .photo-gallery.expanded img,
+    .floor-popup.mobile-floor-popup .photo-details[open] img {
+      max-height: 190px !important;
+      object-fit: contain !important;
     }
 
     .floor-popup.mobile-floor-popup:has(.photo-details[open]) {
-      width: calc(100vw - 16px) !important;
-      max-width: calc(100vw - 16px) !important;
-      max-height: min(54dvh, 390px) !important;
+      max-height: min(58dvh, 410px) !important;
     }
 
     .floor-pending-dot {
@@ -3960,34 +3969,47 @@
       floorPlanPopup.style.maxWidth = "";
       floorPlanPopup.style.maxHeight = "";
       floorPlanPopup.style.zIndex = "";
+      floorPlanPopup.style.removeProperty("--floor-popup-inverse-zoom");
     }
 
     function showMobileFloorPopupAsSheet() {
       if (!floorPlanPopup) return;
 
-      // Move it outside the floor-plan stage. This is important because a popup
-      // inside a zoomed/scrolling image can still be hard to reach on phones.
+      // Move it outside the floor-plan stage. This prevents the popup from being clipped
+      // by the zoomed/scrolling floor-plan image container.
       if (floorPlanPopup.parentElement !== document.body) {
         document.body.appendChild(floorPlanPopup);
       }
 
       const visualViewport = window.visualViewport;
-      const viewportWidth = Math.round(visualViewport ? visualViewport.width : window.innerWidth);
-      const viewportHeight = Math.round(visualViewport ? visualViewport.height : window.innerHeight);
-      const offsetLeft = Math.round(visualViewport ? visualViewport.offsetLeft : 0);
-      const offsetTop = Math.round(visualViewport ? visualViewport.offsetTop : 0);
-      const popupHeight = Math.min(360, Math.max(220, Math.round(viewportHeight * 0.50)));
-      const top = offsetTop + Math.max(8, viewportHeight - popupHeight - 10);
+      const viewportWidth = visualViewport ? visualViewport.width : window.innerWidth;
+      const viewportHeight = visualViewport ? visualViewport.height : window.innerHeight;
+      const offsetLeft = visualViewport ? visualViewport.offsetLeft : 0;
+      const offsetTop = visualViewport ? visualViewport.offsetTop : 0;
+      const zoomScale = Math.max(1, visualViewport && visualViewport.scale ? visualViewport.scale : 1);
+      const inverseZoom = 1 / zoomScale;
+
+      // When a user pinches close into a floor plan, browser zoom makes normal fixed
+      // popups appear huge. Build a larger CSS box and shrink it back by inverse zoom
+      // so the visible popup stays phone-sized without making the user zoom out.
+      const visibleMargin = 8;
+      const visibleWidth = Math.max(280, viewportWidth - (visibleMargin * 2));
+      const visibleHeight = Math.min(340, Math.max(210, viewportHeight * 0.48));
+      const cssWidth = Math.round(visibleWidth * zoomScale);
+      const cssHeight = Math.round(visibleHeight * zoomScale);
+      const left = Math.round(offsetLeft + visibleMargin);
+      const top = Math.round(offsetTop + Math.max(8, viewportHeight - visibleHeight - 10));
 
       floorPlanPopup.classList.add("mobile-floor-popup");
+      floorPlanPopup.style.setProperty("--floor-popup-inverse-zoom", String(inverseZoom));
       floorPlanPopup.style.position = "fixed";
-      floorPlanPopup.style.left = (offsetLeft + 8) + "px";
+      floorPlanPopup.style.left = left + "px";
       floorPlanPopup.style.top = top + "px";
       floorPlanPopup.style.right = "auto";
       floorPlanPopup.style.bottom = "auto";
-      floorPlanPopup.style.width = Math.max(260, viewportWidth - 16) + "px";
-      floorPlanPopup.style.maxWidth = Math.max(260, viewportWidth - 16) + "px";
-      floorPlanPopup.style.maxHeight = popupHeight + "px";
+      floorPlanPopup.style.width = cssWidth + "px";
+      floorPlanPopup.style.maxWidth = cssWidth + "px";
+      floorPlanPopup.style.maxHeight = cssHeight + "px";
       floorPlanPopup.style.zIndex = "3000";
     }
 
