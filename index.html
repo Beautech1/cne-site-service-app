@@ -1068,6 +1068,24 @@
     }
 
 
+
+
+    .active-count-check {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 28px;
+      padding: 4px 9px;
+      border-radius: 999px;
+      background: #eef7ff;
+      border: 1px solid #9bc7ea;
+      color: #003f70;
+      font-size: 11px;
+      font-weight: 800;
+      white-space: nowrap;
+      flex: 0 0 auto;
+    }
+
     .outstanding-summary {
       display: flex;
       gap: 5px;
@@ -1625,7 +1643,25 @@
         display: none;
       }
 
-      .outstanding-summary {
+  
+
+    .active-count-check {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 28px;
+      padding: 4px 9px;
+      border-radius: 999px;
+      background: #eef7ff;
+      border: 1px solid #9bc7ea;
+      color: #003f70;
+      font-size: 11px;
+      font-weight: 800;
+      white-space: nowrap;
+      flex: 0 0 auto;
+    }
+
+    .outstanding-summary {
         width: 100%;
         max-width: 100%;
         overflow-x: auto;
@@ -1704,6 +1740,7 @@
 
         <div class="control-row summary-row">
           <div class="status-bar" id="statusBar">Starting map...</div>
+          <div class="active-count-check" id="activeCountCheck">0 active visible</div>
           <div class="outstanding-summary" id="outstandingSummary" aria-label="Outstanding pins by department">
             <div class="panel-note" style="padding:0;">Loading outstanding counts...</div>
           </div>
@@ -2243,6 +2280,7 @@
     const floorPlanPopup = document.getElementById("floorPlanPopup");
     const floorPlanEmptyNote = document.getElementById("floorPlanEmptyNote");
     const statusBar = document.getElementById("statusBar");
+    const activeCountCheck = document.getElementById("activeCountCheck");
     const outstandingSummary = document.getElementById("outstandingSummary");
     const adminPanel = document.getElementById("adminPanel");
     const deleteHistoryPanel = document.getElementById("deleteHistoryPanel");
@@ -4179,8 +4217,6 @@
       const list = normalizePhotoList(photos);
       if (!list.length) return "";
 
-      const collapsible = options.collapsible !== false;
-      const startOpen = options.open === true;
       const countText = list.length === 1 ? "1 photo" : list.length + " photos";
       const galleryClass = imageClass.indexOf("report") !== -1 || imageClass.indexOf("print") !== -1 || imageClass.indexOf("log-photo") !== -1 ? "photo-gallery report-gallery" : "photo-gallery";
       const imagesHtml = list.length === 1
@@ -4189,15 +4225,7 @@
           '<img class="' + imageClass + '" src="' + escapeHtml(url) + '" alt="' + escapeHtml(label) + ' ' + (index + 1) + '" onerror="this.style.display=\'none\'">'
         ).join("") + '</div>';
 
-      if (!collapsible) {
-        return '<span class="photo-section-title">' + escapeHtml(label) + ' (' + escapeHtml(countText) + ')</span>' + imagesHtml;
-      }
-
-      return '<div class="photo-inline-preview">' + imagesHtml + '</div>' +
-        '<details class="photo-details"' + (startOpen ? ' open' : '') + '>' +
-          '<summary>View larger • ' + escapeHtml(countText) + '</summary>' +
-          '<div class="photo-details-body">' + imagesHtml + '</div>' +
-        '</details>';
+      return '<span class="photo-section-title">' + escapeHtml(label) + ' (' + escapeHtml(countText) + ')</span>' + imagesHtml;
     }
 
     function buildPopupHtml(pin) {
@@ -4640,6 +4668,16 @@
         buildOutstandingMapCards(countsByMap, "all");
     }
 
+    function updateActiveCountCheck(filteredPins, statusValue, categoryValue) {
+      if (!activeCountCheck) return;
+      const list = Array.isArray(filteredPins) ? filteredPins : [];
+      const activeVisible = list.filter(pin => getPinStatus(pin) === "active").length;
+      const deptName = categoryValue === "all" ? "All Departments" : getDepartmentViewName(categoryValue);
+      const statusText = statusValue === "active" ? `${activeVisible} active visible` : `${activeVisible} active in view`;
+      activeCountCheck.textContent = `${deptName} • ${statusText}`;
+      activeCountCheck.title = `${deptName}: ${activeVisible} active pin${activeVisible === 1 ? "" : "s"} visible on ${getMapView(currentMapId).name}`;
+    }
+
     function applyFilters() {
       const statusValue = statusFilter.value;
       const categoryValue = isValidDepartmentView(selectedDepartmentView) ? selectedDepartmentView : "all";
@@ -4666,6 +4704,8 @@
 
         return statusMatch && categoryMatch && mapMatch;
       });
+
+      updateActiveCountCheck(filtered, statusValue, categoryValue);
 
       if (isFloorPlanMap()) {
         renderFloorPlanPins(filtered);
