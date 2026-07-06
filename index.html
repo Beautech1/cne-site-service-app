@@ -2162,6 +2162,9 @@
     let previewObjectUrl = null;
     let pendingPinPhotoFiles = [];
     let floorPlanZoom = 1;
+    const FLOOR_PLAN_MIN_ZOOM = 0.75;
+    const FLOOR_PLAN_MAX_ZOOM = 8;
+    const FLOOR_PLAN_MOBILE_MAX_ZOOM = 10;
     let floorPinchStartDistance = null;
     let floorPinchStartZoom = 1;
     let floorPinchMidpoint = null;
@@ -2733,9 +2736,14 @@
     }
 
 
+    function getFloorPlanMaxZoom() {
+      const isSmallScreen = window.matchMedia && window.matchMedia("(max-width: 760px)").matches;
+      return isSmallScreen ? FLOOR_PLAN_MOBILE_MAX_ZOOM : FLOOR_PLAN_MAX_ZOOM;
+    }
+
     function applyFloorPlanZoom() {
       if (!floorPlanStage) return;
-      const zoom = Math.max(0.75, Math.min(3, Number(floorPlanZoom) || 1));
+      const zoom = Math.max(FLOOR_PLAN_MIN_ZOOM, Math.min(getFloorPlanMaxZoom(), Number(floorPlanZoom) || 1));
       floorPlanZoom = zoom;
 
       if (zoom === 1) {
@@ -2753,7 +2761,7 @@
     function zoomFloorPlan(direction) {
       const oldZoom = floorPlanZoom || 1;
       const step = direction > 0 ? 0.25 : -0.25;
-      const nextZoom = Math.max(0.75, Math.min(3, oldZoom + step));
+      const nextZoom = Math.max(FLOOR_PLAN_MIN_ZOOM, Math.min(getFloorPlanMaxZoom(), oldZoom + step));
       if (nextZoom === oldZoom) return;
 
       const oldScrollLeft = floorPlanView ? floorPlanView.scrollLeft : 0;
@@ -2826,7 +2834,7 @@
       const distance = getTouchDistance(event.touches);
       if (!distance) return;
       const oldZoom = floorPlanZoom || 1;
-      const nextZoom = Math.max(1, Math.min(3, floorPinchStartZoom * (distance / floorPinchStartDistance)));
+      const nextZoom = Math.max(1, Math.min(getFloorPlanMaxZoom(), floorPinchStartZoom * (distance / floorPinchStartDistance)));
       if (Math.abs(nextZoom - oldZoom) < 0.01) return;
 
       const midpoint = getTouchMidpoint(event.touches) || floorPinchMidpoint;
