@@ -4160,15 +4160,15 @@
       const pinStatus = getPinStatus(pin);
       const canClearOrCancel = pinStatus === "active";
       const editButton = pin.id
-        ? '<button class="action-btn secondary" onclick="openEditPinModal(' + pin.id + ')">' + (pinStatus === "cleared" ? 'Admin edit cleared pin' : 'Edit / Reassign / Relocate Pin') + '</button>'
+        ? '<button class="action-btn secondary" onclick="openEditPinModalFromReport(' + pin.id + ')">' + (pinStatus === "cleared" ? 'Admin edit cleared pin' : 'Edit / Reassign / Relocate Pin') + '</button>'
         : "";
 
       const clearButton = canClearOrCancel
-        ? (pin.id ? '<button class="action-btn clear-btn" onclick="clearPin(' + pin.id + ')">Clear pin</button>' : "")
+        ? (pin.id ? '<button class="action-btn clear-btn" onclick="clearPinFromReport(' + pin.id + ')">Clear pin</button>' : "")
         : "";
 
       const cancelButton = canClearOrCancel
-        ? (pin.id ? '<button class="action-btn secondary" style="background:#8a4b08;" onclick="cancelPin(' + pin.id + ')">Cancel call</button>' : "")
+        ? (pin.id ? '<button class="action-btn secondary" style="background:#8a4b08;" onclick="cancelPinFromReport(' + pin.id + ')">Cancel call</button>' : "")
         : "";
 
       const actionRow = pin.id
@@ -5774,6 +5774,13 @@ function resetPinForm() {
       const mapSnapshotHtml = pin.map_snapshot_url
         ? '<div style="margin-top:12px;"><span class="photo-section-title">Mini map / pin location</span><img class="log-photo" style="max-width:420px; max-height:300px; object-fit:contain;" src="' + escapeHtml(pin.map_snapshot_url) + '" alt="Mini map location" onerror="this.style.display=\'none\'"></div>'
         : '<div class="panel-note" style="margin-top:12px;">Mini map snapshot is not available for this item. Run the consolidated SQL and check that the floor-plan and site-plan image files are beside this HTML file.</div>';
+      const pinStatusForActions = getPinStatus(pin);
+      const reportActionRow = (!options.print && pin.id)
+        ? '<div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;">' +
+            (pinStatusForActions === "active" ? '<button class="action-btn clear-btn" onclick="clearPinFromReport(' + pin.id + ')">Clear Pin</button>' : '') +
+            '<button class="action-btn secondary" onclick="openEditPinModalFromReport(' + pin.id + ')">' + (pinStatusForActions === "cleared" ? 'Admin Edit Cleared Pin' : 'Edit / Reassign / Relocate Pin') + '</button>' +
+          '</div>'
+        : '';
       return (
         '<div class="mini-report-card">' +
           '<h2 style="margin:0 0 10px;">' + escapeHtml(pin.title || "Item Report") + '</h2>' +
@@ -5794,6 +5801,7 @@ function resetPinForm() {
           mapSnapshotHtml +
           (reportedPhotos ? '<div style="margin-top:12px;">' + reportedPhotos + '</div>' : '') +
           (clearPhotos ? '<div style="margin-top:12px;">' + clearPhotos + '</div>' : '') +
+          reportActionRow +
         '</div>'
       );
     }
@@ -5841,6 +5849,31 @@ function resetPinForm() {
       if (!pinModal.classList.contains("open") && !clearModal.classList.contains("open") && !editPinModal.classList.contains("open")) {
         modalBackdrop.classList.remove("open");
       }
+    }
+
+    function closeItemReportBeforeAction() {
+      if (itemReportModal) itemReportModal.classList.remove("open");
+      currentReportPinId = null;
+      // Keep the backdrop available because the next action modal will use it.
+      // This prevents the text report from staying open behind Clear/Edit/Reassign.
+    }
+
+    function clearPinFromReport(pinId) {
+      closeItemReportBeforeAction();
+      closeAllMapPopups();
+      setTimeout(function() { clearPin(pinId); }, 0);
+    }
+
+    function openEditPinModalFromReport(pinId) {
+      closeItemReportBeforeAction();
+      closeAllMapPopups();
+      setTimeout(function() { openEditPinModal(pinId); }, 0);
+    }
+
+    function cancelPinFromReport(pinId) {
+      closeItemReportBeforeAction();
+      closeAllMapPopups();
+      setTimeout(function() { cancelPin(pinId); }, 0);
     }
 
     function focusPinOnMap(pinId) {
@@ -6539,6 +6572,9 @@ ${rows.map(pin => `
     window.focusPinOnMap = focusPinOnMap;
     window.submitClearPinForm = submitClearPinForm;
     window.openEditPinModal = openEditPinModal;
+    window.openEditPinModalFromReport = openEditPinModalFromReport;
+    window.clearPinFromReport = clearPinFromReport;
+    window.cancelPinFromReport = cancelPinFromReport;
     window.closeEditPinModal = closeEditPinModal;
     window.submitEditPinForm = submitEditPinForm;
     window.onEditPinDepartmentChange = onEditPinDepartmentChange;
