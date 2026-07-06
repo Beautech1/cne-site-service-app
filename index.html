@@ -2117,10 +2117,22 @@
     const DEVICE_ID_STORAGE_KEY = "cne_service_device_id_v1";
     const DEVICE_PROFILE_STORAGE_KEY = "cne_service_device_profile_v1";
     const SITE_ACCESS_STORAGE_KEY = "cne_service_site_access_v1";
-    const SITE_ACCESS_PASSWORD_VERSION = "v3";
+    const SITE_ACCESS_PASSWORD_VERSION = "v5";
     // Starter sign-in codes. Change these before sharing the file or load them centrally from Supabase app_settings > sign_in_codes.
     // CNE staff / All Departments can view all departments. Department codes are locked to one department view.
     const DEFAULT_SIGN_IN_CODES = {
+      "CNEUSER2026": {
+        label: "CNE Staff",
+        role: "multi_department",
+        department: "multi",
+        canViewAll: false,
+        allowedDepartments: [
+          "Explace Cleaning",
+          "Impact Cleaning",
+          "Showtech Plumbing",
+          "Showtech Electrical"
+        ]
+      },
       "CNE2026": { label: "CNE Staff", role: "cne", department: "all", canViewAll: true },
       "ALLDEPARTMENTS2026": { label: "All Departments", role: "cne", department: "all", canViewAll: true },
       "EXPLACEPLUMBING2026": { label: "Explace Plumbing", role: "department", department: "Explace Plumbing", canViewAll: false },
@@ -2464,18 +2476,51 @@
       return raw === "all" ? "all" : normalizeDepartmentKey(raw);
     }
 
+    function getBuiltInAllowedDepartmentsForCode(code) {
+      const normalizedCode = normalizeAccessCode(code);
+      if (normalizedCode === "CNEUSER2026") {
+        return [
+          "Explace Cleaning",
+          "Impact Cleaning",
+          "Showtech Plumbing",
+          "Showtech Electrical"
+        ];
+      }
+      return [];
+    }
+
+    function normalizeAllowedDepartmentsList(value, code) {
+      let source = [];
+      if (Array.isArray(value)) {
+        source = value;
+      } else if (typeof value === "string") {
+        source = value.split(/[,|]/);
+      }
+
+      let allowed = source.map(item => String(item || "").trim()).filter(Boolean);
+      if (!allowed.length) {
+        allowed = getBuiltInAllowedDepartmentsForCode(code);
+      }
+      return allowed;
+    }
+
     function normalizeSignInCodes(value) {
       const source = value && typeof value === "object" ? value : DEFAULT_SIGN_IN_CODES;
       const normalized = {};
       Object.entries(source).forEach(([code, access]) => {
         const normalizedCode = normalizeAccessCode(code);
         if (!normalizedCode || !access || typeof access !== "object") return;
-        const department = access.department === "all" ? "all" : String(access.department || access.label || "").trim();
+        const rawAllowedDepartments = access.allowedDepartments || access.allowed_departments || access.departments || access.allowed;
+        const allowedDepartments = normalizeAllowedDepartmentsList(rawAllowedDepartments, normalizedCode);
+        const department = access.department === "all"
+          ? "all"
+          : (allowedDepartments.length ? "multi" : String(access.department || access.label || "").trim());
         normalized[normalizedCode] = {
           label: String(access.label || department || "User").trim(),
-          role: access.role || (access.canViewAll ? "cne" : "department"),
+          role: access.role || (access.canViewAll ? "cne" : (allowedDepartments.length ? "multi_department" : "department")),
           department,
-          canViewAll: !!access.canViewAll || normalizeAccessDepartmentKey(department) === "all"
+          canViewAll: !!access.canViewAll || normalizeAccessDepartmentKey(department) === "all",
+          allowedDepartments
         };
       });
       return Object.keys(normalized).length ? normalized : { ...DEFAULT_SIGN_IN_CODES };
@@ -2509,12 +2554,16 @@
       const normalizedCode = normalizeAccessCode(code);
       const access = SIGN_IN_CODES[normalizedCode];
       if (!access) return null;
+      const rawAllowedDepartments = access.allowedDepartments || access.allowed_departments || access.departments || access.allowed;
+      const allowedDepartments = normalizeAllowedDepartmentsList(rawAllowedDepartments, normalizedCode);
+      const department = allowedDepartments.length ? "multi" : normalizeAccessDepartmentKey(access.department || "all");
       return {
         code: normalizedCode,
         label: String(access.label || access.role || "User"),
-        role: access.role || (access.canViewAll ? "cne" : "department"),
-        department: normalizeAccessDepartmentKey(access.department || "all"),
-        canViewAll: !!access.canViewAll || normalizeAccessDepartmentKey(access.department || "all") === "all"
+        role: access.role || (access.canViewAll ? "cne" : (allowedDepartments.length ? "multi_department" : "department")),
+        department,
+        canViewAll: !!access.canViewAll || normalizeAccessDepartmentKey(access.department || "all") === "all",
+        allowedDepartments: allowedDepartments.map(normalizeAccessDepartmentKey)
       };
     }
 
@@ -2522,6 +2571,34 @@
       try {
         const saved = JSON.parse(localStorage.getItem(SITE_ACCESS_STORAGE_KEY) || "null") || {};
         if (!saved.approved || saved.version !== SITE_ACCESS_PASSWORD_VERSION) return null;
+
+        // Always refresh the saved browser sign-in from the current code table.
+        // This prevents an old browser login from keeping stale permissions after Supabase/HTML codes are updated.
+        if (saved.code) {
+          const refreshed = lookupSignInCode(saved.code);
+          if (refreshed) {
+            return {
+              approved: true,
+              version: saved.version,
+              code: refreshed.code,
+              label: refreshed.label || saved.label || "User",
+              role: refreshed.role || saved.role || "department",
+              department: refreshed.department || normalizeAccessDepartmentKey(saved.department || ""),
+              canViewAll: !!refreshed.canViewAll,
+              allowedDepartments: Array.isArray(refreshed.allowedDepartments) ? refreshed.allowedDepartments.map(normalizeAccessDepartmentKey).filter(Boolean) : [],
+              approved_at: saved.approved_at || null
+            };
+          }
+        }
+
+        const savedAllowed = Array.isArray(saved.allowedDepartments) ? saved.allowedDepartments.map(normalizeAccessDepartmentKey).filter(Boolean) : [];
+        const builtInAllowed = getBuiltInAllowedDepartmentsForCode(saved.code).map(normalizeAccessDepartmentKey).filter(Boolean);
+        if (normalizeAccessDepartmentKey(saved.department || "") === "multi" && !savedAllowed.length && !builtInAllowed.length) {
+          resetSiteAccessApproval();
+          try { localStorage.removeItem(DEPARTMENT_VIEW_STORAGE_KEY); } catch (error) {}
+          return null;
+        }
+
         return {
           approved: true,
           version: saved.version,
@@ -2530,6 +2607,7 @@
           role: saved.role || "department",
           department: normalizeAccessDepartmentKey(saved.department || ""),
           canViewAll: !!saved.canViewAll,
+          allowedDepartments: (savedAllowed.length ? savedAllowed : builtInAllowed),
           approved_at: saved.approved_at || null
         };
       } catch (error) {
@@ -2542,13 +2620,35 @@
       return !!(access && access.canViewAll);
     }
 
+    function getAllowedDepartmentKeys() {
+      const access = getAccessProfile();
+      if (!access) return [];
+      if (access.canViewAll) return ["all"];
+      if (Array.isArray(access.allowedDepartments) && access.allowedDepartments.length) {
+        return access.allowedDepartments.map(normalizeAccessDepartmentKey).filter(key => key && key !== "all" && key !== "multi");
+      }
+      const assigned = normalizeAccessDepartmentKey(access.department || "");
+      return assigned && assigned !== "all" && assigned !== "multi" ? [assigned] : [];
+    }
+
+    function userCanAccessDepartmentKey(key) {
+      const normalized = normalizeAccessDepartmentKey(key || "");
+      if (currentUserCanViewAllDepartments()) return true;
+      return getAllowedDepartmentKeys().includes(normalized);
+    }
+
     function getAssignedDepartmentKey() {
       const access = getAccessProfile();
       if (!access || access.canViewAll) return "all";
+      const allowed = getAllowedDepartmentKeys();
+      if (allowed.length) return allowed[0];
       return normalizeAccessDepartmentKey(access.department || "");
     }
 
     function getAssignedDepartmentName() {
+      const allowed = getAllowedDepartmentKeys();
+      if (currentUserCanViewAllDepartments()) return "All Departments";
+      if (allowed.length > 1) return "Selected Departments";
       const assigned = getAssignedDepartmentKey();
       if (!assigned || assigned === "all") return "All Departments";
       const dept = departments.find(item => item.key === assigned);
@@ -2566,6 +2666,7 @@
           role: access.role,
           department: access.department,
           canViewAll: !!access.canViewAll,
+          allowedDepartments: Array.isArray(access.allowedDepartments) ? access.allowedDepartments.map(normalizeAccessDepartmentKey).filter(Boolean) : [],
           approved_at: new Date().toISOString()
         }));
       } catch (error) {}
@@ -2578,6 +2679,8 @@
 
     function resetSiteAccessApproval() {
       try { localStorage.removeItem(SITE_ACCESS_STORAGE_KEY); } catch (error) {}
+      try { localStorage.removeItem(DEPARTMENT_VIEW_STORAGE_KEY); } catch (error) {}
+      selectedDepartmentView = "";
     }
 
     function showAccessBlockedMessage() {
@@ -2601,11 +2704,13 @@
     function enforceAssignedDepartmentView() {
       const access = getAccessProfile();
       if (!access || access.canViewAll) return;
-      const assigned = normalizeAccessDepartmentKey(access.department || "");
-      if (!assigned || assigned === "all") return;
-      selectedDepartmentView = assigned;
-      try { localStorage.setItem(DEPARTMENT_VIEW_STORAGE_KEY, assigned); } catch (error) {}
-      if (categoryFilter) categoryFilter.value = assigned;
+      const allowed = getAllowedDepartmentKeys();
+      if (!allowed.length) return;
+      const current = normalizeAccessDepartmentKey(selectedDepartmentView || localStorage.getItem(DEPARTMENT_VIEW_STORAGE_KEY) || "");
+      const selected = allowed.includes(current) ? current : allowed[0];
+      selectedDepartmentView = selected;
+      try { localStorage.setItem(DEPARTMENT_VIEW_STORAGE_KEY, selected); } catch (error) {}
+      if (categoryFilter) categoryFilter.value = selected;
     }
 
     function ensureSiteAccess(forcePrompt = false) {
@@ -3681,11 +3786,13 @@
       // Hidden departments can still remain on old pins/logs, but they should not be offered as a normal working view.
       const viewDepartments = departments.filter(dept => dept && dept.availableForPins !== false);
       if (currentUserCanViewAllDepartments()) return sortByNameAscending(viewDepartments);
-      const assigned = getAssignedDepartmentKey();
-      if (!assigned || assigned === "all") return sortByNameAscending(viewDepartments);
-      const found = viewDepartments.find(dept => dept.key === assigned);
-      if (found) return [found];
-      return [{ key: assigned, name: getAssignedDepartmentName(), color: "#005a9c", availableForPins: true, titles: [], smsGroups: [] }];
+      const allowed = getAllowedDepartmentKeys();
+      if (!allowed.length) return [];
+      const foundDepartments = viewDepartments.filter(dept => allowed.includes(dept.key));
+      const missingDepartments = allowed
+        .filter(key => !foundDepartments.some(dept => dept.key === key))
+        .map(key => ({ key, name: formatCategoryLabel(key), color: "#005a9c", availableForPins: true, titles: [], smsGroups: [] }));
+      return sortByNameAscending([...foundDepartments, ...missingDepartments]);
     }
 
     function getAllowedDepartmentViewOptions() {
@@ -3696,10 +3803,7 @@
           ...visibleDepartments.map(dept => ({ key: dept.key, name: dept.name }))
         ];
       }
-      const assigned = getAssignedDepartmentKey();
-      return visibleDepartments
-        .filter(dept => dept.key === assigned)
-        .map(dept => ({ key: dept.key, name: dept.name }));
+      return visibleDepartments.map(dept => ({ key: dept.key, name: dept.name }));
     }
 
     function isValidDepartmentView(value) {
@@ -3707,8 +3811,7 @@
       if (currentUserCanViewAllDepartments()) {
         return key === "all" || getDepartmentsAvailableForDepartmentView().some(dept => dept.key === key);
       }
-      const assigned = getAssignedDepartmentKey();
-      return !!assigned && key === assigned;
+      return userCanAccessDepartmentKey(key);
     }
 
     function buildDepartmentViewOptions() {
@@ -3755,10 +3858,20 @@
 
     function ensureDepartmentViewSelected() {
       if (!currentUserCanViewAllDepartments()) {
-        const assigned = getAssignedDepartmentKey();
-        if (assigned && assigned !== "all") {
-          setDepartmentView(assigned, true);
+        const allowed = getAllowedDepartmentKeys();
+        if (!allowed.length) {
+          setStatus("No department assigned to this sign-in code. Check sign_in_codes allowedDepartments.");
+          openDepartmentViewPrompt(true);
+          return;
+        }
+        if (allowed.length === 1) {
+          setDepartmentView(allowed[0], true);
           closeDepartmentViewPrompt();
+          return;
+        }
+        if (allowed.length > 1 && (!selectedDepartmentView || !isValidDepartmentView(selectedDepartmentView))) {
+          selectedDepartmentView = allowed[0];
+          setDepartmentView(selectedDepartmentView, true);
           return;
         }
       }
@@ -3815,8 +3928,8 @@
 
       let newPinDepartments = sortByNameAscending(getDepartmentsAvailableForNewPins());
       if (!currentUserCanViewAllDepartments()) {
-        const assigned = getAssignedDepartmentKey();
-        newPinDepartments = sortByNameAscending(newPinDepartments.filter(dept => dept.key === assigned));
+        const allowed = getAllowedDepartmentKeys();
+        newPinDepartments = sortByNameAscending(newPinDepartments.filter(dept => allowed.includes(dept.key)));
       }
       const currentPinKey = selectedKey || (pinCategoryInput ? pinCategoryInput.value : "") || (newPinDepartments[0] && newPinDepartments[0].key) || "";
       if (pinCategoryInput) {
