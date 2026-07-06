@@ -1390,6 +1390,13 @@
         max-width: 98vw;
       }
 
+      #floorPlanView,
+      #floorPlanStage,
+      #floorPlanImage,
+      #floorPlanPinLayer {
+        touch-action: none;
+      }
+
       .leaflet-top.leaflet-left {
         top: 70px;
       }
@@ -2151,6 +2158,8 @@
     let floorPinchStartDistance = null;
     let floorPinchStartZoom = 1;
     let floorPinchMidpoint = null;
+    let floorTouchPanStart = null;
+    let floorTouchPanMoved = false;
 
     const mapSelector = document.getElementById("mapSelector");
     const currentViewSummary = document.getElementById("currentViewSummary");
@@ -2768,14 +2777,44 @@
     }
 
     function handleFloorPinchStart(event) {
-      if (!floorPlanView || !floorPlanStage || !event.touches || event.touches.length < 2) return;
-      floorPinchStartDistance = getTouchDistance(event.touches);
-      floorPinchStartZoom = floorPlanZoom || 1;
-      floorPinchMidpoint = getTouchMidpoint(event.touches);
+      if (!floorPlanView || !floorPlanStage || !event.touches) return;
+
+      if (event.touches.length === 1) {
+        floorTouchPanMoved = false;
+        floorTouchPanStart = {
+          x: event.touches[0].clientX,
+          y: event.touches[0].clientY,
+          scrollLeft: floorPlanView.scrollLeft,
+          scrollTop: floorPlanView.scrollTop
+        };
+        return;
+      }
+
+      if (event.touches.length >= 2) {
+        event.preventDefault();
+        floorTouchPanStart = null;
+        floorPinchStartDistance = getTouchDistance(event.touches);
+        floorPinchStartZoom = floorPlanZoom || 1;
+        floorPinchMidpoint = getTouchMidpoint(event.touches);
+      }
     }
 
     function handleFloorPinchMove(event) {
-      if (!floorPlanView || !floorPlanStage || !event.touches || event.touches.length < 2 || !floorPinchStartDistance) return;
+      if (!floorPlanView || !floorPlanStage || !event.touches) return;
+
+      // One-finger drag pans the floor-plan container. This prevents the phone/browser
+      // from keeping its own page zoom after the user taps a pin location.
+      if (event.touches.length === 1 && floorTouchPanStart) {
+        const dx = event.touches[0].clientX - floorTouchPanStart.x;
+        const dy = event.touches[0].clientY - floorTouchPanStart.y;
+        if (Math.abs(dx) > 4 || Math.abs(dy) > 4) floorTouchPanMoved = true;
+        event.preventDefault();
+        floorPlanView.scrollLeft = Math.max(0, floorTouchPanStart.scrollLeft - dx);
+        floorPlanView.scrollTop = Math.max(0, floorTouchPanStart.scrollTop - dy);
+        return;
+      }
+
+      if (event.touches.length < 2 || !floorPinchStartDistance) return;
       event.preventDefault();
       const distance = getTouchDistance(event.touches);
       if (!distance) return;
@@ -2802,6 +2841,12 @@
       if (!event.touches || event.touches.length < 2) {
         floorPinchStartDistance = null;
         floorPinchMidpoint = null;
+      }
+      if (!event.touches || event.touches.length === 0) {
+        setTimeout(() => {
+          floorTouchPanStart = null;
+          floorTouchPanMoved = false;
+        }, 80);
       }
     }
 
@@ -2842,15 +2887,12 @@
       resetFloorPlanZoom();
       forceMobileViewportZoomOut();
 
-      // Let the browser finish reflowing after the zoom reset, then keep the
-      // selected pin roughly in view before opening the popup/modal.
+      // Let the browser finish reflowing after the zoom reset. Keep the floor plan
+      // zoomed out instead of scrolling back close to the tapped pin; this keeps the
+      // popup/Add Pin screen visible by default on phones.
       setTimeout(() => {
-        const stageWidth = floorPlanStage.scrollWidth || floorPlanStage.clientWidth || 1;
-        const stageHeight = floorPlanStage.scrollHeight || floorPlanStage.clientHeight || 1;
-        const targetLeft = (Number(xPercent) / 100) * stageWidth;
-        const targetTop = (Number(yPercent) / 100) * stageHeight;
-        floorPlanView.scrollLeft = Math.max(0, targetLeft - (floorPlanView.clientWidth * 0.5));
-        floorPlanView.scrollTop = Math.max(0, targetTop - (floorPlanView.clientHeight * 0.32));
+        floorPlanView.scrollLeft = 0;
+        floorPlanView.scrollTop = 0;
         if (typeof callback === "function") callback();
       }, 260);
     }
@@ -6226,6 +6268,7 @@ ${rows.map(pin => `
     });
 
     floorPlanStage.addEventListener("click", function(event) {
+      if (floorTouchPanMoved) return;
       if (event.target.closest(".floor-pin") || event.target.closest(".floor-popup")) return;
       if (pendingMovePinId) {
         movePinToFloorLocationFromEvent(event);
@@ -6234,7 +6277,7 @@ ${rows.map(pin => `
       setPendingFloorLocationFromEvent(event);
     });
     if (floorPlanView) {
-      floorPlanView.addEventListener("touchstart", handleFloorPinchStart, { passive: true });
+      floorPlanView.addEventListener("touchstart", handleFloorPinchStart, { passive: false });
       floorPlanView.addEventListener("touchmove", handleFloorPinchMove, { passive: false });
       floorPlanView.addEventListener("touchend", handleFloorPinchEnd, { passive: true });
       floorPlanView.addEventListener("touchcancel", handleFloorPinchEnd, { passive: true });
