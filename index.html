@@ -2316,6 +2316,18 @@
       return mapViews.find(item => item.id === mapId) || mapViews[0] || DEFAULT_MAP_VIEWS[0];
     }
 
+    function sortByNameAscending(items) {
+      return [...(Array.isArray(items) ? items : [])].sort((a, b) =>
+        String(a && a.name ? a.name : "").localeCompare(String(b && b.name ? b.name : ""), undefined, { sensitivity: "base", numeric: true })
+      );
+    }
+
+    function sortMapViewsAscending(items) {
+      return [...(Array.isArray(items) ? items : [])].sort((a, b) =>
+        String(a && a.name ? a.name : "").localeCompare(String(b && b.name ? b.name : ""), undefined, { sensitivity: "base", numeric: true })
+      );
+    }
+
     function isFloorPlanMap(mapId = currentMapId) {
       return getMapView(mapId).type === "floorplan";
     }
@@ -2704,8 +2716,9 @@
 
     function populateMapSelector() {
       if (!mapSelector) return;
-      mapSelector.innerHTML = mapViews.map(view => `<option value="${escapeHtml(view.id)}">${escapeHtml(view.name)}</option>`).join("");
-      if (!mapViews.some(view => view.id === currentMapId)) currentMapId = (mapViews[0] && mapViews[0].id) || "outdoor_site";
+      const sortedMapViews = sortMapViewsAscending(mapViews);
+      mapSelector.innerHTML = sortedMapViews.map(view => `<option value="${escapeHtml(view.id)}">${escapeHtml(view.name)}</option>`).join("");
+      if (!mapViews.some(view => view.id === currentMapId)) currentMapId = (sortedMapViews[0] && sortedMapViews[0].id) || "outdoor_site";
       try { localStorage.setItem(CURRENT_MAP_STORAGE_KEY, currentMapId); } catch (error) {}
       mapSelector.value = currentMapId;
       populateManageMapSelect();
@@ -3055,9 +3068,10 @@
     function populateManageMapSelect() {
       if (!manageMapSelect) return;
       const current = manageMapSelect.value || currentMapId;
-      manageMapSelect.innerHTML = mapViews.map(view => `<option value="${escapeHtml(view.id)}">${escapeHtml(view.name)}</option>`).join("");
+      const sortedMapViews = sortMapViewsAscending(mapViews);
+      manageMapSelect.innerHTML = sortedMapViews.map(view => `<option value="${escapeHtml(view.id)}">${escapeHtml(view.name)}</option>`).join("");
       if (mapViews.some(view => view.id === current)) manageMapSelect.value = current;
-      else if (mapViews[0]) manageMapSelect.value = mapViews[0].id;
+      else if (sortedMapViews[0]) manageMapSelect.value = sortedMapViews[0].id;
     }
 
     function loadMapEditor() {
@@ -3307,7 +3321,7 @@
 
     function populateEditDepartmentDropdown(selectedKey) {
       if (!editPinCategoryInput) return;
-      editPinCategoryInput.innerHTML = departments.map(dept => `<option value="${escapeHtml(dept.key)}">${escapeHtml(dept.name)}</option>`).join("");
+      editPinCategoryInput.innerHTML = sortByNameAscending(departments).map(dept => `<option value="${escapeHtml(dept.key)}">${escapeHtml(dept.name)}</option>`).join("");
       if (selectedKey && departments.some(dept => dept.key === selectedKey)) editPinCategoryInput.value = selectedKey;
     }
 
@@ -3666,9 +3680,9 @@
       // The Change Department Default View menu should only show departments that are enabled in Admin > Manage Departments.
       // Hidden departments can still remain on old pins/logs, but they should not be offered as a normal working view.
       const viewDepartments = departments.filter(dept => dept && dept.availableForPins !== false);
-      if (currentUserCanViewAllDepartments()) return viewDepartments;
+      if (currentUserCanViewAllDepartments()) return sortByNameAscending(viewDepartments);
       const assigned = getAssignedDepartmentKey();
-      if (!assigned || assigned === "all") return viewDepartments;
+      if (!assigned || assigned === "all") return sortByNameAscending(viewDepartments);
       const found = viewDepartments.find(dept => dept.key === assigned);
       if (found) return [found];
       return [{ key: assigned, name: getAssignedDepartmentName(), color: "#005a9c", availableForPins: true, titles: [], smsGroups: [] }];
@@ -3799,10 +3813,10 @@
       const currentFilterKey = categoryFilter ? (categoryFilter.value || "all") : "all";
       const currentEditorKey = manageDepartmentSelect ? (manageDepartmentSelect.value || selectedKey || pinCategoryInput.value || "") : "";
 
-      let newPinDepartments = getDepartmentsAvailableForNewPins();
+      let newPinDepartments = sortByNameAscending(getDepartmentsAvailableForNewPins());
       if (!currentUserCanViewAllDepartments()) {
         const assigned = getAssignedDepartmentKey();
-        newPinDepartments = newPinDepartments.filter(dept => dept.key === assigned);
+        newPinDepartments = sortByNameAscending(newPinDepartments.filter(dept => dept.key === assigned));
       }
       const currentPinKey = selectedKey || (pinCategoryInput ? pinCategoryInput.value : "") || (newPinDepartments[0] && newPinDepartments[0].key) || "";
       if (pinCategoryInput) {
@@ -3828,11 +3842,12 @@
       }
 
       if (manageDepartmentSelect) {
-        manageDepartmentSelect.innerHTML = departments.length
-          ? departments.map(dept => `<option value="${escapeHtml(dept.key)}">${escapeHtml(dept.name)}</option>`).join("")
+        const sortedDepartments = sortByNameAscending(departments);
+        manageDepartmentSelect.innerHTML = sortedDepartments.length
+          ? sortedDepartments.map(dept => `<option value="${escapeHtml(dept.key)}">${escapeHtml(dept.name)}</option>`).join("")
           : '<option value="">No departments configured</option>';
         if (departments.some(dept => dept.key === currentEditorKey)) manageDepartmentSelect.value = currentEditorKey;
-        else if (departments.length) manageDepartmentSelect.value = departments[0].key;
+        else if (sortedDepartments.length) manageDepartmentSelect.value = sortedDepartments[0].key;
       }
 
       populateTitleDropdown();
@@ -4816,12 +4831,12 @@
     function populateAllLogsFilters() {
       if (allLogsDepartmentFilter) {
         const previous = allLogsDepartmentFilter.value || "all";
-        allLogsDepartmentFilter.innerHTML = '<option value="all">All departments</option>' + departments.map(dept => `<option value="${escapeHtml(dept.key)}">${escapeHtml(dept.name)}</option>`).join("");
+        allLogsDepartmentFilter.innerHTML = '<option value="all">All departments</option>' + sortByNameAscending(departments).map(dept => `<option value="${escapeHtml(dept.key)}">${escapeHtml(dept.name)}</option>`).join("");
         allLogsDepartmentFilter.value = departments.some(dept => dept.key === previous) ? previous : "all";
       }
       if (allLogsMapFilter) {
         const previous = allLogsMapFilter.value || "all";
-        allLogsMapFilter.innerHTML = '<option value="all">All maps/buildings</option>' + mapViews.map(view => `<option value="${escapeHtml(view.id)}">${escapeHtml(view.name)}</option>`).join("");
+        allLogsMapFilter.innerHTML = '<option value="all">All maps/buildings</option>' + sortMapViewsAscending(mapViews).map(view => `<option value="${escapeHtml(view.id)}">${escapeHtml(view.name)}</option>`).join("");
         allLogsMapFilter.value = mapViews.some(view => view.id === previous) ? previous : "all";
       }
     }
