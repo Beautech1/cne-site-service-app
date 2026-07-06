@@ -1441,6 +1441,13 @@
         flex: 1 1 120px;
         justify-content: center;
       }
+
+      /* Prevent mobile browsers from auto-zooming when Add Pin form fields focus. */
+      .modal-body input,
+      .modal-body textarea,
+      .modal-body select {
+        font-size: 16px;
+      }
     }
 
     @media (max-width: 640px), (max-height: 720px) {
@@ -2893,8 +2900,11 @@
       setTimeout(() => {
         floorPlanView.scrollLeft = 0;
         floorPlanView.scrollTop = 0;
-        if (typeof callback === "function") callback();
-      }, 260);
+        if (document.activeElement && typeof document.activeElement.blur === "function") document.activeElement.blur();
+        requestAnimationFrame(() => {
+          if (typeof callback === "function") callback();
+        });
+      }, 320);
     }
 
     function setPendingFloorLocationFromEvent(event) {
@@ -5213,6 +5223,15 @@ function resetPinForm() {
   pinPhotoPreview.style.display = "none";
 }
 
+    function shouldAutoFocusModalInput() {
+      // On phones, focusing the first input can trigger browser zoom/keyboard zoom,
+      // especially after the user has been zooming around a floor plan. Keep the
+      // modal at normal size by only auto-focusing on desktop/laptop screens.
+      const coarsePointer = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
+      const narrowScreen = (window.visualViewport ? window.visualViewport.width : window.innerWidth) <= 760;
+      return !coarsePointer && !narrowScreen;
+    }
+
     function openPinModalForPending() {
       if (!pendingLatLng) {
         pinLocationNote.textContent = isFloorPlanMap() ? "Click the floor plan first to choose a location, then click Add Pin." : "Click the map first to choose a pin location, then click Add Pin.";
@@ -5230,7 +5249,7 @@ function resetPinForm() {
       pinModal.classList.add("open");
       modalBackdrop.classList.add("open");
       fillDefaultUser(pinReportedByInput);
-      if (pinReportedByInput) pinReportedByInput.focus();
+      if (pinReportedByInput && shouldAutoFocusModalInput()) pinReportedByInput.focus();
     }
 
     function closePinModal() {
