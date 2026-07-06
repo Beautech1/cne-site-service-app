@@ -2030,7 +2030,7 @@
         </div>
       </details>
       <label style="display:flex; align-items:center; gap:8px; font-weight:normal;">
-        <input type="checkbox" id="pinNotifySmsNowInput" style="width:auto; margin:0;" checked> Open text message after saving this pin
+        <input type="checkbox" id="pinNotifySmsNowInput" style="width:auto; margin:0;" checked> Open/copy text message after saving this pin
       </label>
       <details class="pin-instructions" id="pinInstructionsDetails">
         <summary>Instructions / tips</summary>
@@ -2101,7 +2101,7 @@
         </div>
       </details>
       <label style="display:flex; align-items:center; gap:8px; font-weight:normal;">
-        <input type="checkbox" id="editNotifySmsNowInput" style="width:auto; margin:0;" checked> Open text message after saving this update/reassignment
+        <input type="checkbox" id="editNotifySmsNowInput" style="width:auto; margin:0;" checked> Open/copy text message after saving this update/reassignment
       </label>
       <label>Location and service details
         <textarea id="editPinDescriptionInput" placeholder="Example: west washroom, beside sink. Add any issue details here."></textarea>
@@ -6092,7 +6092,9 @@ function getSelectedEditSmsRecipientsForDepartment(category) {
 }
 
 function shouldDefaultSmsOpen() {
-  return isLikelyMobileSmsDevice();
+  // Keep this enabled on both mobile and desktop.
+  // Mobile opens the SMS app; desktop shows the copy/paste text message window.
+  return true;
 }
 
 function isLikelyMobileSmsDevice() {
@@ -6120,7 +6122,7 @@ function triggerEditSmsNotification(pin) {
   const categoryLabel = formatDepartmentLabel(pin.category);
 
   if (!isLikelyMobileSmsDevice()) {
-    showSmsFallbackModal(smsRecipients, message, `Pin updated. This computer may not support text messaging. Copy the message below and send it manually to the selected ${categoryLabel} group(s).`);
+    showSmsFallbackModal(smsRecipients, message, `Pin updated. Copy the message below and send it manually to the selected ${categoryLabel} group(s).`);
     setStatus("Pin updated. Copy text message shown because this device may not support SMS.");
     return;
   }
@@ -6162,7 +6164,7 @@ function triggerSmsNotification(pin) {
   const categoryLabel = formatDepartmentLabel(pin.category);
 
   if (!isLikelyMobileSmsDevice()) {
-    showSmsFallbackModal(smsRecipients, message, `Pin saved. This computer may not support text messaging. Copy the message below and send it manually to the selected ${categoryLabel} group(s).`);
+    showSmsFallbackModal(smsRecipients, message, `Pin saved. Copy the message below and send it manually to the selected ${categoryLabel} group(s).`);
     setStatus("Pin saved. Copy text message shown because this device may not support SMS.");
     return;
   }
@@ -6205,7 +6207,7 @@ function showSmsFallbackModal(recipients, message, note) {
     modal.id = "smsFallbackModal";
     modal.className = "modal";
     modal.innerHTML = `
-      <div class="modal-header">Text Message Fallback</div>
+      <div class="modal-header">Copy Text Message</div>
       <div class="modal-body">
         <div class="panel-note" id="smsFallbackNote" style="padding-top:0;"></div>
         <label>Send to
