@@ -1759,6 +1759,49 @@
       }
     }
 
+
+    /* Photo display repair: show the full uploaded photo instead of cropping top/bottom. */
+    .popup-photo,
+    .log-photo,
+    .report-photo,
+    .photo-gallery img,
+    .photo-preview-grid img,
+    .mini-report-card .photo-gallery img,
+    .log-item .photo-gallery img {
+      object-fit: contain !important;
+      object-position: center center !important;
+      background: #f8fafc !important;
+    }
+
+    .photo-preview-grid img {
+      height: auto !important;
+      min-height: 58px;
+      max-height: 160px;
+    }
+
+    .photo-gallery img {
+      height: auto !important;
+      max-height: 220px;
+    }
+
+    .popup-photo,
+    .log-photo {
+      width: auto !important;
+      max-width: min(100%, 260px) !important;
+      height: auto !important;
+      max-height: 220px !important;
+    }
+
+    .mini-report-card .report-photo,
+    .mini-report-card .log-photo,
+    .log-item .report-photo,
+    .log-item .log-photo {
+      width: auto !important;
+      max-width: min(100%, 420px) !important;
+      height: auto !important;
+      max-height: 320px !important;
+    }
+
   </style>
 </head>
 <body>
@@ -3636,7 +3679,7 @@
       if (editPinStatusNote) editPinStatusNote.textContent = getPinStatus(pin) === "cleared"
         ? "This pin is already cleared. Admins can correct details, add completion photos, or reopen it."
         : (getPinStatus(pin) === "cancelled" ? "This call is cancelled. Admins can correct details or return it to active." : "Update this active request or reassign it to another department.");
-      if (editPinLocationNote) editPinLocationNote.textContent = "Current location: " + getLocationLabel(pin) + ". Use Relocate Pin only if the pin was placed in the wrong spot.";
+      if (editPinLocationNote) editPinLocationNote.textContent = "Current location will stay the same. Use Relocate Pin only if the pin was placed in the wrong spot.";
 
       populateEditDepartmentDropdown(pin.category || "general");
       populateEditTitleDropdown(pin.title || "");
@@ -4328,8 +4371,8 @@
         (pin.description && pin.description.trim() !== "" ? "<br>" + escapeHtml(pin.description) : "") +
         photoHtml +
         clearPhotoHtml +
-        "<br><br><small><b>Pin location:</b> " + escapeHtml(getLocationLabel(pin)) +
-        (pin.created_at ? "<br>Saved: " + new Date(pin.created_at).toLocaleString() : "") +
+        "<br><br><small>" +
+        (pin.created_at ? "Saved: " + new Date(pin.created_at).toLocaleString() : "") +
         (getPinStatus(pin) === "cleared" && pin.cleared_at ? "<br>Cleared: " + new Date(pin.cleared_at).toLocaleString() : "") +
         "</small>" +
         actionRow
@@ -4518,7 +4561,6 @@
             photo +
             clearPhoto +
             '<div class="log-meta">' +
-              'Original location: ' + escapeHtml(getLocationLabel(pin)) + '<br>' +
               (pin.created_at ? 'Created: ' + new Date(pin.created_at).toLocaleString() + '<br>' : '') +
               (pin.cleared_at ? 'Cleared: ' + new Date(pin.cleared_at).toLocaleString() + '<br>' : 'Cleared') +
               (formatTimeToClear(pin) ? 'Time to clear: ' + escapeHtml(formatTimeToClear(pin)) : '') +
@@ -5160,8 +5202,7 @@
         (pin.cleared_device_label ? '<b>Cleared from:</b> ' + escapeHtml(pin.cleared_device_label) + '<br>' : '') +
         (pin.clear_comment ? '<b>Clear comments:</b> ' + escapeHtml(pin.clear_comment) + '<br>' : '') +
         (pin.cleared_at ? '<b>Cleared:</b> ' + escapeHtml(new Date(pin.cleared_at).toLocaleString()) + '<br>' : '') +
-        '<b>Location:</b> ' + escapeHtml(getLocationLabel(pin)) +
-        '<br><br><span style="color:#b71c1c; font-weight:bold;">Deleting removes this item from Supabase history and removes its stored photos.</span>';
+        '<br><span style="color:#b71c1c; font-weight:bold;">Deleting removes this item from Supabase history and removes its stored photos.</span>';
     }
 
 
@@ -5272,7 +5313,6 @@
             ${pin.clear_comment ? `<div><strong>Clear comments:</strong> ${escapeHtml(pin.clear_comment)}</div>` : ""}
             ${pin.description ? `<div style="margin-top:6px;"><strong>Location/details:</strong> ${escapeHtml(pin.description)}</div>` : ""}
             <div class="meta">
-              Pin location: ${escapeHtml(getLocationLabel(pin))}<br>
               ${pin.created_at ? `Created: ${new Date(pin.created_at).toLocaleString()}<br>` : ""}
               ${getPinStatus(pin) === 'cleared' && pin.cleared_at ? `Cleared: ${new Date(pin.cleared_at).toLocaleString()}` : ""}
             </div>
@@ -5596,9 +5636,9 @@ function resetPinForm() {
       if (!pendingLatLng) {
         pinLocationNote.textContent = isFloorPlanMap() ? "Click the floor plan first to choose a location, then click Add Pin." : "Click the map first to choose a pin location, then click Add Pin.";
       } else if (pendingLatLng.location_type === "floorplan") {
-        pinLocationNote.textContent = `Selected floor plan location: X ${pendingLatLng.x_percent.toFixed(1)}%, Y ${pendingLatLng.y_percent.toFixed(1)}%`;
+        pinLocationNote.textContent = "Floor plan location selected. You can now save the pin.";
       } else {
-        pinLocationNote.textContent = `Selected GPS location: ${pendingLatLng.lat.toFixed(6)}, ${pendingLatLng.lng.toFixed(6)}`;
+        pinLocationNote.textContent = "Map location selected. You can now save the pin.";
       }
       if (selectedDepartmentView && selectedDepartmentView !== "all" && isDepartmentAvailableForNewPin(selectedDepartmentView)) {
         pinCategoryInput.value = selectedDepartmentView;
@@ -6012,7 +6052,6 @@ function resetPinForm() {
             '<div><strong>Status:</strong> ' + escapeHtml(status) + '</div>' +
             '<div><strong>Department:</strong> ' + escapeHtml(dept) + '</div>' +
             '<div><strong>Map / Building:</strong> ' + escapeHtml(mapName) + '</div>' +
-            '<div><strong>Pin location:</strong> ' + escapeHtml(getLocationLabel(pin)) + '</div>' +
             '<div><strong>Reported by:</strong> ' + escapeHtml(pin.reported_by || "") + '</div>' +
             (pin.cleared_by ? '<div><strong>Cleared by:</strong> ' + escapeHtml(pin.cleared_by) + '</div>' : '') +
             (formatTimeToClear(pin) ? '<div><strong>Time to clear:</strong> ' + escapeHtml(formatTimeToClear(pin)) + '</div>' : '') +
@@ -6203,7 +6242,7 @@ function resetPinForm() {
       const reportedBy = pin.reported_by || "Not specified";
       const descriptionLine = pin.description ? `Details: ${pin.description}\n` : "";
       const reportLink = pin && pin.id ? buildAppUrl({ report: pin.id }) : APP_LINK;
-      return `New ${categoryLabel} Request\n\nReported by: ${reportedBy}\nMap: ${mapName}\nIssue: ${pin.title}\n${descriptionLine}Open item report: ${reportLink}`;
+      return `New ${categoryLabel} Request\n\nReported by: ${reportedBy}\nMap: ${mapName}\nIssue: ${pin.title}\n${descriptionLine}Click to see report:\n${reportLink}`;
     }
 function getCustomSmsRecipients(enabledEl, inputEl) {
   if (!enabledEl || !enabledEl.checked || !inputEl) return [];
@@ -6564,7 +6603,7 @@ h1 { margin: 0 0 6px; }
 .card { border: 1px solid #d9e2ec; border-radius: 10px; padding: 14px; margin-bottom: 14px; page-break-inside: avoid; }
 .card h2 { margin: 0 0 8px; font-size: 18px; }
 .meta { font-size: 13px; color: #52606d; line-height: 1.5; }
-img { display: block; margin-top: 10px; max-width: 260px; max-height: 190px; object-fit: cover; object-position: center center; border-radius: 8px; border: 1px solid #d9e2ec; background: #f2f4f7; }
+img { display: block; margin-top: 10px; width: auto; max-width: 420px; height: auto; max-height: 320px; object-fit: contain; object-position: center center; border-radius: 8px; border: 1px solid #d9e2ec; background: #f8fafc; }
 .map-snapshot-img { max-width: 420px; max-height: 300px; object-fit: contain; }
 </style>
 </head>
@@ -6581,7 +6620,6 @@ ${rows.map(pin => `
   ${pin.clear_comment ? `<div><strong>Clear comments:</strong> ${escapeHtml(pin.clear_comment)}</div>` : ""}
   ${pin.description ? `<div style="margin-top:6px;">${escapeHtml(pin.description)}</div>` : ""}
   <div class="meta" style="margin-top:8px;">
-    Original location: ${escapeHtml(getLocationLabel(pin))}<br>
     ${pin.created_at ? `Created: ${new Date(pin.created_at).toLocaleString()}<br>` : ""}
     ${pin.cleared_at ? `Cleared: ${new Date(pin.cleared_at).toLocaleString()}` : "Cleared"}
   </div>
