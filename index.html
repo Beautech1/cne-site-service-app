@@ -1338,15 +1338,73 @@
 
     .floor-pending-dot {
       position: absolute;
-      width: 24px;
-      height: 24px;
+      width: 30px;
+      height: 30px;
       border: 3px solid #fff;
       border-radius: 50%;
-      background: #005a9c;
-      box-shadow: 0 0 0 3px rgba(0,90,156,0.25), 0 3px 10px rgba(0,0,0,0.38);
+      background: #d32f2f;
+      box-shadow: 0 0 0 4px rgba(211,47,47,0.25), 0 3px 10px rgba(0,0,0,0.38);
       transform: translate(-50%, -50%);
       z-index: 18;
       pointer-events: none;
+    }
+
+    .floor-pending-dot::before,
+    .floor-pending-dot::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 19px;
+      height: 4px;
+      background: #fff;
+      border-radius: 999px;
+      transform-origin: center;
+    }
+
+    .floor-pending-dot::before {
+      transform: translate(-50%, -50%) rotate(45deg);
+    }
+
+    .floor-pending-dot::after {
+      transform: translate(-50%, -50%) rotate(-45deg);
+    }
+
+    .pending-location-marker {
+      width: 30px;
+      height: 30px;
+      border: 3px solid #fff;
+      border-radius: 50%;
+      background: #d32f2f;
+      box-shadow: 0 0 0 4px rgba(211,47,47,0.25), 0 3px 10px rgba(0,0,0,0.38);
+      position: relative;
+      box-sizing: border-box;
+    }
+
+    .pending-location-marker::before,
+    .pending-location-marker::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 19px;
+      height: 4px;
+      background: #fff;
+      border-radius: 999px;
+      transform-origin: center;
+    }
+
+    .pending-location-marker::before {
+      transform: translate(-50%, -50%) rotate(45deg);
+    }
+
+    .pending-location-marker::after {
+      transform: translate(-50%, -50%) rotate(-45deg);
+    }
+
+    .leaflet-container.add-pin-ready,
+    #floorPlanStage.add-pin-ready {
+      cursor: crosshair;
     }
 
     .move-pin-notice {
@@ -3156,14 +3214,13 @@
         pendingOutdoorMarker.setLatLng(latlng);
         return;
       }
-      pendingOutdoorMarker = L.circleMarker(latlng, {
-        radius: 10,
-        color: "#ffffff",
-        weight: 3,
-        fillColor: "#005a9c",
-        fillOpacity: 1,
-        opacity: 1
-      }).addTo(map);
+      const pendingIcon = L.divIcon({
+        className: "",
+        html: '<div class="pending-location-marker" title="Selected pin location"></div>',
+        iconSize: [30, 30],
+        iconAnchor: [15, 15]
+      });
+      pendingOutdoorMarker = L.marker(latlng, { icon: pendingIcon, interactive: false }).addTo(map);
     }
 
     function clearPendingLocationIndicators() {
@@ -5996,12 +6053,20 @@ function resetPinForm() {
       }
 
       if (!pin) {
-        if (itemReportBody) itemReportBody.innerHTML = '<div class="panel-note">Could not find this item report. The item may have been deleted, or Supabase may still be loading. Refresh the app and try again.</div>';
+        if (itemReportBody) itemReportBody.innerHTML = '<div class="panel-note"><strong>This report is no longer active.</strong><br><br>This item may have been deleted, or it may have already been cleared by the department. Please refresh the app or check the Cleared History Log / All Pin Logs.</div>';
         if (itemReportModal) itemReportModal.classList.add("open");
         if (modalBackdrop) modalBackdrop.classList.add("open");
         return;
       }
       currentReportPinId = pin.id;
+      if (getPinStatus(pin) !== "active" && itemReportBody) {
+        const clearedByText = pin.cleared_by ? ' by ' + escapeHtml(pin.cleared_by) : ' by the department';
+        const clearedTimeText = pin.cleared_at ? '<br><small>Cleared: ' + escapeHtml(formatDateTime(pin.cleared_at)) + '</small>' : '';
+        itemReportBody.innerHTML = '<div class="panel-note" style="background:#fff3cd; border:1px solid #ffe08a; border-radius:8px; padding:10px;"><strong>This report is already cleared.</strong><br>This item may have been deleted from the active map or cleared' + clearedByText + '. It will remain available in the Cleared History Log / All Pin Logs.' + clearedTimeText + '</div>' + buildMiniReportHtml(pin);
+        itemReportModal.classList.add("open");
+        modalBackdrop.classList.add("open");
+        return;
+      }
       if (!pin.map_snapshot_url) {
         itemReportBody.innerHTML = '<div class="panel-note">Creating map snapshot for this report...</div>';
         await ensureMapSnapshotForPin(pin);
@@ -6033,7 +6098,8 @@ function resetPinForm() {
       }
       const pin = getPinById(pinId);
       if (pin && getPinStatus(pin) !== "active") {
-        alert("This pin is already " + formatPinStatus(pin).toLowerCase() + ". It cannot be cleared again.");
+        const clearedByMessage = pin.cleared_by ? " by " + pin.cleared_by : " by the department";
+        alert("This report is no longer active. It may have been deleted, or it was already cleared" + clearedByMessage + ". It cannot be cleared again.");
         applyFilters();
         return;
       }
@@ -6644,6 +6710,8 @@ ${rows.map(pin => `
       }
       setPendingFloorLocationFromEvent(event);
     });
+    if (map && map.getContainer) map.getContainer().classList.add("add-pin-ready");
+    if (floorPlanStage) floorPlanStage.classList.add("add-pin-ready");
     if (floorPlanView) {
       floorPlanView.addEventListener("touchstart", handleFloorPinchStart, { passive: false });
       floorPlanView.addEventListener("touchmove", handleFloorPinchMove, { passive: false });
