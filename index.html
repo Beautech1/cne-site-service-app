@@ -2247,6 +2247,8 @@
 
     let profiles = loadProfilesFromStorage();
     let pendingClearPinId = null;
+    let clearSubmissionInProgress = false;
+    const activeClearRequests = new Set();
     let pendingEditPinId = null;
     let selectedDepartmentView = localStorage.getItem(DEPARTMENT_VIEW_STORAGE_KEY) || "";
     let currentMapId = localStorage.getItem(CURRENT_MAP_STORAGE_KEY) || ((mapViews[0] && mapViews[0].id) || DEFAULT_MAP_VIEWS[0].id);
@@ -4802,8 +4804,21 @@
     }
 
     function openClearModal(pinId) {
-      const pin = allPins.find(item => item.id === pinId);
-      if (!pin) return;
+      if (clearSubmissionInProgress || activeClearRequests.has(String(pinId))) {
+        setStatus("This pin is already being cleared. Please do not tap again.");
+        return;
+      }
+      const pin = getPinById(pinId);
+      if (!pin) {
+        setStatus("Could not find this pin. Refreshing pins...");
+        loadPins(false);
+        return;
+      }
+      if (getPinStatus(pin) !== "active") {
+        alert("This pin is already " + formatPinStatus(pin).toLowerCase() + ". It cannot be cleared again.");
+        applyFilters();
+        return;
+      }
       pendingClearPinId = pinId;
       populateClearedByDropdown(pin);
       fillDefaultUser(clearByInput);
@@ -4815,6 +4830,8 @@
 
     function closeClearModal() {
       pendingClearPinId = null;
+      clearSubmissionInProgress = false;
+      setClearUiBusy(false);
       clearModal.classList.remove("open");
       modalBackdrop.classList.remove("open");
       if (clearByInput) clearByInput.value = "";
@@ -4823,6 +4840,21 @@
       if (clearPhotoPreview) {
         clearPhotoPreview.innerHTML = "";
         clearPhotoPreview.style.display = "none";
+      }
+    }
+
+    function setClearUiBusy(isBusy) {
+      const clearButtons = document.querySelectorAll('button[onclick^="submitClearPinForm"], button[onclick^="clearPinFromReport"], .clear-btn');
+      clearButtons.forEach(button => {
+        button.disabled = !!isBusy;
+        button.style.opacity = isBusy ? "0.65" : "";
+        button.style.pointerEvents = isBusy ? "none" : "";
+      });
+      if (clearPinNote && pendingClearPinId) {
+        const pin = getPinById(pendingClearPinId);
+        clearPinNote.textContent = isBusy
+          ? "Clearing this pin now. Please do not tap again."
+          : (pin ? `Clearing ${formatDepartmentLabel(pin.category)} request: ${pin.title}` : "Select who completed/cleared this pin.");
       }
     }
 
@@ -4868,6 +4900,22 @@
     async function submitClearPinForm() {
       if (!supabaseClient || !pendingClearPinId) return;
 
+      const clearingPinId = pendingClearPinId;
+      const clearingPinKey = String(clearingPinId);
+
+      if (clearSubmissionInProgress || activeClearRequests.has(clearingPinKey)) {
+        setStatus("This pin is already being cleared. Please do not tap again.");
+        return;
+      }
+
+      const localPin = getPinById(clearingPinId);
+      if (localPin && getPinStatus(localPin) !== "active") {
+        alert("This pin is already " + formatPinStatus(localPin).toLowerCase() + ". It cannot be cleared again.");
+        closeClearModal();
+        await loadPins(false);
+        return;
+      }
+
       const clearedBy = clearByInput.value.trim();
       rememberUserNameFromInput(clearByInput);
       if (!clearedBy) {
@@ -4881,6 +4929,9 @@
       const confirmed = window.confirm("Clear this pin publicly and keep it in the log?");
       if (!confirmed) return;
 
+      clearSubmissionInProgress = true;
+      activeClearRequests.add(clearingPinKey);
+      setClearUiBusy(true);
       setStatus("Clearing pin...");
       const clearedAt = new Date().toISOString();
       let clearPhotoUrls = [];
@@ -4895,10 +4946,11 @@
         console.error(error);
         alert("Could not upload the clear photo(s). Check your storage bucket and storage policies.");
         setStatus("Clear photo upload failed.");
+        clearSubmissionInProgress = false;
+        activeClearRequests.delete(clearingPinKey);
+        setClearUiBusy(false);
         return;
       }
-
-      const clearingPinId = pendingClearPinId;
 
       const { data, error } = await supabaseClient
         .from(SUPABASE_TABLE)
@@ -4915,6 +4967,8 @@
           clear_photo_urls: clearPhotoUrls
         })
         .eq("id", clearingPinId)
+        .eq("status", "active")
+        .eq("is_cleared", false)
         .select("id, title, description, lat, lng, photo_url, photo_urls, clear_photo_urls, map_snapshot_url, category, is_cleared, created_at, cleared_at, reported_by, cleared_by, clear_comment, status, map_id, location_type, x_percent, y_percent, created_device_id, created_device_label, created_user_agent, cleared_device_id, cleared_device_label, cleared_user_agent, last_action, last_action_by, last_action_device_id, last_action_device_label, last_action_user_agent")
         .maybeSingle();
 
@@ -4922,24 +4976,44 @@
         console.error(error);
         alert("Could not clear pin. Make sure the cleared_by column exists in Supabase and check your update policy.");
         setStatus("Clear failed.");
+        clearSubmissionInProgress = false;
+        activeClearRequests.delete(clearingPinKey);
+        setClearUiBusy(false);
         return;
       }
 
-      const updatedPin = data || {
-        ...(allPins.find(pin => pin.id === clearingPinId) || {}),
-        id: clearingPinId,
-        is_cleared: true,
-        status: "cleared",
-        cleared_at: clearedAt,
-        cleared_by: clearedBy,
-        clear_comment: clearComment,
-        clear_photo_urls: clearPhotoUrls
-      };
+      if (!data) {
+        const { data: currentRow } = await supabaseClient
+          .from(SUPABASE_TABLE)
+          .select("id, title, description, lat, lng, photo_url, photo_urls, clear_photo_urls, map_snapshot_url, category, is_cleared, created_at, cleared_at, reported_by, cleared_by, clear_comment, status, map_id, location_type, x_percent, y_percent, created_device_id, created_device_label, created_user_agent, cleared_device_id, cleared_device_label, cleared_user_agent, last_action, last_action_by, last_action_device_id, last_action_device_label, last_action_user_agent")
+          .eq("id", clearingPinId)
+          .maybeSingle();
 
-      const index = allPins.findIndex(pin => pin.id === clearingPinId);
+        if (currentRow && getPinStatus(currentRow) === "cleared") {
+          const index = allPins.findIndex(pin => String(pin.id) === clearingPinKey);
+          if (index !== -1) allPins[index] = { ...allPins[index], ...currentRow };
+          else allPins.push(currentRow);
+          closeClearModal();
+          await loadPins(false);
+          setStatus("This pin was already cleared. The log was not duplicated.");
+          activeClearRequests.delete(clearingPinKey);
+          return;
+        }
+
+        alert("This pin could not be cleared because it is no longer active. Refreshing pins now.");
+        closeClearModal();
+        await loadPins(false);
+        setStatus("Pin was not cleared because it is no longer active.");
+        activeClearRequests.delete(clearingPinKey);
+        return;
+      }
+
+      const updatedPin = data;
+
+      const index = allPins.findIndex(pin => String(pin.id) === clearingPinKey);
       if (index !== -1) {
         allPins[index] = { ...allPins[index], ...updatedPin };
-      } else if (updatedPin && updatedPin.id) {
+      } else if (updatedPin && updatedPin.id && !getPinById(updatedPin.id)) {
         allPins.push(updatedPin);
       }
 
@@ -4980,6 +5054,7 @@
       applyFilters();
 
       setStatus("Pin cleared. Showing active pins for this department.");
+      activeClearRequests.delete(clearingPinKey);
     }
 
     function getClearedPinsForDeleteList() {
@@ -5952,6 +6027,16 @@ function resetPinForm() {
     }
 
     function clearPinFromReport(pinId) {
+      if (clearSubmissionInProgress || activeClearRequests.has(String(pinId))) {
+        setStatus("This pin is already being cleared. Please do not tap again.");
+        return;
+      }
+      const pin = getPinById(pinId);
+      if (pin && getPinStatus(pin) !== "active") {
+        alert("This pin is already " + formatPinStatus(pin).toLowerCase() + ". It cannot be cleared again.");
+        applyFilters();
+        return;
+      }
       closeItemReportBeforeAction();
       closeAllMapPopups();
       setTimeout(function() { clearPin(pinId); }, 0);
