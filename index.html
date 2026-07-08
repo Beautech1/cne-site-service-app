@@ -4613,11 +4613,14 @@
     function buildPopupHtml(pin) {
       const categoryLabel = formatDepartmentLabel(pin.category);
       const photoHtml = buildPhotoGalleryHtml(getPinPhotos(pin), "Reported photos");
-      const clearPhotoHtml = buildPhotoGalleryHtml(getClearPhotos(pin), "Clear photos");
+      const pinStatus = getPinStatus(pin);
+      const isCleared = pinStatus === "cleared";
+      const isCancelled = pinStatus === "cancelled";
+      const clearPhotoHtml = isCleared ? buildPhotoGalleryHtml(getClearPhotos(pin), "Clear photos") : "";
+      const closedByValue = getClosedByValue(pin);
 
       const closeButton = '<div class="popup-close-row"><button class="popup-close-btn" onclick="closeAllMapPopups()" title="Close">&times;</button></div>';
 
-      const pinStatus = getPinStatus(pin);
       const canClearOrCancel = pinStatus === "active";
       const editButton = pin.id
         ? '<button class="action-btn secondary" onclick="openEditPinModalFromReport(' + pin.id + ')">' + (pinStatus === "cleared" ? 'Admin edit cleared pin' : 'Edit / Reassign / Relocate Pin') + '</button>'
@@ -4651,15 +4654,15 @@
         "<br><small><b>Department:</b> " + escapeHtml(categoryLabel) + "</small>" +
         "<br><small><b>Map / Building:</b> " + escapeHtml(getMapView(getPinMapId(pin)).name) + "</small>" +
         (pin.reported_by ? "<br><small><b>Reported by:</b> " + escapeHtml(pin.reported_by) + "</small>" : "") +
-        (pin.cleared_by ? "<br><small><b>Cleared by:</b> " + escapeHtml(pin.cleared_by) + "</small>" : "") +
-        (formatTimeToClear(pin) ? "<br><small><b>Time to clear:</b> " + escapeHtml(formatTimeToClear(pin)) + "</small>" : "") +
-        (pin.clear_comment ? "<br><small><b>Clear comments:</b> " + escapeHtml(pin.clear_comment) + "</small>" : "") +
+        (closedByValue ? "<br><small><b>" + escapeHtml(getClosedByLabel(pin)) + ":</b> " + escapeHtml(closedByValue) + "</small>" : "") +
+        (isCleared && formatTimeToClear(pin) ? "<br><small><b>Time to clear:</b> " + escapeHtml(formatTimeToClear(pin)) + "</small>" : "") +
+        (isCleared && pin.clear_comment ? "<br><small><b>Clear comments:</b> " + escapeHtml(pin.clear_comment) + "</small>" : "") +
         (pin.description && pin.description.trim() !== "" ? "<br>" + escapeHtml(pin.description) : "") +
         photoHtml +
         clearPhotoHtml +
         "<br><br><small>" +
         (pin.created_at ? "Saved: " + new Date(pin.created_at).toLocaleString() : "") +
-        (getPinStatus(pin) === "cleared" && pin.cleared_at ? "<br>Cleared: " + new Date(pin.cleared_at).toLocaleString() : "") +
+        (isCleared && pin.cleared_at ? "<br>Cleared: " + new Date(pin.cleared_at).toLocaleString() : (isCancelled ? "<br>Cancelled" : "")) +
         "</small>" +
         popupSmsControls +
         actionRow
@@ -4825,12 +4828,20 @@
 
     function buildLogItemHtml(pin, options = {}) {
       const status = getPinStatus(pin);
+      const isCleared = status === "cleared";
+      const isCancelled = status === "cancelled";
       const photo = buildPhotoGalleryHtml(getPinPhotos(pin), "Reported photos", "log-photo");
-      const clearPhoto = buildPhotoGalleryHtml(getClearPhotos(pin), "Clear photos", "log-photo");
+      const clearPhoto = isCleared ? buildPhotoGalleryHtml(getClearPhotos(pin), "Clear photos", "log-photo") : "";
       const mapSnapshotHtml = pin.map_snapshot_url
         ? '<div style="margin-top:8px;"><span class="photo-section-title">Mini map / pin location</span><img class="log-photo" src="' + escapeHtml(pin.map_snapshot_url) + '" alt="Mini map location" onerror="this.style.display=\'none\'"></div>'
         : '';
-      const editLabel = status === "cleared" ? "Admin edit / reopen" : "Edit / update";
+      const editLabel = isCleared ? "Admin edit / reopen" : "Edit / update";
+      const closedByValue = getClosedByValue(pin);
+      const closedFromValue = getClosedFromValue(pin);
+      const closedWord = getClosedStatusWord(pin);
+      const closedMetaLine = isCleared && pin.cleared_at
+        ? 'Cleared: ' + new Date(pin.cleared_at).toLocaleString() + '<br>'
+        : (isCancelled ? 'Cancelled<br>' : '');
       return (
         '<div class="log-item">' +
           '<div class="log-title">' + escapeHtml(pin.title || 'Untitled pin') + '</div>' +
@@ -4839,15 +4850,15 @@
           '<div><small><b>Map / Building:</b> ' + escapeHtml(getMapView(getPinMapId(pin)).name) + '</small></div>' +
           (pin.reported_by ? '<div><small><b>Reported by:</b> ' + escapeHtml(pin.reported_by) + '</small></div>' : '') +
           (pin.created_device_label ? '<div><small><b>Created from:</b> ' + escapeHtml(pin.created_device_label) + '</small></div>' : '') +
-          (pin.cleared_by ? '<div><small><b>Cleared by:</b> ' + escapeHtml(pin.cleared_by) + '</small></div>' : '') +
-          (pin.cleared_device_label ? '<div><small><b>Cleared from:</b> ' + escapeHtml(pin.cleared_device_label) + '</small></div>' : '') +
-          (formatTimeToClear(pin) ? '<div><small><b>Time to clear:</b> ' + escapeHtml(formatTimeToClear(pin)) + '</small></div>' : '') +
-          (pin.clear_comment ? '<div><small><b>Clear comments:</b> ' + escapeHtml(pin.clear_comment) + '</small></div>' : '') +
+          (closedByValue ? '<div><small><b>' + escapeHtml(getClosedByLabel(pin)) + ':</b> ' + escapeHtml(closedByValue) + '</small></div>' : '') +
+          (closedFromValue ? '<div><small><b>' + escapeHtml(getClosedFromLabel(pin)) + ':</b> ' + escapeHtml(closedFromValue) + '</small></div>' : '') +
+          (isCleared && formatTimeToClear(pin) ? '<div><small><b>Time to clear:</b> ' + escapeHtml(formatTimeToClear(pin)) + '</small></div>' : '') +
+          (isCleared && pin.clear_comment ? '<div><small><b>Clear comments:</b> ' + escapeHtml(pin.clear_comment) + '</small></div>' : '') +
           (pin.description ? '<div style="margin-top:6px; white-space:pre-wrap;">' + escapeHtml(pin.description) + '</div>' : '') +
           '<div class="log-meta">' +
             (pin.created_at ? 'Created: ' + new Date(pin.created_at).toLocaleString() + '<br>' : '') +
-            (status === 'cleared' && pin.cleared_at ? 'Cleared: ' + new Date(pin.cleared_at).toLocaleString() + '<br>' : '') +
-            (formatTimeToClear(pin) ? 'Time to clear: ' + escapeHtml(formatTimeToClear(pin)) : '') +
+            closedMetaLine +
+            (isCleared && formatTimeToClear(pin) ? 'Time to clear: ' + escapeHtml(formatTimeToClear(pin)) : (isCancelled && closedWord ? escapeHtml(closedWord) : '')) +
           '</div>' +
           mapSnapshotHtml +
           photo +
@@ -4941,9 +4952,45 @@
     function formatPinStatus(pin) {
       const status = getPinStatus(pin);
       if (status === "cleared") return "Cleared";
-      if (status === "cancelled") return "Cancelled call";
+      if (status === "cancelled") return "Cancelled";
       if (status === "reported") return "Report only";
       return "Active";
+    }
+
+    function getClosedStatusWord(pin) {
+      const status = getPinStatus(pin);
+      if (status === "cleared") return "Cleared";
+      if (status === "cancelled") return "Cancelled";
+      if (status === "reported") return "Reported";
+      return "";
+    }
+
+    function getClosedByLabel(pin) {
+      const status = getPinStatus(pin);
+      if (status === "cleared") return "Cleared by";
+      if (status === "cancelled") return "Cancelled by";
+      return "Updated by";
+    }
+
+    function getClosedByValue(pin) {
+      const status = getPinStatus(pin);
+      if (status === "cleared") return pin.cleared_by || "";
+      if (status === "cancelled") return pin.last_action_by || "";
+      return pin.last_action_by || "";
+    }
+
+    function getClosedFromLabel(pin) {
+      const status = getPinStatus(pin);
+      if (status === "cleared") return "Cleared from";
+      if (status === "cancelled") return "Cancelled from";
+      return "Updated from";
+    }
+
+    function getClosedFromValue(pin) {
+      const status = getPinStatus(pin);
+      if (status === "cleared") return pin.cleared_device_label || "";
+      if (status === "cancelled") return pin.last_action_device_label || "";
+      return pin.last_action_device_label || "";
     }
 
 
@@ -5644,7 +5691,13 @@
       const summaryHtml = mode === "active" ? "" : buildCurrentYearHoursSummary(deptValue);
       const bodyHtml = rows.length ? rows.map(pin => {
         const reportedPhotos = buildPhotoGalleryHtml(getPinPhotos(pin), "Reported photos", "print-log-photo", { collapsible: false });
-        const clearPhotos = buildPhotoGalleryHtml(getClearPhotos(pin), "Clear photos", "print-log-photo", { collapsible: false });
+        const status = getPinStatus(pin);
+        const isCleared = status === "cleared";
+        const isCancelled = status === "cancelled";
+        const clearPhotos = isCleared ? buildPhotoGalleryHtml(getClearPhotos(pin), "Clear photos", "print-log-photo", { collapsible: false }) : "";
+        const closedByValue = getClosedByValue(pin);
+        const closedFromValue = getClosedFromValue(pin);
+        const closedStatusLine = isCleared && pin.cleared_at ? `Cleared: ${new Date(pin.cleared_at).toLocaleString()}` : (isCancelled ? "Cancelled" : "");
         const mapSnapshot = pin.map_snapshot_url ? `<div class="map-snapshot"><span class="photo-section-title">Mini map / pin location</span><img class="map-photo" src="${escapeHtml(pin.map_snapshot_url)}" alt="Mini map location"></div>` : `<div class="note">Mini map snapshot is not available for this item.</div>`;
         return `
           <div class="card">
@@ -5654,15 +5707,15 @@
             <div><strong>Map / Building:</strong> ${escapeHtml(getMapView(getPinMapId(pin)).name)}</div>
             ${pin.reported_by ? `<div><strong>Reported by:</strong> ${escapeHtml(pin.reported_by)}</div>` : ""}
             ${pin.created_device_label ? `<div><strong>Created from:</strong> ${escapeHtml(pin.created_device_label)}</div>` : ""}
-            ${pin.cleared_by ? `<div><strong>Cleared by:</strong> ${escapeHtml(pin.cleared_by)}</div>` : ""}
-            ${pin.cleared_device_label ? `<div><strong>Cleared from:</strong> ${escapeHtml(pin.cleared_device_label)}</div>` : ""}
-            ${formatTimeToClear(pin) ? `<div><strong>Time to clear:</strong> ${escapeHtml(formatTimeToClear(pin))}</div>` : ""}
-            ${pin.clear_comment ? `<div><strong>Clear comments:</strong> ${escapeHtml(pin.clear_comment)}</div>` : ""}
+            ${closedByValue ? `<div><strong>${escapeHtml(getClosedByLabel(pin))}:</strong> ${escapeHtml(closedByValue)}</div>` : ""}
+            ${closedFromValue ? `<div><strong>${escapeHtml(getClosedFromLabel(pin))}:</strong> ${escapeHtml(closedFromValue)}</div>` : ""}
+            ${isCleared && formatTimeToClear(pin) ? `<div><strong>Time to clear:</strong> ${escapeHtml(formatTimeToClear(pin))}</div>` : ""}
+            ${isCleared && pin.clear_comment ? `<div><strong>Clear comments:</strong> ${escapeHtml(pin.clear_comment)}</div>` : ""}
             ${pin.description ? `<div style="margin-top:6px;"><strong>Location/details:</strong> ${escapeHtml(pin.description)}</div>` : ""}
             <div class="meta">
               Location: ${escapeHtml(getLocationLabel(pin))}<br>
               ${pin.created_at ? `Created: ${new Date(pin.created_at).toLocaleString()}<br>` : ""}
-              ${getPinStatus(pin) === 'cleared' && pin.cleared_at ? `Cleared: ${new Date(pin.cleared_at).toLocaleString()}` : ""}
+              ${closedStatusLine}
             </div>
             ${mapSnapshot}
             ${reportedPhotos}
@@ -6399,19 +6452,23 @@ function resetPinForm() {
 
 
     function buildMiniReportHtml(pin, options = {}) {
+      const pinStatusForActions = getPinStatus(pin);
+      const isCleared = pinStatusForActions === "cleared";
+      const isCancelled = pinStatusForActions === "cancelled";
       const status = formatPinStatus(pin);
       const dept = formatDepartmentLabel(pin.category);
       const mapName = getMapView(getPinMapId(pin)).name;
       const created = pin.created_at ? new Date(pin.created_at).toLocaleString() : "";
-      const cleared = pin.cleared_at ? new Date(pin.cleared_at).toLocaleString() : "";
+      const cleared = isCleared && pin.cleared_at ? new Date(pin.cleared_at).toLocaleString() : "";
       const photoOptions = options.print ? { collapsible: false } : {};
       const photoClass = options.print ? "print-report-photo" : "report-photo";
       const reportedPhotos = buildPhotoGalleryHtml(getPinPhotos(pin), "Reported photos", photoClass, photoOptions);
-      const clearPhotos = buildPhotoGalleryHtml(getClearPhotos(pin), "Clear/completion photos", photoClass, photoOptions);
+      const clearPhotos = isCleared ? buildPhotoGalleryHtml(getClearPhotos(pin), "Clear/completion photos", photoClass, photoOptions) : "";
       const mapSnapshotHtml = pin.map_snapshot_url
         ? '<div style="margin-top:12px;"><span class="photo-section-title">Mini map / pin location</span><img class="log-photo" style="max-width:420px; max-height:300px; object-fit:contain;" src="' + escapeHtml(pin.map_snapshot_url) + '" alt="Mini map location" onerror="this.style.display=\'none\'"></div>'
         : '<div class="panel-note" style="margin-top:12px;">Mini map snapshot is not available for this item. Run the consolidated SQL and check that the floor-plan and site-plan image files are beside this HTML file.</div>';
-      const pinStatusForActions = getPinStatus(pin);
+      const closedByValue = getClosedByValue(pin);
+      const closedFromValue = getClosedFromValue(pin);
       const reportActionRow = (!options.print && pin.id)
         ? '<div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;">' +
             (pinStatusForActions === "active" ? '<button class="action-btn clear-btn" onclick="clearPinFromReport(' + pin.id + ')">Clear Pin</button>' : '') +
@@ -6426,11 +6483,13 @@ function resetPinForm() {
             '<div><strong>Department:</strong> ' + escapeHtml(dept) + '</div>' +
             '<div><strong>Map / Building:</strong> ' + escapeHtml(mapName) + '</div>' +
             '<div><strong>Reported by:</strong> ' + escapeHtml(pin.reported_by || "") + '</div>' +
-            (pin.cleared_by ? '<div><strong>Cleared by:</strong> ' + escapeHtml(pin.cleared_by) + '</div>' : '') +
-            (formatTimeToClear(pin) ? '<div><strong>Time to clear:</strong> ' + escapeHtml(formatTimeToClear(pin)) + '</div>' : '') +
-            (pin.clear_comment ? '<div><strong>Clear comments:</strong> ' + escapeHtml(pin.clear_comment) + '</div>' : '') +
+            (closedByValue ? '<div><strong>' + escapeHtml(getClosedByLabel(pin)) + ':</strong> ' + escapeHtml(closedByValue) + '</div>' : '') +
+            (closedFromValue ? '<div><strong>' + escapeHtml(getClosedFromLabel(pin)) + ':</strong> ' + escapeHtml(closedFromValue) + '</div>' : '') +
+            (isCleared && formatTimeToClear(pin) ? '<div><strong>Time to clear:</strong> ' + escapeHtml(formatTimeToClear(pin)) + '</div>' : '') +
+            (isCleared && pin.clear_comment ? '<div><strong>Clear comments:</strong> ' + escapeHtml(pin.clear_comment) + '</div>' : '') +
             (created ? '<div><strong>Saved:</strong> ' + escapeHtml(created) + '</div>' : '') +
             (cleared ? '<div><strong>Cleared:</strong> ' + escapeHtml(cleared) + '</div>' : '') +
+            (isCancelled ? '<div><strong>Cancelled:</strong> Yes</div>' : '') +
             '<div><strong>Item ID:</strong> ' + escapeHtml(String(pin.id || "")) + '</div>' +
           '</div>' +
           (pin.description ? '<div class="mini-report-detail"><strong>Location and service details:</strong><br>' + escapeHtml(pin.description) + '</div>' : '') +
@@ -6472,9 +6531,13 @@ function resetPinForm() {
       }
       currentReportPinId = pin.id;
       if (getPinStatus(pin) !== "active" && itemReportBody) {
-        const clearedByText = pin.cleared_by ? ' by ' + escapeHtml(pin.cleared_by) : ' by the department';
-        const clearedTimeText = pin.cleared_at ? '<br><small>Cleared: ' + escapeHtml(formatDateTime(pin.cleared_at)) + '</small>' : '';
-        itemReportBody.innerHTML = '<div class="panel-note" style="background:#fff3cd; border:1px solid #ffe08a; border-radius:8px; padding:10px;"><strong>This report is already cleared.</strong><br>This item may have been deleted from the active map or cleared' + clearedByText + '. It will remain available in the Cleared History Log / All Pin Logs.' + clearedTimeText + '</div>' + buildMiniReportHtml(pin);
+        const statusWord = getClosedStatusWord(pin) || formatPinStatus(pin);
+        const statusLower = statusWord.toLowerCase();
+        const byValue = getClosedByValue(pin);
+        const byText = byValue ? ' by ' + escapeHtml(byValue) : '';
+        const timeText = getPinStatus(pin) === "cleared" && pin.cleared_at ? '<br><small>Cleared: ' + escapeHtml(formatDateTime(pin.cleared_at)) + '</small>' : '';
+        const logName = getPinStatus(pin) === "cleared" ? 'Cleared History Log / All Pin Logs' : 'All Pin Logs';
+        itemReportBody.innerHTML = '<div class="panel-note" style="background:#fff3cd; border:1px solid #ffe08a; border-radius:8px; padding:10px;"><strong>This report is already ' + escapeHtml(statusLower) + '.</strong><br>This item may have been removed from the active map or ' + escapeHtml(statusLower) + byText + '. It will remain available in the ' + logName + '.' + timeText + '</div>' + buildMiniReportHtml(pin);
         itemReportModal.classList.add("open");
         modalBackdrop.classList.add("open");
         return;
