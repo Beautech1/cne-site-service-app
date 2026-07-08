@@ -1050,6 +1050,8 @@
 
 
     .text-options-details {
+      display: block !important;
+      margin: 4px 0 2px;
       border: 1px solid #d7e0ea;
       border-radius: 9px;
       background: #f8fbfe;
@@ -2252,12 +2254,8 @@
       <label>Location and service details <span style="color:#b71c1c;">*</span>
         <textarea id="pinDescriptionInput" placeholder="Required. Example: west washroom, beside sink. Add any issue details here." required></textarea>
       </label>
-      <label>Photo / file upload
-        <input type="file" id="pinPhotoFileInput" accept="image/*" multiple>
-        <small style="color:#607084; font-weight:normal; line-height:1.25;">Phone camera: take one photo, then choose again to add another. Laptop: select multiple photos at once.</small>
-      </label>
       <details class="text-options-details" id="pinTextOptionsDetails">
-        <summary>Text Options</summary>
+        <summary>Text Options — custom number / open-copy text</summary>
         <div class="text-options-body">
           <div class="sms-group-card-header">
             <div>
@@ -2281,6 +2279,10 @@
           </label>
         </div>
       </details>
+      <label>Photo / file upload
+        <input type="file" id="pinPhotoFileInput" accept="image/*" multiple>
+        <small style="color:#607084; font-weight:normal; line-height:1.25;">Phone camera: take one photo, then choose again to add another. Laptop: select multiple photos at once.</small>
+      </label>
       <details class="pin-instructions" id="pinInstructionsDetails">
         <summary>Instructions / tips</summary>
         <div class="pin-instructions-body">
@@ -2337,7 +2339,7 @@
       </label>
       <div id="editSmsSection" class="edit-sms-section">
         <details class="text-options-details" id="editTextOptionsDetails">
-          <summary>Text Options</summary>
+          <summary>Text Options — custom number / open-copy text</summary>
           <div class="text-options-body">
             <div class="sms-group-card-header">
               <div>
@@ -4744,6 +4746,7 @@
           '<div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">' +
             '<button class="action-btn secondary" onclick="printPinReportById(' + Number(pin.id || 0) + ')">Print This Report</button>' +
             '<button class="action-btn secondary" onclick="openEditPinModal(' + Number(pin.id || 0) + ')">' + escapeHtml(editLabel) + '</button>' +
+            (status === 'active' ? '<button class="action-btn clear-btn" onclick="openClearModal(' + Number(pin.id || 0) + ')">Clear Pin</button>' : '') +
           '</div>' +
         '</div>'
       );
