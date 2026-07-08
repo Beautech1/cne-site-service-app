@@ -2247,23 +2247,26 @@
       <label>Title
         <select id="editPinTitleInput"></select>
       </label>
-      <div class="sms-group-card-header">
-        <div>
-          <div class="sms-group-card-title">Text selected groups to be text messaged</div>
+      <div id="editSmsSection" class="edit-sms-section">
+        <div class="sms-group-card-header">
+          <div>
+            <div class="sms-group-card-title">Text selected groups to be text messaged</div>
+          </div>
         </div>
+        <div id="editSmsGroupCheckboxes" class="sms-group-list"></div>
+        <details class="custom-sms-details">
+          <summary>Custom number</summary>
+          <div class="custom-sms-row">
+            <input type="checkbox" id="editCustomSmsEnabled" aria-label="Use custom text number">
+            <input type="tel" id="editCustomSmsInput" placeholder="Custom text number">
+            <div class="custom-sms-help">Use only when needed. Uncheck group(s) to send only to custom number. Use commas for multiple numbers.</div>
+          </div>
+        </details>
+        <label style="display:flex; align-items:center; gap:8px; font-weight:normal;">
+          <input type="checkbox" id="editNotifySmsNowInput" style="width:auto; margin:0;" checked> Open/copy text message after saving this update/reassignment
+        </label>
+        <button class="action-btn secondary" type="button" onclick="openCopyTextForEditPin()">Open/Copy Text Message Now</button>
       </div>
-      <div id="editSmsGroupCheckboxes" class="sms-group-list"></div>
-      <details class="custom-sms-details">
-        <summary>Custom number</summary>
-        <div class="custom-sms-row">
-          <input type="checkbox" id="editCustomSmsEnabled" aria-label="Use custom text number">
-          <input type="tel" id="editCustomSmsInput" placeholder="Custom text number">
-          <div class="custom-sms-help">Use only when needed. Uncheck group(s) to send only to custom number. Use commas for multiple numbers.</div>
-        </div>
-      </details>
-      <label style="display:flex; align-items:center; gap:8px; font-weight:normal;">
-        <input type="checkbox" id="editNotifySmsNowInput" style="width:auto; margin:0;" checked> Open/copy text message after saving this update/reassignment
-      </label>
       <label>Location and service details
         <textarea id="editPinDescriptionInput" placeholder="Example: west washroom, beside sink. Add any issue details here."></textarea>
       </label>
@@ -2505,6 +2508,7 @@
     const editPinLocationNote = document.getElementById("editPinLocationNote");
     const editPinCategoryInput = document.getElementById("editPinCategoryInput");
     const editPinTitleInput = document.getElementById("editPinTitleInput");
+    const editSmsSection = document.getElementById("editSmsSection");
     const editSmsGroupCheckboxes = document.getElementById("editSmsGroupCheckboxes");
     const editNotifySmsNowInput = document.getElementById("editNotifySmsNowInput");
     const editCustomSmsEnabled = document.getElementById("editCustomSmsEnabled");
@@ -3720,8 +3724,10 @@
     }
 
     function onEditPinStatusChange() {
-      if (!editClearedFields || !editPinStatusInput) return;
-      editClearedFields.style.display = editPinStatusInput.value === "cleared" ? "block" : "none";
+      if (!editPinStatusInput) return;
+      const isClearedStatus = editPinStatusInput.value === "cleared";
+      if (editClearedFields) editClearedFields.style.display = isClearedStatus ? "block" : "none";
+      if (editSmsSection) editSmsSection.style.display = isClearedStatus ? "none" : "grid";
     }
 
     function openEditPinModal(pinId) {
@@ -4413,9 +4419,13 @@
         ? (pin.id ? '<button class="action-btn secondary" style="background:#8a4b08;" onclick="cancelPinFromReport(' + pin.id + ')">Cancel call</button>' : "")
         : "";
 
+      const printButton = pin.id
+        ? '<button class="action-btn secondary" onclick="printPinPopupReport(' + pin.id + ')">Print Report</button>'
+        : "";
+
       const actionRow = pin.id
         ? '<div style="margin-top:12px; display:flex; gap:8px; align-items:center; justify-content:space-between; flex-wrap:wrap;">' +
-            '<div style="display:flex; gap:8px; flex-wrap:wrap;">' + editButton + cancelButton + '</div>' +
+            '<div style="display:flex; gap:8px; flex-wrap:wrap;">' + printButton + editButton + cancelButton + '</div>' +
             '<div style="margin-left:auto;">' + clearButton + '</div>' +
           '</div>'
         : "";
@@ -6355,10 +6365,12 @@ function resetPinForm() {
       if (currentReportPinId) focusPinOnMap(currentReportPinId);
     }
 
-    async function printItemReport() {
-      if (!currentReportPinId) return;
-      const pin = getPinById(currentReportPinId);
-      if (!pin) return;
+    async function printPinReportById(pinId) {
+      const pin = getPinById(pinId);
+      if (!pin) {
+        alert("Could not find this pin to print. Refresh the app and try again.");
+        return;
+      }
       if (!pin.map_snapshot_url) await ensureMapSnapshotForPin(pin);
       const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Item Report ${escapeHtml(String(pin.id || ""))}</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#1f2933;font-size:13px}.mini-report-card{border:1px solid #d9e0e6;border-radius:10px;padding:14px;line-height:1.45;font-size:13px}.mini-report-card h2{font-size:17px;line-height:1.25}.mini-report-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;font-size:13px}.mini-report-detail{margin-top:10px;white-space:pre-wrap}.report-map-photo,.log-photo,.print-report-photo{display:block;margin:8px 0;max-width:460px;max-height:330px;object-fit:contain;border:1px solid #d9e0e6;border-radius:8px;background:#f8fafc}.photo-gallery{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start}.photo-gallery img{width:460px;max-width:100%;height:auto;max-height:330px;object-fit:contain;border:1px solid #d9e0e6;border-radius:8px;background:#f8fafc}.photo-section-title{display:block;font-weight:bold;margin-top:10px;font-size:13px}@media print{button{display:none}}</style></head><body><h1>Item Report</h1>${buildMiniReportHtml(pin, { print: true })}</body></html>`;
       const win = window.open("", "_blank");
@@ -6370,6 +6382,15 @@ function resetPinForm() {
       win.document.write(html);
       win.document.close();
       setTimeout(() => { win.focus(); win.print(); }, 350);
+    }
+
+    async function printPinPopupReport(pinId) {
+      return printPinReportById(pinId);
+    }
+
+    async function printItemReport() {
+      if (!currentReportPinId) return;
+      return printPinReportById(currentReportPinId);
     }
 
     function handleInitialUrlAction() {
@@ -6457,7 +6478,54 @@ function isLikelyMobileSmsDevice() {
   return mobileByUa || (coarsePointer && narrowScreen);
 }
 
+function buildPendingEditPinForMessage() {
+  const existingPin = allPins.find(item => item.id === pendingEditPinId);
+  if (!existingPin) return null;
+  return {
+    ...existingPin,
+    category: editPinCategoryInput ? (editPinCategoryInput.value || existingPin.category || "general") : existingPin.category,
+    title: editPinTitleInput ? (editPinTitleInput.value || existingPin.title || "General request") : existingPin.title,
+    description: editPinDescriptionInput ? editPinDescriptionInput.value.trim() : existingPin.description,
+    reported_by: editPinReportedByInput ? editPinReportedByInput.value.trim() : existingPin.reported_by
+  };
+}
+
+function openCopyTextForEditPin() {
+  const pin = buildPendingEditPinForMessage();
+  if (!pin) {
+    alert("Open an active pin to edit/reassign first.");
+    return;
+  }
+  if (getPinStatus(pin) === "cleared") {
+    setStatus("Text message is hidden for cleared pins.");
+    return;
+  }
+
+  const smsRecipients = getSelectedEditSmsRecipientsForDepartment(pin.category);
+  const categoryLabel = formatDepartmentLabel(pin.category);
+  const message = buildNotificationMessage(pin);
+
+  if (!smsRecipients.length) {
+    setStatus("No contacts or custom numbers selected for this update/reassignment.");
+    showSmsFallbackModal([], message, "No recipients are selected. Copy the message below if you want to send it manually.");
+    return;
+  }
+
+  if (!isLikelyMobileSmsDevice()) {
+    showSmsFallbackModal(smsRecipients, message, `Copy the update/reassignment message below and send it manually to the selected ${categoryLabel} group(s).`);
+    setStatus("Copy text message shown because this device may not support SMS.");
+    return;
+  }
+
+  const opened = openSmsDraft(smsRecipients, message);
+  if (opened) setStatus(`Text draft opened for selected ${categoryLabel} group(s).`);
+}
+
 function triggerEditSmsNotification(pin) {
+  if (getPinStatus(pin) === "cleared") {
+    setStatus("Pin updated as cleared. Text message was not opened.");
+    return;
+  }
   if (!editNotifySmsNowInput || !editNotifySmsNowInput.checked) {
     setStatus("Pin updated. Text message was not opened on this device.");
     return;
@@ -7070,6 +7138,7 @@ ${rows.map(pin => `
     window.closeItemReportModal = closeItemReportModal;
     window.openCurrentReportOnMap = openCurrentReportOnMap;
     window.printItemReport = printItemReport;
+    window.printPinPopupReport = printPinPopupReport;
     window.focusPinOnMap = focusPinOnMap;
     window.submitClearPinForm = submitClearPinForm;
     window.openEditPinModal = openEditPinModal;
@@ -7096,6 +7165,7 @@ ${rows.map(pin => `
     window.retrySiteAccess = retrySiteAccess;
     window.resetSiteAccessApproval = resetSiteAccessApproval;
     window.openCopyTextForActivePin = openCopyTextForActivePin;
+    window.openCopyTextForEditPin = openCopyTextForEditPin;
     window.copySmsFallbackMessage = copySmsFallbackMessage;
     window.copySmsFallbackRecipients = copySmsFallbackRecipients;
     window.closeSmsFallbackModal = closeSmsFallbackModal;
