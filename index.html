@@ -2157,7 +2157,7 @@
         </div>
       </div>
       <div id="smsGroupCheckboxes" class="sms-group-list"></div>
-      <details class="custom-sms-details">
+      <details class="custom-sms-details" open>
         <summary>Custom text message number</summary>
         <div class="custom-sms-row">
           <input type="checkbox" id="pinCustomSmsEnabled" aria-label="Use custom text number">
@@ -2232,7 +2232,7 @@
         </div>
       </div>
       <div id="editSmsGroupCheckboxes" class="sms-group-list"></div>
-      <details class="custom-sms-details">
+      <details class="custom-sms-details" open>
         <summary>Custom text message number</summary>
         <div class="custom-sms-row">
           <input type="checkbox" id="editCustomSmsEnabled" aria-label="Use custom text number">
@@ -3686,6 +3686,8 @@
       if (!editSmsGroupCheckboxes || !editPinCategoryInput) return;
       if (editCustomSmsEnabled) editCustomSmsEnabled.checked = false;
       if (editCustomSmsInput) editCustomSmsInput.value = "";
+      const editCustomSmsDetails = document.querySelector("#editPinModal .custom-sms-details");
+      if (editCustomSmsDetails) editCustomSmsDetails.open = true;
       const dept = getDepartment(editPinCategoryInput.value);
       if (!dept.smsGroups.length) {
         editSmsGroupCheckboxes.innerHTML = '<div class="panel-note" style="padding:0;">No text groups set for this department.</div>';
@@ -5669,7 +5671,7 @@ function resetPinForm() {
   if (pinCustomSmsEnabled) pinCustomSmsEnabled.checked = false;
   if (pinCustomSmsInput) pinCustomSmsInput.value = "";
   const pinCustomSmsDetails = document.querySelector("#pinModal .custom-sms-details");
-  if (pinCustomSmsDetails) pinCustomSmsDetails.open = false;
+  if (pinCustomSmsDetails) pinCustomSmsDetails.open = true;
   pinNotifySmsNowInput.checked = shouldDefaultSmsOpen();
   if (pinViewOnlyReportLinkInput) pinViewOnlyReportLinkInput.checked = false;
   if (previewObjectUrl) {
