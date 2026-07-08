@@ -973,10 +973,27 @@
       color: #243447;
     }
 
+    .custom-sms-enable-row {
+      grid-column: 1 / -1;
+      display: flex !important;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px !important;
+      font-weight: 700 !important;
+      color: #243447;
+      cursor: pointer;
+      background: #eef7ff;
+      border: 1px solid #b7d7ef;
+      border-radius: 7px;
+      padding: 6px 7px;
+    }
+
     .custom-sms-row input[type="checkbox"] {
-      width: 14px;
-      height: 14px;
-      margin: 0;
+      width: 16px !important;
+      height: 16px !important;
+      margin: 0 !important;
+      flex: 0 0 auto;
+      display: inline-block !important;
       accent-color: #005a9c;
     }
 
@@ -2204,7 +2221,10 @@
       <details class="custom-sms-details" open>
         <summary>Custom text message number</summary>
         <div class="custom-sms-row">
-          <input type="checkbox" id="pinCustomSmsEnabled" aria-label="Use custom text number">
+          <label class="custom-sms-enable-row" for="pinCustomSmsEnabled">
+            <input type="checkbox" id="pinCustomSmsEnabled" aria-label="Use custom text number">
+            <span>Use custom text number</span>
+          </label>
           <input type="tel" id="pinCustomSmsInput" placeholder="Custom text number">
           <div class="custom-sms-label">Custom message / note for the text</div>
           <textarea id="pinCustomSmsMessageInput" placeholder="Optional. Add extra instructions that will appear in the text message only."></textarea>
@@ -2278,7 +2298,10 @@
         <details class="custom-sms-details" open>
           <summary>Custom text message number</summary>
           <div class="custom-sms-row">
-            <input type="checkbox" id="editCustomSmsEnabled" aria-label="Use custom text number">
+            <label class="custom-sms-enable-row" for="editCustomSmsEnabled">
+              <input type="checkbox" id="editCustomSmsEnabled" aria-label="Use custom text number">
+              <span>Use custom text number</span>
+            </label>
             <input type="tel" id="editCustomSmsInput" placeholder="Custom text number">
             <div class="custom-sms-label">Custom message / note for the text</div>
             <textarea id="editCustomSmsMessageInput" placeholder="Optional. Add extra instructions that will appear in the update/reassignment text only."></textarea>
@@ -4450,9 +4473,9 @@
         : "";
 
       const actionRow = pin.id
-        ? '<div style="margin-top:12px; display:flex; gap:8px; align-items:center; justify-content:space-between; flex-wrap:wrap;">' +
-            '<div style="display:flex; gap:8px; flex-wrap:wrap;">' + printButton + editButton + cancelButton + '</div>' +
-            '<div style="margin-left:auto;">' + clearButton + '</div>' +
+        ? '<div class="pin-popup-actions">' +
+            '<div class="pin-popup-actions-row">' + printButton + editButton + cancelButton + '</div>' +
+            (clearButton ? '<div class="pin-popup-actions-row">' + clearButton + '</div>' : '') +
           '</div>'
         : "";
 
@@ -4659,7 +4682,6 @@
           (pin.clear_comment ? '<div><small><b>Clear comments:</b> ' + escapeHtml(pin.clear_comment) + '</small></div>' : '') +
           (pin.description ? '<div style="margin-top:6px; white-space:pre-wrap;">' + escapeHtml(pin.description) + '</div>' : '') +
           '<div class="log-meta">' +
-            'Location: ' + escapeHtml(getLocationLabel(pin)) + '<br>' +
             (pin.created_at ? 'Created: ' + new Date(pin.created_at).toLocaleString() + '<br>' : '') +
             (status === 'cleared' && pin.cleared_at ? 'Cleared: ' + new Date(pin.cleared_at).toLocaleString() + '<br>' : '') +
             (formatTimeToClear(pin) ? 'Time to clear: ' + escapeHtml(formatTimeToClear(pin)) : '') +
