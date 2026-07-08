@@ -2136,6 +2136,7 @@
           <button class="action-btn secondary" onclick="exportClearLogHtml()">Export Clear Log</button>
           <button class="action-btn secondary" onclick="exportClearLogCsv()">Export CSV Log</button>
           <button class="action-btn secondary" onclick="toggleAllLogsPanel(true); setTimeout(printAllLogs, 150);">Print Filtered Logs</button>
+          <button class="action-btn secondary" onclick="toggleSignInLogPanel(true)">View Sign-In Log</button>
         </div>
       </div>
       <div class="admin-menu-section">
@@ -2225,6 +2226,22 @@
       </div>
       <div id="allLogsBody" style="margin-top:10px;">
         <div class="empty-log">No pins found.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" id="signInLogPanel">
+    <div class="panel-header">
+      <span>Device Sign-In Log</span>
+      <button class="panel-close-btn" onclick="toggleSignInLogPanel(false)">&times;</button>
+    </div>
+    <div class="panel-body">
+      <div class="panel-note">This records when a user enters a valid CNE Service App sign-in code/ID on a device. Saved browser sessions are not re-recorded unless the user signs in again.</div>
+      <div class="export-actions">
+        <button class="action-btn secondary" onclick="renderSignInLog()">Refresh</button>
+      </div>
+      <div id="signInLogBody" style="margin-top:10px;">
+        <div class="empty-log">No sign-in records loaded yet.</div>
       </div>
     </div>
   </div>
@@ -2599,6 +2616,7 @@
     const SUPABASE_BUCKET = "pin-photos";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
+    const SIGN_IN_ACCESS_TABLE = "app_sign_in_access";
     const APP_LINK = window.location.href.split("#")[0].split("?")[0];
 
     const DEPARTMENT_STORAGE_KEY = "cne_map_departments_v1";
@@ -2701,6 +2719,8 @@
     const allLogsStatusFilter = document.getElementById("allLogsStatusFilter");
     const allLogsDepartmentFilter = document.getElementById("allLogsDepartmentFilter");
     const allLogsMapFilter = document.getElementById("allLogsMapFilter");
+    const signInLogPanel = document.getElementById("signInLogPanel");
+    const signInLogBody = document.getElementById("signInLogBody");
     const logPanel = document.getElementById("logPanel");
     const legendPanel = document.getElementById("legendPanel");
     const departmentPanel = document.getElementById("departmentPanel");
@@ -3241,12 +3261,100 @@
       const access = lookupSignInCode(entered);
       if (access) {
         saveSiteAccessApproval(access);
+        recordSignInAccessEvent(access, entered);
         hideAccessBlockedMessage();
         return true;
       }
       if (entered !== null) alert("Incorrect sign-in code.");
       showAccessBlockedMessage();
       return false;
+    }
+
+    async function recordSignInAccessEvent(access, enteredCode) {
+      if (!supabaseClient || !access) return false;
+      try {
+        const profile = getDeviceProfile();
+        const payload = {
+          access_code: normalizeAccessCode(enteredCode || access.code || ""),
+          access_label: access.label || access.role || "User",
+          role: access.role || "",
+          department: access.department || "",
+          allowed_departments: Array.isArray(access.allowedDepartments) ? access.allowedDepartments : [],
+          can_view_all: !!access.canViewAll,
+          device_id: profile.device_id || "",
+          device_label: profile.device_label || "",
+          user_name: profile.user_name || "",
+          user_agent: navigator.userAgent || "",
+          source: "sign_in_code"
+        };
+        const { error } = await supabaseClient.from(SIGN_IN_ACCESS_TABLE).insert(payload);
+        if (error) {
+          console.warn("Sign-in timestamp was not saved. Run the sign-in access SQL if this is the first time using this tracking.", error);
+          return false;
+        }
+        return true;
+      } catch (error) {
+        console.warn("Sign-in timestamp was not saved.", error);
+        return false;
+      }
+    }
+
+    async function fetchSignInAccessRows(limit = 100) {
+      if (!supabaseClient) return [];
+      try {
+        const { data, error } = await supabaseClient
+          .from(SIGN_IN_ACCESS_TABLE)
+          .select("id, access_code, access_label, role, department, allowed_departments, can_view_all, device_id, device_label, user_name, user_agent, source, created_at")
+          .order("created_at", { ascending: false })
+          .limit(limit);
+        if (error) {
+          console.warn("Could not load sign-in timestamp history. Run the sign-in access SQL if needed.", error);
+          return [];
+        }
+        return Array.isArray(data) ? data : [];
+      } catch (error) {
+        console.warn("Could not load sign-in timestamp history.", error);
+        return [];
+      }
+    }
+
+    function buildSignInLogHtml(rows) {
+      if (!rows || !rows.length) {
+        return '<div class="empty-log">No sign-in records found yet.</div>';
+      }
+      return rows.map(row => {
+        const when = row.created_at ? formatDateTime(row.created_at) : "";
+        const dept = row.can_view_all ? "All Departments" : (row.department === "multi" ? "Selected departments" : (row.department || ""));
+        const allowed = Array.isArray(row.allowed_departments) && row.allowed_departments.length ? '<br><small><b>Allowed:</b> ' + escapeHtml(row.allowed_departments.join(", ")) + '</small>' : '';
+        const device = row.device_label || row.user_name || row.device_id || "Unknown device";
+        return '<div class="log-item">' +
+          '<div class="log-title">' + escapeHtml(row.access_label || row.access_code || "Signed in") + '</div>' +
+          '<div><small><b>Signed in:</b> ' + escapeHtml(when) + '</small></div>' +
+          '<div><small><b>Department access:</b> ' + escapeHtml(dept) + '</small></div>' +
+          '<div><small><b>Device/User:</b> ' + escapeHtml(device) + '</small></div>' +
+          (row.user_name ? '<div><small><b>User name:</b> ' + escapeHtml(row.user_name) + '</small></div>' : '') +
+          (row.device_id ? '<div><small><b>Device ID:</b> ' + escapeHtml(row.device_id) + '</small></div>' : '') +
+          allowed +
+        '</div>';
+      }).join('');
+    }
+
+    async function renderSignInLog() {
+      if (!signInLogBody) return;
+      signInLogBody.innerHTML = '<div class="panel-note">Loading sign-in timestamp history...</div>';
+      const rows = await fetchSignInAccessRows();
+      signInLogBody.innerHTML = buildSignInLogHtml(rows);
+    }
+
+    function toggleSignInLogPanel(forceOpen) {
+      if (!signInLogPanel) return;
+      const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : !signInLogPanel.classList.contains('open');
+      if (shouldOpen) {
+        signInLogPanel.classList.add('open');
+        renderSignInLog();
+      } else {
+        signInLogPanel.classList.remove('open');
+      }
     }
 
     async function retrySiteAccess() {
@@ -4917,7 +5025,6 @@
           mapSnapshotHtml +
           photo +
           clearPhoto +
-          '<div data-report-access-history="' + escapeHtml(String(pin.id || "")) + '" style="margin-top:8px;"><div class="report-access-history"><strong>Recipient service order view history</strong><div class="panel-note" style="padding:6px 0 0;">Checking service order view history...</div></div></div>' +
           '<div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">' +
             '<button class="action-btn secondary" onclick="printPinReportById(' + Number(pin.id || 0) + ')">Print This Report</button>' +
             '<button class="action-btn secondary" onclick="openEditPinModal(' + Number(pin.id || 0) + ')">' + escapeHtml(editLabel) + '</button>' +
@@ -4933,7 +5040,6 @@
         return;
       }
       logBody.innerHTML = logPins.map(pin => buildLogItemHtml(pin)).join('');
-      loadReportAccessHistoriesForPins(logPins);
     }
 
     function getActiveLogRows() {
@@ -4952,7 +5058,6 @@
         return;
       }
       activeLogBody.innerHTML = rows.map(pin => buildLogItemHtml(pin)).join('');
-      loadReportAccessHistoriesForPins(rows);
     }
 
     function flashElement(element) {
@@ -6734,7 +6839,6 @@ function resetPinForm() {
         : '<div class="panel-note" style="margin-top:12px;">Mini map snapshot is not available for this item. Run the consolidated SQL and check that the floor-plan and site-plan image files are beside this HTML file.</div>';
       const closedByValue = getClosedByValue(pin);
       const closedFromValue = getClosedFromValue(pin);
-      const accessHistoryHtml = options.accessHistoryHtml || '<div data-report-access-history="' + escapeHtml(String(pin.id || "")) + '"><div class="report-access-history"><strong>Recipient service order view history</strong><div class="panel-note" style="padding:6px 0 0;">Checking service order view history...</div></div></div>';
       const reportViewOnly = options.viewOnly || isReportViewOnlyMode();
       // Do not show the View Service Order button inside the report itself.
       // For text/report links, the separate gate screen records the timestamp before the report is displayed.
@@ -6766,7 +6870,6 @@ function resetPinForm() {
           mapSnapshotHtml +
           (reportedPhotos ? '<div style="margin-top:12px;">' + reportedPhotos + '</div>' : '') +
           (clearPhotos ? '<div style="margin-top:12px;">' + clearPhotos + '</div>' : '') +
-          '<div style="margin-top:12px;">' + accessHistoryHtml + '</div>' +
           reportActionRow +
         '</div>'
       );
@@ -6802,16 +6905,8 @@ function resetPinForm() {
       currentReportPinId = pin.id;
       const directReportId = new URLSearchParams(window.location.search).get("report");
       const directReportMatches = String(directReportId || "") === String(pin.id);
-      const shouldGateServiceOrder = directReportMatches && isReportViewOnlyMode() && !options.skipServiceOrderGate && !hasViewedServiceOrderInThisBrowser(pin.id);
-      if (shouldGateServiceOrder && itemReportBody) {
-        itemReportBody.innerHTML = buildServiceOrderGateHtml(pin);
-        itemReportModal.classList.add("open");
-        modalBackdrop.classList.add("open");
-        return;
-      }
-      if (!directReportMatches) {
-        recordAppServiceOrderViewIfNeeded(pin.id, "App device review");
-      }
+      // Service-order gate/view tracking has been removed. Report links now open the report directly.
+      // User/device tracking is saved only when someone enters a valid sign-in code/ID.
       if (getPinStatus(pin) !== "active" && itemReportBody) {
         const statusWord = getClosedStatusWord(pin) || formatPinStatus(pin);
         const statusLower = statusWord.toLowerCase();
@@ -6822,7 +6917,6 @@ function resetPinForm() {
         itemReportBody.innerHTML = '<div class="panel-note" style="background:#fff3cd; border:1px solid #ffe08a; border-radius:8px; padding:10px;"><strong>This report is already ' + escapeHtml(statusLower) + '.</strong><br>This item may have been removed from the active map or ' + escapeHtml(statusLower) + byText + '. It will remain available in the ' + logName + '.' + timeText + '</div>' + buildMiniReportHtml(pin);
         itemReportModal.classList.add("open");
         modalBackdrop.classList.add("open");
-        refreshReportAccessHistoryForPin(pin.id);
         return;
       }
       if (!pin.map_snapshot_url) {
@@ -6832,7 +6926,6 @@ function resetPinForm() {
       itemReportBody.innerHTML = buildMiniReportHtml(pin);
       itemReportModal.classList.add("open");
       modalBackdrop.classList.add("open");
-      refreshReportAccessHistoryForPin(pin.id);
     }
 
     function closeItemReportModal() {
@@ -7704,6 +7797,8 @@ ${rows.map(pin => `
     window.printItemReport = printItemReport;
     window.printPinReportById = printPinReportById;
     window.acknowledgeReport = acknowledgeReport;
+    window.toggleSignInLogPanel = toggleSignInLogPanel;
+    window.renderSignInLog = renderSignInLog;
     window.viewServiceOrderAndShowReport = viewServiceOrderAndShowReport;
     window.printPinPopupReport = printPinPopupReport;
     window.focusPinOnMap = focusPinOnMap;
