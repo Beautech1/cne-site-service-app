@@ -2036,6 +2036,23 @@
       max-height: 320px !important;
     }
 
+
+    .report-access-history {
+      border: 1px solid #d9e0e6;
+      border-radius: 8px;
+      padding: 9px 10px;
+      background: #f8fbfe;
+      color: #243447;
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .report-access-row {
+      border-top: 1px solid #e6edf3;
+      margin-top: 6px;
+      padding-top: 6px;
+    }
+
   </style>
 </head>
 <body>
@@ -2564,6 +2581,7 @@
     const SUPABASE_TABLE = "pins";
     const SUPABASE_BUCKET = "pin-photos";
     const SETTINGS_TABLE = "app_settings";
+    const REPORT_ACCESS_TABLE = "pin_report_access";
     const APP_LINK = window.location.href.split("#")[0].split("?")[0];
 
     const DEPARTMENT_STORAGE_KEY = "cne_map_departments_v1";
@@ -4863,6 +4881,7 @@
           mapSnapshotHtml +
           photo +
           clearPhoto +
+          '<div data-report-access-history="' + escapeHtml(String(pin.id || "")) + '" style="margin-top:8px;"><div class="report-access-history"><strong>Recipient service order view history</strong><div class="panel-note" style="padding:6px 0 0;">Loading access history...</div></div></div>' +
           '<div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">' +
             '<button class="action-btn secondary" onclick="printPinReportById(' + Number(pin.id || 0) + ')">Print This Report</button>' +
             '<button class="action-btn secondary" onclick="openEditPinModal(' + Number(pin.id || 0) + ')">' + escapeHtml(editLabel) + '</button>' +
@@ -4878,6 +4897,7 @@
         return;
       }
       logBody.innerHTML = logPins.map(pin => buildLogItemHtml(pin)).join('');
+      loadReportAccessHistoriesForPins(logPins);
     }
 
     function getActiveLogRows() {
@@ -4896,6 +4916,7 @@
         return;
       }
       activeLogBody.innerHTML = rows.map(pin => buildLogItemHtml(pin)).join('');
+      loadReportAccessHistoriesForPins(rows);
     }
 
     function flashElement(element) {
@@ -5656,6 +5677,7 @@
       }
 
       allLogsBody.innerHTML = summaryHtml + rows.map(pin => buildLogItemHtml(pin)).join('');
+      loadReportAccessHistoriesForPins(rows);
     }
 
     function getPrintableLogRows(mode) {
@@ -5689,6 +5711,10 @@
       const filterTitle = mode === "all" ? getAllLogsFilterTitle() : (mode === "active" ? "Active / outstanding items" : "Cleared / completed items");
       const deptValue = mode === "all" && allLogsDepartmentFilter ? allLogsDepartmentFilter.value : "all";
       const summaryHtml = mode === "active" ? "" : buildCurrentYearHoursSummary(deptValue);
+      const accessHistoryByPin = {};
+      for (const pin of rows) {
+        accessHistoryByPin[String(pin.id)] = await fetchReportAccessRows(pin.id, 20);
+      }
       const bodyHtml = rows.length ? rows.map(pin => {
         const reportedPhotos = buildPhotoGalleryHtml(getPinPhotos(pin), "Reported photos", "print-log-photo", { collapsible: false });
         const status = getPinStatus(pin);
@@ -5699,6 +5725,7 @@
         const closedFromValue = getClosedFromValue(pin);
         const closedStatusLine = isCleared && pin.cleared_at ? `Cleared: ${new Date(pin.cleared_at).toLocaleString()}` : (isCancelled ? "Cancelled" : "");
         const mapSnapshot = pin.map_snapshot_url ? `<div class="map-snapshot"><span class="photo-section-title">Mini map / pin location</span><img class="map-photo" src="${escapeHtml(pin.map_snapshot_url)}" alt="Mini map location"></div>` : `<div class="note">Mini map snapshot is not available for this item.</div>`;
+        const accessHistory = buildReportAccessHistoryHtml(accessHistoryByPin[String(pin.id)] || []);
         return `
           <div class="card">
             <h2>${escapeHtml(pin.title || 'Untitled pin')}</h2>
@@ -5720,6 +5747,7 @@
             ${mapSnapshot}
             ${reportedPhotos}
             ${clearPhotos}
+            ${accessHistory}
           </div>`;
       }).join("\n") : '<div class="note">No pins match this log.</div>';
 
@@ -6451,6 +6479,137 @@ function resetPinForm() {
     }
 
 
+    const loggedReportViewKeys = new Set();
+
+    function buildReportToken() {
+      try {
+        if (window.crypto && typeof window.crypto.randomUUID === "function") return window.crypto.randomUUID();
+      } catch (error) {}
+      return "rt_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 10);
+    }
+
+    function getReportAccessParams() {
+      const params = new URLSearchParams(window.location.search);
+      return {
+        token: params.get("rt") || params.get("token") || "",
+        recipient: params.get("recipient") || params.get("to") || "",
+        source: params.get("source") || "text"
+      };
+    }
+
+    function buildReportLink(pin, context = {}) {
+      const params = { report: pin && pin.id ? pin.id : "" };
+      params.rt = context.token || buildReportToken();
+      if (context.recipient) params.recipient = context.recipient;
+      if (context.source) params.source = context.source;
+      return buildAppUrl(params);
+    }
+
+    function getReportAccessDeviceFields() {
+      const profile = getDeviceProfile();
+      return {
+        device_id: profile.device_id || null,
+        device_label: getDefaultDeviceLabel() || null,
+        user_agent: navigator.userAgent || null,
+        access_url: window.location.href || null
+      };
+    }
+
+    async function recordReportAccessEvent(pinId, eventType = "viewed", extra = {}) {
+      if (!supabaseClient || !pinId) return false;
+      const params = getReportAccessParams();
+      const payload = {
+        pin_id: Number(pinId),
+        event_type: eventType,
+        report_token: extra.token || params.token || null,
+        recipient_label: extra.recipient || params.recipient || null,
+        source: extra.source || params.source || null,
+        ...getReportAccessDeviceFields()
+      };
+      try {
+        const { error } = await supabaseClient.from(REPORT_ACCESS_TABLE).insert(payload);
+        if (error) {
+          console.warn("Report access log was not saved. Run the report access SQL if this is the first time using service order view tracking.", error);
+          return false;
+        }
+        return true;
+      } catch (error) {
+        console.warn("Report access log was not saved.", error);
+        return false;
+      }
+    }
+
+    async function recordReportViewIfNeeded(pinId) {
+      if (!pinId) return;
+      const params = getReportAccessParams();
+      const key = String(pinId) + "|" + (params.token || "no-token") + "|viewed";
+      if (loggedReportViewKeys.has(key)) return;
+      loggedReportViewKeys.add(key);
+      await recordReportAccessEvent(pinId, "viewed");
+      setTimeout(() => refreshReportAccessHistoryForPin(pinId), 300);
+    }
+
+    async function acknowledgeReport(pinId) {
+      const saved = await recordReportAccessEvent(pinId, "acknowledged");
+      if (saved) {
+        setStatus("Service order view saved.");
+        alert("Service order viewed. The timestamp has been saved.");
+      } else {
+        setStatus("Service order view could not be saved. Check Supabase report access table setup.");
+        alert("Service order view could not be saved. Please make sure the report access SQL has been run in Supabase.");
+      }
+      await refreshReportAccessHistoryForPin(pinId);
+    }
+
+    async function fetchReportAccessRows(pinId, limit = 20) {
+      if (!supabaseClient || !pinId) return [];
+      try {
+        const { data, error } = await supabaseClient
+          .from(REPORT_ACCESS_TABLE)
+          .select("id, pin_id, event_type, report_token, recipient_label, source, device_id, device_label, user_agent, created_at")
+          .eq("pin_id", Number(pinId))
+          .order("created_at", { ascending: false })
+          .limit(limit);
+        if (error) {
+          console.warn("Could not load report access history. Run the report access SQL if needed.", error);
+          return [];
+        }
+        return Array.isArray(data) ? data : [];
+      } catch (error) {
+        console.warn("Could not load report access history.", error);
+        return [];
+      }
+    }
+
+    function buildReportAccessHistoryHtml(rows, options = {}) {
+      const title = options.title || "Recipient service order view history";
+      if (!rows || !rows.length) {
+        return '<div class="report-access-history"><strong>' + escapeHtml(title) + '</strong><div class="panel-note" style="padding:6px 0 0;">No recipient service order view records yet.</div></div>';
+      }
+      const items = rows.map(row => {
+        const label = row.event_type === "acknowledged" ? "Viewed Service Order" : "Viewed";
+        const when = row.created_at ? formatDateTime(row.created_at) : "";
+        const who = row.recipient_label || row.device_label || row.device_id || "Unknown recipient/device";
+        const source = row.source ? ' · ' + escapeHtml(row.source) : '';
+        return '<div class="report-access-row"><strong>' + escapeHtml(label) + ':</strong> ' + escapeHtml(when) + '<br><small>' + escapeHtml(who) + source + '</small></div>';
+      }).join("");
+      return '<div class="report-access-history"><strong>' + escapeHtml(title) + '</strong>' + items + '</div>';
+    }
+
+    async function refreshReportAccessHistoryForPin(pinId) {
+      const rows = await fetchReportAccessRows(pinId);
+      const html = buildReportAccessHistoryHtml(rows);
+      document.querySelectorAll('[data-report-access-history="' + String(pinId) + '"]').forEach(el => {
+        el.innerHTML = html;
+      });
+    }
+
+    function loadReportAccessHistoriesForPins(pins) {
+      const ids = Array.from(new Set((pins || []).map(pin => String(pin.id || "")).filter(Boolean)));
+      ids.forEach(id => refreshReportAccessHistoryForPin(id));
+    }
+
+
     function buildMiniReportHtml(pin, options = {}) {
       const pinStatusForActions = getPinStatus(pin);
       const isCleared = pinStatusForActions === "cleared";
@@ -6469,8 +6628,10 @@ function resetPinForm() {
         : '<div class="panel-note" style="margin-top:12px;">Mini map snapshot is not available for this item. Run the consolidated SQL and check that the floor-plan and site-plan image files are beside this HTML file.</div>';
       const closedByValue = getClosedByValue(pin);
       const closedFromValue = getClosedFromValue(pin);
+      const accessHistoryHtml = options.accessHistoryHtml || '<div data-report-access-history="' + escapeHtml(String(pin.id || "")) + '"><div class="report-access-history"><strong>Recipient service order view history</strong><div class="panel-note" style="padding:6px 0 0;">Loading access history...</div></div></div>';
       const reportActionRow = (!options.print && pin.id)
-        ? '<div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;">' +
+        ? '<div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;">' +
+            '<button class="action-btn" onclick="acknowledgeReport(' + pin.id + ')">View Service Order</button>' +
             (pinStatusForActions === "active" ? '<button class="action-btn clear-btn" onclick="clearPinFromReport(' + pin.id + ')">Clear Pin</button>' : '') +
             '<button class="action-btn secondary" onclick="openEditPinModalFromReport(' + pin.id + ')">' + (pinStatusForActions === "cleared" ? 'Admin Edit Cleared Pin' : 'Edit / Reassign / Relocate Pin') + '</button>' +
           '</div>'
@@ -6497,6 +6658,7 @@ function resetPinForm() {
           mapSnapshotHtml +
           (reportedPhotos ? '<div style="margin-top:12px;">' + reportedPhotos + '</div>' : '') +
           (clearPhotos ? '<div style="margin-top:12px;">' + clearPhotos + '</div>' : '') +
+          '<div style="margin-top:12px;">' + accessHistoryHtml + '</div>' +
           reportActionRow +
         '</div>'
       );
@@ -6530,6 +6692,8 @@ function resetPinForm() {
         return;
       }
       currentReportPinId = pin.id;
+      const directReportId = new URLSearchParams(window.location.search).get("report");
+      if (String(directReportId || "") === String(pin.id)) recordReportViewIfNeeded(pin.id);
       if (getPinStatus(pin) !== "active" && itemReportBody) {
         const statusWord = getClosedStatusWord(pin) || formatPinStatus(pin);
         const statusLower = statusWord.toLowerCase();
@@ -6540,6 +6704,7 @@ function resetPinForm() {
         itemReportBody.innerHTML = '<div class="panel-note" style="background:#fff3cd; border:1px solid #ffe08a; border-radius:8px; padding:10px;"><strong>This report is already ' + escapeHtml(statusLower) + '.</strong><br>This item may have been removed from the active map or ' + escapeHtml(statusLower) + byText + '. It will remain available in the ' + logName + '.' + timeText + '</div>' + buildMiniReportHtml(pin);
         itemReportModal.classList.add("open");
         modalBackdrop.classList.add("open");
+        refreshReportAccessHistoryForPin(pin.id);
         return;
       }
       if (!pin.map_snapshot_url) {
@@ -6549,6 +6714,7 @@ function resetPinForm() {
       itemReportBody.innerHTML = buildMiniReportHtml(pin);
       itemReportModal.classList.add("open");
       modalBackdrop.classList.add("open");
+      refreshReportAccessHistoryForPin(pin.id);
     }
 
     function closeItemReportModal() {
@@ -6636,7 +6802,9 @@ function resetPinForm() {
         return;
       }
       if (!pin.map_snapshot_url) await ensureMapSnapshotForPin(pin);
-      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Item Report ${escapeHtml(String(pin.id || ""))}</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#1f2933;font-size:13px}.mini-report-card{border:1px solid #d9e0e6;border-radius:10px;padding:14px;line-height:1.45;font-size:13px}.mini-report-card h2{font-size:17px;line-height:1.25}.mini-report-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;font-size:13px}.mini-report-detail{margin-top:10px;white-space:pre-wrap}.report-map-photo,.log-photo,.print-report-photo{display:block;margin:8px 0;max-width:460px;max-height:330px;object-fit:contain;border:1px solid #d9e0e6;border-radius:8px;background:#f8fafc}.photo-gallery{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start}.photo-gallery img{width:460px;max-width:100%;height:auto;max-height:330px;object-fit:contain;border:1px solid #d9e0e6;border-radius:8px;background:#f8fafc}.photo-section-title{display:block;font-weight:bold;margin-top:10px;font-size:13px}@media print{button{display:none}}</style></head><body><h1>Item Report</h1>${buildMiniReportHtml(pin, { print: true })}</body></html>`;
+      const accessRows = await fetchReportAccessRows(pin.id, 20);
+      const accessHistoryHtml = buildReportAccessHistoryHtml(accessRows);
+      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Item Report ${escapeHtml(String(pin.id || ""))}</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#1f2933;font-size:13px}.mini-report-card{border:1px solid #d9e0e6;border-radius:10px;padding:14px;line-height:1.45;font-size:13px}.mini-report-card h2{font-size:17px;line-height:1.25}.mini-report-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;font-size:13px}.mini-report-detail{margin-top:10px;white-space:pre-wrap}.report-map-photo,.log-photo,.print-report-photo{display:block;margin:8px 0;max-width:460px;max-height:330px;object-fit:contain;border:1px solid #d9e0e6;border-radius:8px;background:#f8fafc}.photo-gallery{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start}.photo-gallery img{width:460px;max-width:100%;height:auto;max-height:330px;object-fit:contain;border:1px solid #d9e0e6;border-radius:8px;background:#f8fafc}.photo-section-title{display:block;font-weight:bold;margin-top:10px;font-size:13px}.report-access-history{border:1px solid #d9e0e6;border-radius:8px;padding:10px;margin-top:12px;background:#f8fbfe}.report-access-row{border-top:1px solid #e6edf3;padding-top:6px;margin-top:6px}@media print{button{display:none}}</style></head><body><h1>Item Report</h1>${buildMiniReportHtml(pin, { print: true, accessHistoryHtml })}</body></html>`;
       const win = window.open("", "_blank");
       if (!win) {
         alert("Popup blocked. Please allow popups to print the report.");
@@ -6689,7 +6857,8 @@ function resetPinForm() {
       const reportedBy = pin.reported_by || "Not specified";
       const descriptionLine = pin.description ? `Details: ${pin.description}\n` : "";
       const customLine = customMessage && customMessage.trim() ? `Note: ${customMessage.trim()}\n` : "";
-      const reportLink = pin && pin.id ? buildAppUrl({ report: pin.id }) : APP_LINK;
+      const recipientLabel = categoryLabel + " text recipients";
+      const reportLink = pin && pin.id ? buildReportLink(pin, { recipient: recipientLabel, source: "text" }) : APP_LINK;
       return `New ${categoryLabel} Request\n\nReported by: ${reportedBy}\nMap: ${mapName}\nIssue: ${pin.title}\n${descriptionLine}${customLine}Click to see report:\n${reportLink}`;
     }
 function getCustomSmsRecipients(enabledEl, inputEl) {
@@ -7416,6 +7585,7 @@ ${rows.map(pin => `
     window.openCurrentReportOnMap = openCurrentReportOnMap;
     window.printItemReport = printItemReport;
     window.printPinReportById = printPinReportById;
+    window.acknowledgeReport = acknowledgeReport;
     window.printPinPopupReport = printPinPopupReport;
     window.focusPinOnMap = focusPinOnMap;
     window.submitClearPinForm = submitClearPinForm;
