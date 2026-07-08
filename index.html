@@ -28,6 +28,31 @@
       width: 100vw;
     }
 
+
+    /* View-only report mode: used for SMS report links that should not allow clear/edit/admin actions. */
+    body.view-only-report-mode .floating-ui,
+    body.view-only-report-mode .panel,
+    body.view-only-report-mode #departmentViewModal,
+    body.view-only-report-mode #departmentViewBackdrop {
+      display: none !important;
+    }
+
+    body.view-only-report-mode #map,
+    body.view-only-report-mode #floorPlanView {
+      pointer-events: none;
+    }
+
+    .view-only-report-note {
+      background: #eef7ff;
+      border: 1px solid #b7d7ef;
+      border-radius: 8px;
+      padding: 9px 10px;
+      color: #243447;
+      font-size: 12px;
+      line-height: 1.4;
+      margin-bottom: 10px;
+    }
+
     .leaflet-popup-content {
       font-size: 14px;
       line-height: 1.4;
@@ -2132,6 +2157,10 @@
       <label style="display:flex; align-items:center; gap:8px; font-weight:normal;">
         <input type="checkbox" id="pinNotifySmsNowInput" style="width:auto; margin:0;" checked> Open/copy text message after saving this pin
       </label>
+      <label style="display:flex; align-items:flex-start; gap:8px; font-weight:normal; line-height:1.35;">
+        <input type="checkbox" id="pinViewOnlyReportLinkInput" style="width:auto; margin:2px 0 0 0;" checked>
+        <span>Text as view-only report link <small style="display:block; color:#607084;">Recipient can see status/photos/details only. They will not see Clear/Edit buttons or other app controls from the report link.</small></span>
+      </label>
       <details class="pin-instructions" id="pinInstructionsDetails">
         <summary>Instructions / tips</summary>
         <div class="pin-instructions-body">
@@ -2413,6 +2442,7 @@
     const pinReportedByInput = document.getElementById("pinReportedByInput");
     const pinPhotoFileInput = document.getElementById("pinPhotoFileInput");
     const pinNotifySmsNowInput = document.getElementById("pinNotifySmsNowInput");
+    const pinViewOnlyReportLinkInput = document.getElementById("pinViewOnlyReportLinkInput");
     const pinCustomSmsEnabled = document.getElementById("pinCustomSmsEnabled");
     const pinCustomSmsInput = document.getElementById("pinCustomSmsInput");
     const pinPhotoPreview = document.getElementById("pinPhotoPreview");
@@ -2576,6 +2606,20 @@
         if (value !== undefined && value !== null && value !== "") url.searchParams.set(key, value);
       });
       return url.toString();
+    }
+
+    function isViewOnlyReportMode() {
+      const params = new URLSearchParams(window.location.search);
+      return params.get("view") === "1" || params.get("viewOnly") === "1" || params.get("reportOnly") === "1";
+    }
+
+    function applyViewOnlyReportMode() {
+      if (!isViewOnlyReportMode()) return;
+      document.body.classList.add("view-only-report-mode");
+      if (floatingUi) floatingUi.style.display = "none";
+      closeDepartmentViewPrompt();
+      closeAllMapPopups();
+      setStatus("View-only report link opened.");
     }
 
     function getDepartmentViewName(value) {
@@ -5614,6 +5658,7 @@ function resetPinForm() {
   if (pinCustomSmsEnabled) pinCustomSmsEnabled.checked = false;
   if (pinCustomSmsInput) pinCustomSmsInput.value = "";
   pinNotifySmsNowInput.checked = shouldDefaultSmsOpen();
+  if (pinViewOnlyReportLinkInput) pinViewOnlyReportLinkInput.checked = true;
   if (previewObjectUrl) {
     previewObjectUrl.forEach(url => URL.revokeObjectURL(url));
     previewObjectUrl = null;
@@ -6038,14 +6083,22 @@ function resetPinForm() {
         ? '<div style="margin-top:12px;"><span class="photo-section-title">Mini map / pin location</span><img class="log-photo" style="max-width:420px; max-height:300px; object-fit:contain;" src="' + escapeHtml(pin.map_snapshot_url) + '" alt="Mini map location" onerror="this.style.display=\'none\'"></div>'
         : '<div class="panel-note" style="margin-top:12px;">Mini map snapshot is not available for this item. Run the consolidated SQL and check that the floor-plan and site-plan image files are beside this HTML file.</div>';
       const pinStatusForActions = getPinStatus(pin);
-      const reportActionRow = (!options.print && pin.id)
+      const isViewOnly = !!options.viewOnly || isViewOnlyReportMode();
+      const reportActionRow = (!options.print && !isViewOnly && pin.id)
         ? '<div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;">' +
             (pinStatusForActions === "active" ? '<button class="action-btn clear-btn" onclick="clearPinFromReport(' + pin.id + ')">Clear Pin</button>' : '') +
             '<button class="action-btn secondary" onclick="openEditPinModalFromReport(' + pin.id + ')">' + (pinStatusForActions === "cleared" ? 'Admin Edit Cleared Pin' : 'Edit / Reassign / Relocate Pin') + '</button>' +
           '</div>'
         : '';
+      const viewOnlyNote = (!options.print && isViewOnly)
+        ? '<div class="view-only-report-note"><strong>View-only report.</strong><br>This link is for viewing the report status and details only. Clear/edit/admin controls are not available from this link.</div>'
+        : '';
+      const mapLinkHtml = (!isViewOnly && !options.print)
+        ? '<div style="margin-top:10px;"><strong>Map link:</strong><br><a href="' + escapeHtml(buildAppUrl({ pin: pin.id })) + '" target="_blank" rel="noopener">Open this item on the map</a></div>'
+        : '';
       return (
         '<div class="mini-report-card">' +
+          viewOnlyNote +
           '<h2 style="margin:0 0 10px;">' + escapeHtml(pin.title || "Item Report") + '</h2>' +
           '<div class="mini-report-grid">' +
             '<div><strong>Status:</strong> ' + escapeHtml(status) + '</div>' +
@@ -6060,7 +6113,7 @@ function resetPinForm() {
             '<div><strong>Item ID:</strong> ' + escapeHtml(String(pin.id || "")) + '</div>' +
           '</div>' +
           (pin.description ? '<div class="mini-report-detail"><strong>Location and service details:</strong><br>' + escapeHtml(pin.description) + '</div>' : '') +
-          '<div style="margin-top:10px;"><strong>Map link:</strong><br><a href="' + escapeHtml(buildAppUrl({ pin: pin.id })) + '" target="_blank" rel="noopener">Open this item on the map</a></div>' +
+          mapLinkHtml +
           mapSnapshotHtml +
           (reportedPhotos ? '<div style="margin-top:12px;">' + reportedPhotos + '</div>' : '') +
           (clearPhotos ? '<div style="margin-top:12px;">' + clearPhotos + '</div>' : '') +
@@ -6069,7 +6122,9 @@ function resetPinForm() {
       );
     }
 
-    async function openItemReportModal(pinId) {
+    async function openItemReportModal(pinId, options = {}) {
+      const reportViewOnly = !!options.viewOnly || isViewOnlyReportMode();
+      if (reportViewOnly) applyViewOnlyReportMode();
       let pin = getPinById(pinId);
 
       if (!pin && supabaseClient && pinId) {
@@ -6100,7 +6155,7 @@ function resetPinForm() {
       if (getPinStatus(pin) !== "active" && itemReportBody) {
         const clearedByText = pin.cleared_by ? ' by ' + escapeHtml(pin.cleared_by) : ' by the department';
         const clearedTimeText = pin.cleared_at ? '<br><small>Cleared: ' + escapeHtml(formatDateTime(pin.cleared_at)) + '</small>' : '';
-        itemReportBody.innerHTML = '<div class="panel-note" style="background:#fff3cd; border:1px solid #ffe08a; border-radius:8px; padding:10px;"><strong>This report is already cleared.</strong><br>This item may have been deleted from the active map or cleared' + clearedByText + '. It will remain available in the Cleared History Log / All Pin Logs.' + clearedTimeText + '</div>' + buildMiniReportHtml(pin);
+        itemReportBody.innerHTML = '<div class="panel-note" style="background:#fff3cd; border:1px solid #ffe08a; border-radius:8px; padding:10px;"><strong>This report is already cleared.</strong><br>This item may have been deleted from the active map or cleared' + clearedByText + '.' + clearedTimeText + '</div>' + buildMiniReportHtml(pin, { viewOnly: reportViewOnly });
         itemReportModal.classList.add("open");
         modalBackdrop.classList.add("open");
         return;
@@ -6109,7 +6164,7 @@ function resetPinForm() {
         itemReportBody.innerHTML = '<div class="panel-note">Creating map snapshot for this report...</div>';
         await ensureMapSnapshotForPin(pin);
       }
-      itemReportBody.innerHTML = buildMiniReportHtml(pin);
+      itemReportBody.innerHTML = buildMiniReportHtml(pin, { viewOnly: reportViewOnly });
       itemReportModal.classList.add("open");
       modalBackdrop.classList.add("open");
     }
@@ -6130,6 +6185,10 @@ function resetPinForm() {
     }
 
     function clearPinFromReport(pinId) {
+      if (isViewOnlyReportMode()) {
+        alert("This is a view-only report link. Clear/edit controls are not available from this link.");
+        return;
+      }
       if (clearSubmissionInProgress || activeClearRequests.has(String(pinId))) {
         setStatus("This pin is already being cleared. Please do not tap again.");
         return;
@@ -6147,6 +6206,10 @@ function resetPinForm() {
     }
 
     function openEditPinModalFromReport(pinId) {
+      if (isViewOnlyReportMode()) {
+        alert("This is a view-only report link. Edit controls are not available from this link.");
+        return;
+      }
       closeItemReportBeforeAction();
       closeAllMapPopups();
       setTimeout(function() { openEditPinModal(pinId); }, 0);
@@ -6214,13 +6277,15 @@ function resetPinForm() {
       const params = new URLSearchParams(window.location.search);
       const reportId = params.get("report");
       const pinId = params.get("pin");
+      const reportViewOnly = isViewOnlyReportMode();
       if (!reportId && !pinId) return;
       initialUrlActionHandled = true;
+      if (reportViewOnly && reportId) applyViewOnlyReportMode();
       closeDepartmentViewPrompt();
       if (categoryFilter && categoryFilter.value === "") categoryFilter.value = "all";
       setTimeout(async () => {
-        if (reportId) await openItemReportModal(reportId);
-        else if (pinId) focusPinOnMap(pinId);
+        if (reportId) await openItemReportModal(reportId, { viewOnly: reportViewOnly });
+        else if (pinId && !reportViewOnly) focusPinOnMap(pinId);
       }, 250);
     }
 
@@ -6235,13 +6300,15 @@ function resetPinForm() {
       return (value || "").replace(/[^\d+]/g, "");
     }
 
-    function buildNotificationMessage(pin) {
+    function buildNotificationMessage(pin, options = {}) {
       const categoryLabel = formatDepartmentLabel(pin.category);
       const mapName = getMapView(getPinMapId(pin)).name;
       const reportedBy = pin.reported_by || "Not specified";
       const descriptionLine = pin.description ? `Details: ${pin.description}\n` : "";
-      const reportLink = pin && pin.id ? buildAppUrl({ report: pin.id }) : APP_LINK;
-      return `New ${categoryLabel} Request\n\nReported by: ${reportedBy}\nMap: ${mapName}\nIssue: ${pin.title}\n${descriptionLine}Click to see report:\n${reportLink}`;
+      const viewOnlyLink = !!options.viewOnly;
+      const reportLink = pin && pin.id ? buildAppUrl(viewOnlyLink ? { report: pin.id, view: 1 } : { report: pin.id }) : APP_LINK;
+      const accessLine = viewOnlyLink ? "Report access: view-only\n" : "";
+      return `New ${categoryLabel} Request\n\nReported by: ${reportedBy}\nMap: ${mapName}\nIssue: ${pin.title}\n${descriptionLine}${accessLine}Click to see report:\n${reportLink}`;
     }
 function getCustomSmsRecipients(enabledEl, inputEl) {
   if (!enabledEl || !enabledEl.checked || !inputEl) return [];
@@ -6349,7 +6416,7 @@ function triggerSmsNotification(pin) {
     return;
   }
 
-  const message = buildNotificationMessage(pin);
+  const message = buildNotificationMessage(pin, { viewOnly: !!(pinViewOnlyReportLinkInput && pinViewOnlyReportLinkInput.checked) });
   const categoryLabel = formatDepartmentLabel(pin.category);
 
   if (!isLikelyMobileSmsDevice()) {
@@ -6726,6 +6793,7 @@ ${rows.map(pin => `
     }
 
     map.on("click", function(e) {
+      if (isViewOnlyReportMode()) return;
       if (pendingMovePinId) {
         movePinToGpsLocation(e.latlng);
         return;
@@ -6747,6 +6815,7 @@ ${rows.map(pin => `
     });
 
     floorPlanStage.addEventListener("click", function(event) {
+      if (isViewOnlyReportMode()) return;
       if (floorTouchPanMoved) return;
       if (event.target.closest(".floor-pin") || event.target.closest(".floor-popup")) return;
       if (pendingMovePinId) {
