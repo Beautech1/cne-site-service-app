@@ -1105,6 +1105,72 @@
       box-shadow: 0 1px 4px rgba(0,0,0,0.05);
     }
 
+
+
+    .text-options-compact {
+      display: grid;
+      gap: 6px;
+      margin: 4px 0 2px;
+      border: 1px solid #d7e0ea;
+      border-radius: 9px;
+      background: #f8fbfe;
+      padding: 7px 8px;
+    }
+
+    .text-options-compact-title {
+      font-size: 11px;
+      font-weight: 800;
+      color: #243447;
+      line-height: 1.2;
+    }
+
+    .text-options-compact .custom-sms-row {
+      border-top: 0;
+      padding: 0;
+      background: transparent;
+      gap: 5px 7px;
+    }
+
+    .text-options-compact .custom-sms-enable-row {
+      padding: 5px 6px;
+      margin: 0;
+    }
+
+    .text-options-compact .custom-sms-help {
+      font-size: 9px;
+      margin-top: -1px;
+    }
+
+    .pin-popup-actions {
+      margin-top: 10px;
+      border-top: 1px solid #e6edf3;
+      padding-top: 8px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .pin-popup-actions-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .pin-popup-actions-row .action-btn {
+      flex: 1 1 125px;
+      justify-content: center;
+    }
+
+    #clearModal .modal-actions {
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    #clearModal .modal-actions .action-btn {
+      min-width: 120px;
+      justify-content: center;
+    }
+
     .desktop-text-tool-row {
       display: flex !important;
       align-items: center;
@@ -1132,12 +1198,9 @@
       box-sizing: border-box;
     }
 
-    @media (max-width: 900px), (pointer: coarse) {
+    @media (max-width: 640px) {
       .desktop-text-tool-row {
         display: none !important;
-      }
-      .text-options-details > summary::after {
-        content: "+";
       }
       .sms-groups-visible-card {
         margin-top: 2px;
@@ -2313,24 +2376,20 @@
         </div>
         <div id="smsGroupCheckboxes" class="sms-group-list"></div>
       </div>
-      <details class="text-options-details" id="pinTextOptionsDetails">
-        <summary>Text Options</summary>
-        <div class="text-options-body">
-          <div class="custom-sms-row">
-            <label class="custom-sms-enable-row" for="pinCustomSmsEnabled">
-              <input type="checkbox" id="pinCustomSmsEnabled" aria-label="Use custom text number">
-              <span>Use custom text number</span>
-            </label>
-            <input type="tel" id="pinCustomSmsInput" placeholder="Custom text number">
-            <div class="custom-sms-label">Custom message / note for the text</div>
-            <textarea id="pinCustomSmsMessageInput" placeholder="Optional. Add extra instructions that will appear in the text message only."></textarea>
-            <div class="custom-sms-help">Mobile: use this when you need to text a custom number. Laptop/PC: use the copy/paste option below.</div>
-          </div>
-          <label class="desktop-text-tool-row">
-            <input type="checkbox" id="pinNotifySmsNowInput"> Show copy/paste text message after saving this pin
+      <div class="text-options-compact" id="pinTextOptionsBox">
+        <div class="text-options-compact-title">Text Options</div>
+        <div class="custom-sms-row">
+          <label class="custom-sms-enable-row" for="pinCustomSmsEnabled">
+            <input type="checkbox" id="pinCustomSmsEnabled" aria-label="Use custom text number">
+            <span>Use custom text number</span>
           </label>
+          <input type="tel" id="pinCustomSmsInput" placeholder="Custom text number">
+          <div class="custom-sms-help">Mobile: add a custom number if needed. Laptop/PC: use the copy/paste option below.</div>
         </div>
-      </details>
+        <label class="desktop-text-tool-row">
+          <input type="checkbox" id="pinNotifySmsNowInput"> Show copy/paste text message after saving this pin
+        </label>
+      </div>
       <label>Photo / file upload
         <input type="file" id="pinPhotoFileInput" accept="image/*" multiple>
         <small style="color:#607084; font-weight:normal; line-height:1.25;">Phone camera: take one photo, then choose again to add another. Laptop: select multiple photos at once.</small>
@@ -2399,25 +2458,21 @@
           </div>
           <div id="editSmsGroupCheckboxes" class="sms-group-list"></div>
         </div>
-        <details class="text-options-details" id="editTextOptionsDetails">
-          <summary>Text Options</summary>
-          <div class="text-options-body">
-            <div class="custom-sms-row">
-              <label class="custom-sms-enable-row" for="editCustomSmsEnabled">
-                <input type="checkbox" id="editCustomSmsEnabled" aria-label="Use custom text number">
-                <span>Use custom text number</span>
-              </label>
-              <input type="tel" id="editCustomSmsInput" placeholder="Custom text number">
-              <div class="custom-sms-label">Custom message / note for the text</div>
-              <textarea id="editCustomSmsMessageInput" placeholder="Optional. Add extra instructions that will appear in the update/reassignment text only."></textarea>
-              <div class="custom-sms-help">Mobile: use this when you need to text a custom number. Laptop/PC: use the copy/paste option below.</div>
-            </div>
-            <label class="desktop-text-tool-row">
-              <input type="checkbox" id="editNotifySmsNowInput"> Show copy/paste text message after saving this update/reassignment
+        <div class="text-options-compact" id="editTextOptionsBox">
+          <div class="text-options-compact-title">Text Options</div>
+          <div class="custom-sms-row">
+            <label class="custom-sms-enable-row" for="editCustomSmsEnabled">
+              <input type="checkbox" id="editCustomSmsEnabled" aria-label="Use custom text number">
+              <span>Use custom text number</span>
             </label>
-            <button class="action-btn secondary desktop-text-tool-row desktop-copy-button" type="button" onclick="openCopyTextForEditPin()">Open/Copy Text Message Now</button>
+            <input type="tel" id="editCustomSmsInput" placeholder="Custom text number">
+            <div class="custom-sms-help">Mobile: add a custom number if needed. Laptop/PC: use the copy/paste option below.</div>
           </div>
-        </details>
+          <label class="desktop-text-tool-row">
+            <input type="checkbox" id="editNotifySmsNowInput"> Show copy/paste text message after saving this update/reassignment
+          </label>
+          <button class="action-btn secondary desktop-text-tool-row desktop-copy-button" type="button" onclick="openCopyTextForEditPin()">Open/Copy Text Message Now</button>
+        </div>
       </div>
       <label>Location and service details
         <textarea id="editPinDescriptionInput" placeholder="Example: west washroom, beside sink. Add any issue details here."></textarea>
@@ -6612,9 +6667,9 @@ function getSelectedEditSmsRecipientsForDepartment(category) {
 }
 
 function shouldDefaultSmsOpen() {
-  // Texting is optional. Keep it unchecked by default; if checked on a laptop/PC,
-  // the app shows the copy/paste text message popup instead of trying to open SMS.
-  return false;
+  // On laptop/PC, keep the copy/paste text message option checked by default.
+  // On mobile/tablet, keep it unchecked/hidden so the app can use the normal SMS draft flow.
+  return !isLikelyMobileSmsDevice();
 }
 
 function isLikelyMobileSmsDevice() {
@@ -6650,7 +6705,7 @@ function openCopyTextForEditPin() {
 
   const smsRecipients = getSelectedEditSmsRecipientsForDepartment(pin.category);
   const categoryLabel = formatDepartmentLabel(pin.category);
-  const customMessage = editCustomSmsMessageInput ? editCustomSmsMessageInput.value.trim() : "";
+  const customMessage = "";
   const message = buildNotificationMessage(pin, customMessage);
 
   if (!smsRecipients.length) {
@@ -6676,7 +6731,7 @@ function triggerEditSmsNotification(pin) {
   }
 
   const smsRecipients = getSelectedEditSmsRecipientsForDepartment(pin.category);
-  const customMessage = editCustomSmsMessageInput ? editCustomSmsMessageInput.value.trim() : "";
+  const customMessage = "";
   const message = buildNotificationMessage(pin, customMessage);
   const categoryLabel = formatDepartmentLabel(pin.category);
   const isMobileSms = isLikelyMobileSmsDevice();
@@ -6768,7 +6823,7 @@ function openSmsDraft(recipients, message) {
 
 function triggerSmsNotification(pin) {
   const smsRecipients = getSelectedSmsRecipientsForDepartment(pin.category);
-  const customMessage = pinCustomSmsMessageInput ? pinCustomSmsMessageInput.value.trim() : "";
+  const customMessage = "";
   const message = buildNotificationMessage(pin, customMessage);
   const categoryLabel = formatDepartmentLabel(pin.category);
   const isMobileSms = isLikelyMobileSmsDevice();
