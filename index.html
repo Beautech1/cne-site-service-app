@@ -1095,6 +1095,56 @@
     }
 
 
+    .sms-groups-visible-card {
+      display: block;
+      border: 1px solid #d7e0ea;
+      border-radius: 9px;
+      background: #ffffff;
+      padding: 8px 9px 9px;
+      margin: 4px 0 2px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+    }
+
+    .desktop-text-tool-row {
+      display: flex !important;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px !important;
+      font-weight: normal !important;
+      color: #243447;
+      background: #f8fbfe;
+      border: 1px solid #d7e0ea;
+      border-radius: 8px;
+      padding: 7px 8px;
+    }
+
+    .desktop-text-tool-row input[type="checkbox"] {
+      width: 16px !important;
+      height: 16px !important;
+      margin: 0 !important;
+      accent-color: #005a9c;
+      flex: 0 0 auto;
+    }
+
+    .desktop-copy-button {
+      justify-content: center;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    @media (max-width: 900px), (pointer: coarse) {
+      .desktop-text-tool-row {
+        display: none !important;
+      }
+      .text-options-details > summary::after {
+        content: "+";
+      }
+      .sms-groups-visible-card {
+        margin-top: 2px;
+      }
+    }
+
+
     @media (max-width: 640px) {
       .mini-report-grid {
         grid-template-columns: 1fr;
@@ -2254,16 +2304,18 @@
       <label>Location and service details <span style="color:#b71c1c;">*</span>
         <textarea id="pinDescriptionInput" placeholder="Required. Example: west washroom, beside sink. Add any issue details here." required></textarea>
       </label>
-      <details class="text-options-details" id="pinTextOptionsDetails">
-        <summary>Text Options — custom number / open-copy text</summary>
-        <div class="text-options-body">
-          <div class="sms-group-card-header">
-            <div>
-              <div class="sms-group-card-title">Text selected groups to be text messaged</div>
-              <div class="sms-group-card-subtitle">Leave unchecked if you only want to save the pin.</div>
-            </div>
+      <div class="sms-groups-visible-card" id="pinSmsGroupsVisible">
+        <div class="sms-group-card-header">
+          <div>
+            <div class="sms-group-card-title">Text group to notify</div>
+            <div class="sms-group-card-subtitle">These groups are always shown. Uncheck a group if you do not want to text it.</div>
           </div>
-          <div id="smsGroupCheckboxes" class="sms-group-list"></div>
+        </div>
+        <div id="smsGroupCheckboxes" class="sms-group-list"></div>
+      </div>
+      <details class="text-options-details" id="pinTextOptionsDetails">
+        <summary>Text Options</summary>
+        <div class="text-options-body">
           <div class="custom-sms-row">
             <label class="custom-sms-enable-row" for="pinCustomSmsEnabled">
               <input type="checkbox" id="pinCustomSmsEnabled" aria-label="Use custom text number">
@@ -2272,10 +2324,10 @@
             <input type="tel" id="pinCustomSmsInput" placeholder="Custom text number">
             <div class="custom-sms-label">Custom message / note for the text</div>
             <textarea id="pinCustomSmsMessageInput" placeholder="Optional. Add extra instructions that will appear in the text message only."></textarea>
-            <div class="custom-sms-help">Use only when needed. Uncheck group(s) to send only to custom number. Use commas for multiple numbers. The custom message is added to the text message only.</div>
+            <div class="custom-sms-help">Mobile: use this when you need to text a custom number. Laptop/PC: use the copy/paste option below.</div>
           </div>
-          <label style="display:flex; align-items:center; gap:8px; font-weight:normal;">
-            <input type="checkbox" id="pinNotifySmsNowInput" style="width:auto; margin:0;"> Open/copy text message after saving this pin
+          <label class="desktop-text-tool-row">
+            <input type="checkbox" id="pinNotifySmsNowInput"> Show copy/paste text message after saving this pin
           </label>
         </div>
       </details>
@@ -2338,16 +2390,18 @@
         <select id="editPinTitleInput"></select>
       </label>
       <div id="editSmsSection" class="edit-sms-section">
-        <details class="text-options-details" id="editTextOptionsDetails">
-          <summary>Text Options — custom number / open-copy text</summary>
-          <div class="text-options-body">
-            <div class="sms-group-card-header">
-              <div>
-                <div class="sms-group-card-title">Text selected groups to be text messaged</div>
-                <div class="sms-group-card-subtitle">Leave unchecked if you only want to save the edit/reassignment.</div>
-              </div>
+        <div class="sms-groups-visible-card" id="editSmsGroupsVisible">
+          <div class="sms-group-card-header">
+            <div>
+              <div class="sms-group-card-title">Text group to notify</div>
+              <div class="sms-group-card-subtitle">These groups are always shown. Uncheck a group if you do not want to text it.</div>
             </div>
-            <div id="editSmsGroupCheckboxes" class="sms-group-list"></div>
+          </div>
+          <div id="editSmsGroupCheckboxes" class="sms-group-list"></div>
+        </div>
+        <details class="text-options-details" id="editTextOptionsDetails">
+          <summary>Text Options</summary>
+          <div class="text-options-body">
             <div class="custom-sms-row">
               <label class="custom-sms-enable-row" for="editCustomSmsEnabled">
                 <input type="checkbox" id="editCustomSmsEnabled" aria-label="Use custom text number">
@@ -2356,12 +2410,12 @@
               <input type="tel" id="editCustomSmsInput" placeholder="Custom text number">
               <div class="custom-sms-label">Custom message / note for the text</div>
               <textarea id="editCustomSmsMessageInput" placeholder="Optional. Add extra instructions that will appear in the update/reassignment text only."></textarea>
-              <div class="custom-sms-help">Use only when needed. Uncheck group(s) to send only to custom number. Use commas for multiple numbers. The custom message is added to the text message only.</div>
+              <div class="custom-sms-help">Mobile: use this when you need to text a custom number. Laptop/PC: use the copy/paste option below.</div>
             </div>
-            <label style="display:flex; align-items:center; gap:8px; font-weight:normal;">
-              <input type="checkbox" id="editNotifySmsNowInput" style="width:auto; margin:0;"> Open/copy text message after saving this update/reassignment
+            <label class="desktop-text-tool-row">
+              <input type="checkbox" id="editNotifySmsNowInput"> Show copy/paste text message after saving this update/reassignment
             </label>
-            <button class="action-btn secondary" type="button" onclick="openCopyTextForEditPin()">Open/Copy Text Message Now</button>
+            <button class="action-btn secondary desktop-text-tool-row desktop-copy-button" type="button" onclick="openCopyTextForEditPin()">Open/Copy Text Message Now</button>
           </div>
         </details>
       </div>
@@ -5878,7 +5932,7 @@ function resetPinForm() {
   if (pinCustomSmsMessageInput) pinCustomSmsMessageInput.value = "";
   const pinTextOptionsDetails = document.getElementById("pinTextOptionsDetails");
   if (pinTextOptionsDetails) pinTextOptionsDetails.open = false;
-  pinNotifySmsNowInput.checked = shouldDefaultSmsOpen();
+  if (pinNotifySmsNowInput) pinNotifySmsNowInput.checked = shouldDefaultSmsOpen();
   if (previewObjectUrl) {
     previewObjectUrl.forEach(url => URL.revokeObjectURL(url));
     previewObjectUrl = null;
@@ -6620,34 +6674,38 @@ function triggerEditSmsNotification(pin) {
     setStatus("Pin updated as cleared. Text message was not opened.");
     return;
   }
-  if (!editNotifySmsNowInput || !editNotifySmsNowInput.checked) {
-    setStatus("Pin updated. Text message was not opened on this device.");
-    return;
-  }
 
   const smsRecipients = getSelectedEditSmsRecipientsForDepartment(pin.category);
-
   const customMessage = editCustomSmsMessageInput ? editCustomSmsMessageInput.value.trim() : "";
   const message = buildNotificationMessage(pin, customMessage);
+  const categoryLabel = formatDepartmentLabel(pin.category);
+  const isMobileSms = isLikelyMobileSmsDevice();
 
-  if (!smsRecipients.length) {
-    showSmsFallbackModal([], message, "Pin updated. No text recipients or custom numbers are selected. Copy the message below if you want to send it manually.");
-    setStatus("Pin updated. Copy/paste text message shown with no recipients selected.");
+  // Mobile/tablet: selected text groups are always visible, so open the SMS draft automatically.
+  // Laptop/PC: only show the copy/paste popup when the desktop option is checked.
+  if (!isMobileSms && (!editNotifySmsNowInput || !editNotifySmsNowInput.checked)) {
+    setStatus("Pin updated. Copy/paste text message was not opened.");
     return;
   }
-  const categoryLabel = formatDepartmentLabel(pin.category);
 
-  if (!isLikelyMobileSmsDevice()) {
+  if (!smsRecipients.length) {
+    if (!isMobileSms) {
+      showSmsFallbackModal([], message, "Pin updated. No text recipients or custom numbers are selected. Copy the message below if you want to send it manually.");
+      setStatus("Pin updated. Copy/paste text message shown with no recipients selected.");
+    } else {
+      setStatus("Pin updated. No text recipients or custom numbers are selected.");
+    }
+    return;
+  }
+
+  if (!isMobileSms) {
     showSmsFallbackModal(smsRecipients, message, `Pin updated. Copy the message below and send it manually to the selected ${categoryLabel} group(s).`);
-    setStatus("Pin updated. Copy text message shown because this device may not support SMS.");
+    setStatus("Pin updated. Copy/paste text message shown for laptop/PC.");
     return;
   }
 
   const opened = openSmsDraft(smsRecipients, message);
-
-  if (opened) {
-    setStatus(`Pin updated. Text draft opened for selected ${categoryLabel} group(s).`);
-  }
+  if (opened) setStatus(`Pin updated. Text draft opened for selected ${categoryLabel} group(s).`);
 }
 
 function getAllSmsRecipientsForDepartment(category) {
@@ -6709,34 +6767,37 @@ function openSmsDraft(recipients, message) {
 }
 
 function triggerSmsNotification(pin) {
-  if (!pinNotifySmsNowInput || !pinNotifySmsNowInput.checked) {
-    setStatus("Pin saved. Text message was not opened on this device.");
-    return;
-  }
-
   const smsRecipients = getSelectedSmsRecipientsForDepartment(pin.category);
-
   const customMessage = pinCustomSmsMessageInput ? pinCustomSmsMessageInput.value.trim() : "";
   const message = buildNotificationMessage(pin, customMessage);
+  const categoryLabel = formatDepartmentLabel(pin.category);
+  const isMobileSms = isLikelyMobileSmsDevice();
 
-  if (!smsRecipients.length) {
-    showSmsFallbackModal([], message, "Pin saved. No text recipients or custom numbers are selected. Copy the message below if you want to send it manually.");
-    setStatus("Pin saved. Copy/paste text message shown with no recipients selected.");
+  // Mobile/tablet: selected text groups are always visible, so open the SMS draft automatically.
+  // Laptop/PC: only show the copy/paste popup when the desktop option is checked.
+  if (!isMobileSms && (!pinNotifySmsNowInput || !pinNotifySmsNowInput.checked)) {
+    setStatus("Pin saved. Copy/paste text message was not opened.");
     return;
   }
-  const categoryLabel = formatDepartmentLabel(pin.category);
 
-  if (!isLikelyMobileSmsDevice()) {
+  if (!smsRecipients.length) {
+    if (!isMobileSms) {
+      showSmsFallbackModal([], message, "Pin saved. No text recipients or custom numbers are selected. Copy the message below if you want to send it manually.");
+      setStatus("Pin saved. Copy/paste text message shown with no recipients selected.");
+    } else {
+      setStatus("Pin saved. No text recipients or custom numbers are selected.");
+    }
+    return;
+  }
+
+  if (!isMobileSms) {
     showSmsFallbackModal(smsRecipients, message, `Pin saved. Copy the message below and send it manually to the selected ${categoryLabel} group(s).`);
-    setStatus("Pin saved. Copy text message shown because this device may not support SMS.");
+    setStatus("Pin saved. Copy/paste text message shown for laptop/PC.");
     return;
   }
 
   const opened = openSmsDraft(smsRecipients, message);
-
-  if (opened) {
-    setStatus(`Pin saved. Text draft opened for selected ${categoryLabel} group(s).`);
-  }
+  if (opened) setStatus(`Pin saved. Text draft opened for selected ${categoryLabel} group(s).`);
 }
 
 async function copyTextToClipboard(text) {
