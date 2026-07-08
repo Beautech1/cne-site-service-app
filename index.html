@@ -6736,11 +6736,12 @@ function resetPinForm() {
       const closedFromValue = getClosedFromValue(pin);
       const accessHistoryHtml = options.accessHistoryHtml || '<div data-report-access-history="' + escapeHtml(String(pin.id || "")) + '"><div class="report-access-history"><strong>Recipient service order view history</strong><div class="panel-note" style="padding:6px 0 0;">Checking service order view history...</div></div></div>';
       const reportViewOnly = options.viewOnly || isReportViewOnlyMode();
-      const reportActionRow = (!options.print && pin.id)
-        ? '<div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;">' +
-            '<button class="action-btn" onclick="acknowledgeReport(' + pin.id + ')">View Service Order</button>' +
-            (!reportViewOnly && pinStatusForActions === "active" ? '<button class="action-btn clear-btn" onclick="clearPinFromReport(' + pin.id + ')">Clear Pin</button>' : '') +
-            (!reportViewOnly ? '<button class="action-btn secondary" onclick="openEditPinModalFromReport(' + pin.id + ')">' + (pinStatusForActions === "cleared" ? 'Admin Edit Cleared Pin' : 'Edit / Reassign / Relocate Pin') + '</button>' : '') +
+      // Do not show the View Service Order button inside the report itself.
+      // For text/report links, the separate gate screen records the timestamp before the report is displayed.
+      const reportActionRow = (!options.print && pin.id && !reportViewOnly)
+        ? '<div style="margin-top:12px; display:flex; gap:12px; flex-wrap:wrap; align-items:center; justify-content:flex-start;">' +
+            (pinStatusForActions === "active" ? '<button class="action-btn clear-btn" onclick="clearPinFromReport(' + pin.id + ')">Clear Pin</button>' : '') +
+            '<button class="action-btn secondary" onclick="openEditPinModalFromReport(' + pin.id + ')">' + (pinStatusForActions === "cleared" ? 'Admin Edit Cleared Pin' : 'Edit / Reassign / Relocate Pin') + '</button>' +
           '</div>'
         : '';
       return (
