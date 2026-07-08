@@ -1832,7 +1832,6 @@
           </label>
           <button class="toolbar-btn secondary" onclick="openDepartmentViewPrompt(false); closeMobileUiAfterAction();">Change Department Default View</button>
           <button class="toolbar-btn" onclick="loadPins(true); closeMobileUiAfterAction();">Refresh</button>
-          <button class="toolbar-btn" onclick="openPinModalForPending(); closeMobileUiAfterAction();">Add Pin</button>
           <button class="toolbar-btn secondary" onclick="toggleLogPanel(); closeMobileUiAfterAction();">Cleared History Log</button>
           <button class="toolbar-btn secondary" onclick="toggleLegendPanel(); closeMobileUiAfterAction();">Legend</button>
           <button class="toolbar-btn secondary" onclick="toggleAdminPanel(); closeMobileUiAfterAction();">Admin</button>
@@ -3237,7 +3236,7 @@
         y_percent: yPercent
       };
       showPendingFloorDot(xPercent, yPercent);
-      autoZoomOutFloorPlanForPopup(xPercent, yPercent, openPinModalForPending);
+      autoZoomOutFloorPlanForPopup(xPercent, yPercent, openPinModalAfterTargetVisible);
     }
 
     function showPendingFloorDot(xPercent, yPercent) {
@@ -6718,6 +6717,14 @@ ${rows.map(pin => `
         });
     }
 
+    function openPinModalAfterTargetVisible() {
+      // Give phones/tablets a brief moment to paint the red selected-location target
+      // before the Add Pin popup opens over the map. This makes the tap location obvious.
+      requestAnimationFrame(() => {
+        setTimeout(openPinModalForPending, 180);
+      });
+    }
+
     map.on("click", function(e) {
       if (pendingMovePinId) {
         movePinToGpsLocation(e.latlng);
@@ -6732,7 +6739,7 @@ ${rows.map(pin => `
         y_percent: null
       };
       showPendingOutdoorDot(e.latlng);
-      openPinModalForPending();
+      openPinModalAfterTargetVisible();
     });
 
     map.on("contextmenu", function(e) {
