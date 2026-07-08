@@ -2617,6 +2617,7 @@
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const SIGN_IN_ACCESS_TABLE = "app_sign_in_access";
+    const DEVICE_SIGNOUT_TABLE = "app_device_signout_requests";
     const APP_LINK = window.location.href.split("#")[0].split("?")[0];
 
     const DEPARTMENT_STORAGE_KEY = "cne_map_departments_v1";
@@ -3329,6 +3330,9 @@
         const allowed = Array.isArray(row.allowed_departments) && row.allowed_departments.length ? '<br><small><b>Allowed:</b> ' + escapeHtml(row.allowed_departments.join(", ")) + '</small>' : '';
         const enteredDept = row.device_label || "";
         const device = row.user_name || row.device_id || "Unknown device";
+        const forceButton = row.device_id
+          ? '<div class="export-actions" style="margin-top:8px;"><button class="action-btn secondary" onclick="forceDeviceReSignInFromButton(this)" data-device-id="' + escapeAttr(row.device_id) + '" data-device-label="' + escapeAttr(device) + '">Force Re-Sign In This Device</button></div>'
+          : '';
         return '<div class="log-item">' +
           '<div class="log-title">' + escapeHtml(row.access_label || row.access_code || "Signed in") + '</div>' +
           '<div><small><b>Signed in:</b> ' + escapeHtml(when) + '</small></div>' +
@@ -3337,6 +3341,7 @@
           '<div><small><b>User/Device:</b> ' + escapeHtml(device) + '</small></div>' +
           (row.device_id ? '<div><small><b>Device ID:</b> ' + escapeHtml(row.device_id) + '</small></div>' : '') +
           allowed +
+          forceButton +
         '</div>';
       }).join('');
     }
@@ -3357,6 +3362,110 @@
       } else {
         signInLogPanel.classList.remove('open');
       }
+    }
+
+
+    function getSavedSiteAccessApprovalRaw() {
+      try {
+        return JSON.parse(localStorage.getItem(SITE_ACCESS_STORAGE_KEY) || "null") || null;
+      } catch (error) {
+        return null;
+      }
+    }
+
+    async function checkDeviceSignOutRequest(showNotice = false) {
+      if (!supabaseClient) return false;
+      const savedAccess = getSavedSiteAccessApprovalRaw();
+      if (!savedAccess || !savedAccess.approved) return false;
+      const profile = getDeviceProfile();
+      const deviceId = profile.device_id;
+      if (!deviceId) return false;
+
+      try {
+        const { data, error } = await supabaseClient
+          .from(DEVICE_SIGNOUT_TABLE)
+          .select("id, created_at, reason")
+          .eq("device_id", deviceId)
+          .order("created_at", { ascending: false })
+          .limit(1);
+
+        if (error) {
+          console.warn("Could not check device force re-sign-in requests. Run the device sign-out SQL if needed.", error);
+          return false;
+        }
+
+        const latest = Array.isArray(data) && data.length ? data[0] : null;
+        if (!latest || !latest.created_at) return false;
+
+        const approvedAt = savedAccess.approved_at ? new Date(savedAccess.approved_at).getTime() : 0;
+        const forceAt = new Date(latest.created_at).getTime();
+        if (forceAt > approvedAt) {
+          resetSiteAccessApproval();
+          if (showNotice) {
+            alert("This device was signed out by an admin. Please enter the sign-in code again.");
+          }
+          window.location.reload();
+          return true;
+        }
+      } catch (error) {
+        console.warn("Device force re-sign-in check failed.", error);
+      }
+      return false;
+    }
+
+    function startDeviceSignOutWatcher() {
+      if (deviceSignOutCheckTimer) return;
+      deviceSignOutCheckTimer = window.setInterval(() => {
+        checkDeviceSignOutRequest(true);
+      }, 60000);
+    }
+
+    async function forceDeviceReSignIn(deviceId, label) {
+      const normalizedDeviceId = String(deviceId || "").trim();
+      if (!normalizedDeviceId) {
+        alert("No device ID found for this sign-in record.");
+        return;
+      }
+      if (!adminPanel || !adminPanel.classList.contains('open')) {
+        const password = window.prompt('Enter admin password to force this device to sign in again:');
+        if (password !== ADMIN_PASSWORD) {
+          alert('Incorrect admin password.');
+          return;
+        }
+      }
+      const displayLabel = String(label || normalizedDeviceId || "this device").trim();
+      const ok = window.confirm('Force re-sign-in for ' + displayLabel + '?\n\nThat browser/device will be asked for the sign-in code again the next time it checks in or refreshes.');
+      if (!ok) return;
+      if (!supabaseClient) {
+        alert('Supabase is not connected.');
+        return;
+      }
+      try {
+        const profile = getDeviceProfile();
+        const payload = {
+          device_id: normalizedDeviceId,
+          reason: 'admin_force_resign',
+          requested_by_device_id: profile.device_id || '',
+          requested_by_label: getDefaultDeviceLabel() || profile.user_name || '',
+          requested_by_user_agent: navigator.userAgent || ''
+        };
+        const { error } = await supabaseClient.from(DEVICE_SIGNOUT_TABLE).insert(payload);
+        if (error) {
+          console.warn('Could not save force re-sign-in request.', error);
+          alert('Could not save the force re-sign-in request. Run the device sign-out SQL first.');
+          return;
+        }
+        alert('Force re-sign-in request saved for ' + displayLabel + '.');
+        renderSignInLog();
+      } catch (error) {
+        console.warn('Force re-sign-in failed.', error);
+        alert('Force re-sign-in failed. Check the console/Supabase setup.');
+      }
+    }
+
+    function forceDeviceReSignInFromButton(button) {
+      if (!button) return;
+      forceDeviceReSignIn(button.getAttribute("data-device-id"), button.getAttribute("data-device-label"));
     }
 
     async function retrySiteAccess() {
@@ -4661,6 +4770,16 @@
       const div = document.createElement("div");
       div.innerText = text ?? "";
       return div.innerHTML;
+    }
+
+
+    function escapeAttr(text) {
+      return String(text ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
     }
 
     function buildLegend() {
@@ -7745,10 +7864,12 @@ ${rows.map(pin => `
     }
 
     let appInitialized = false;
+    let deviceSignOutCheckTimer = null;
 
     async function initializeApp() {
       if (appInitialized) return;
       await loadSignInCodesFromSupabase();
+      await checkDeviceSignOutRequest(false);
       if (!ensureSiteAccess(false)) return;
       appInitialized = true;
       populateMapSelector();
@@ -7762,6 +7883,7 @@ ${rows.map(pin => `
       await loadPins(true);
       await recordSiteVisit();
       subscribeRealtime();
+      startDeviceSignOutWatcher();
     }
 
     initializeApp();
@@ -7769,6 +7891,8 @@ ${rows.map(pin => `
     window.loadPins = loadPins;
     window.toggleMobileUi = toggleMobileUi;
     window.closeMobileUiAfterAction = closeMobileUiAfterAction;
+    window.forceDeviceReSignIn = forceDeviceReSignIn;
+    window.forceDeviceReSignInFromButton = forceDeviceReSignInFromButton;
     window.toggleAdminPanel = toggleAdminPanel;
     window.toggleAllLogsPanel = toggleAllLogsPanel;
     window.renderAllLogs = renderAllLogs;
