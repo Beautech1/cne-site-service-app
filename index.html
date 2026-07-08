@@ -2145,7 +2145,7 @@
           <button class="action-btn secondary" onclick="toggleDepartmentPanel(true)">Manage Departments</button>
           <button class="action-btn secondary" onclick="toggleProfilesPanel(true)">Manage Profiles</button>
           <button class="action-btn secondary" onclick="toggleMapsPanel(true)">Manage Maps / Buildings</button>
-          <button class="action-btn secondary" onclick="changeDeviceUserProfile()">Change Device User</button>
+          <button class="action-btn secondary" onclick="changeDeviceUserProfile()">Change Device User / Department</button>
           <button class="action-btn secondary" onclick="changeSignInCode()">Change Sign-In Code</button>
         </div>
       </div>
@@ -2236,7 +2236,7 @@
       <button class="panel-close-btn" onclick="toggleSignInLogPanel(false)">&times;</button>
     </div>
     <div class="panel-body">
-      <div class="panel-note">This records when a user enters a valid CNE Service App sign-in code/ID on a device. Saved browser sessions are not re-recorded unless the user signs in again.</div>
+      <div class="panel-note">This records when a user enters a valid CNE Service App sign-in code/ID on a device, including the user name and department/team entered for that device. Saved browser sessions are not re-recorded unless the user signs in again.</div>
       <div class="export-actions">
         <button class="action-btn secondary" onclick="renderSignInLog()">Refresh</button>
       </div>
@@ -3261,6 +3261,7 @@
       const access = lookupSignInCode(entered);
       if (access) {
         saveSiteAccessApproval(access);
+        ensureDeviceUserProfile(false);
         recordSignInAccessEvent(access, entered);
         hideAccessBlockedMessage();
         return true;
@@ -3326,13 +3327,14 @@
         const when = row.created_at ? formatDateTime(row.created_at) : "";
         const dept = row.can_view_all ? "All Departments" : (row.department === "multi" ? "Selected departments" : (row.department || ""));
         const allowed = Array.isArray(row.allowed_departments) && row.allowed_departments.length ? '<br><small><b>Allowed:</b> ' + escapeHtml(row.allowed_departments.join(", ")) + '</small>' : '';
-        const device = row.device_label || row.user_name || row.device_id || "Unknown device";
+        const enteredDept = row.device_label || "";
+        const device = row.user_name || row.device_id || "Unknown device";
         return '<div class="log-item">' +
           '<div class="log-title">' + escapeHtml(row.access_label || row.access_code || "Signed in") + '</div>' +
           '<div><small><b>Signed in:</b> ' + escapeHtml(when) + '</small></div>' +
           '<div><small><b>Department access:</b> ' + escapeHtml(dept) + '</small></div>' +
-          '<div><small><b>Device/User:</b> ' + escapeHtml(device) + '</small></div>' +
-          (row.user_name ? '<div><small><b>User name:</b> ' + escapeHtml(row.user_name) + '</small></div>' : '') +
+          (enteredDept ? '<div><small><b>Entered department/team:</b> ' + escapeHtml(enteredDept) + '</small></div>' : '') +
+          '<div><small><b>User/Device:</b> ' + escapeHtml(device) + '</small></div>' +
           (row.device_id ? '<div><small><b>Device ID:</b> ' + escapeHtml(row.device_id) + '</small></div>' : '') +
           allowed +
         '</div>';
@@ -3386,12 +3388,12 @@
       const userName = String(enteredName || profile.user_name || "").trim();
       if (!userName) return profile;
 
-      const currentLabel = profile.device_label || userName;
-      const enteredLabel = window.prompt("Optional: Name this device. Example: Explace Plumbing On Duty Phone.", currentLabel);
-      const deviceLabel = String(enteredLabel || currentLabel || userName).trim();
+      const currentLabel = profile.device_label || getAssignedDepartmentName() || "";
+      const enteredLabel = window.prompt("Enter department/team for this device. Example: Explace Plumbing, Impact Cleaning, Showtech Electrical, CNE Ops.", currentLabel);
+      const deviceLabel = String(enteredLabel || currentLabel || "").trim();
       const saved = saveDeviceProfile({ user_name: userName, device_label: deviceLabel });
       populateProfileDropdowns();
-      setStatus(`Device user set to ${userName}.`);
+      setStatus(`Device user set to ${userName}${deviceLabel ? " / " + deviceLabel : ""}.`);
       return saved;
     }
 
