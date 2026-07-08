@@ -3702,7 +3702,10 @@
       const userInput = document.getElementById("deviceAccessUserName");
       const deptInput = document.getElementById("deviceAccessDepartmentLabel");
       if (userInput) userInput.value = profile.user_name || "";
-      if (deptInput) deptInput.value = profile.device_label || "";
+      if (deptInput) {
+        const savedDeptLabel = String(profile.device_label || "").trim();
+        deptInput.value = savedDeptLabel.toLowerCase() === "all departments" ? "" : savedDeptLabel;
+      }
       if (summary) {
         summary.innerHTML =
           '<b>Current user:</b> ' + escapeHtml(profile.user_name || 'Not set') + '<br>' +
@@ -3882,9 +3885,10 @@
       const userName = String(enteredName || profile.user_name || "").trim();
       if (!userName) return profile;
 
-      const currentLabel = profile.device_label || getAssignedDepartmentName() || "";
-      const enteredLabel = window.prompt("Enter department/team for this device. Example: Explace Plumbing, Impact Cleaning, Showtech Electrical, CNE Ops.", currentLabel);
-      const deviceLabel = String(enteredLabel || currentLabel || "").trim();
+      const savedLabel = String(profile.device_label || "").trim();
+      const currentLabel = savedLabel.toLowerCase() === "all departments" ? "" : savedLabel;
+      const enteredLabel = window.prompt("Enter department/team/company for this device. Example: Explace Plumbing, Impact Cleaning, Showtech Electrical, CNE Ops.", currentLabel);
+      const deviceLabel = enteredLabel === null ? currentLabel : String(enteredLabel || "").trim();
       const saved = saveDeviceProfile({ user_name: userName, device_label: deviceLabel });
       populateProfileDropdowns();
       setStatus(`Device user set to ${userName}${deviceLabel ? " / " + deviceLabel : ""}.`);
