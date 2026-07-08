@@ -2141,12 +2141,13 @@
       </div>
       <div class="admin-menu-section">
         <h3>Settings</h3>
+        <div class="panel-note" style="padding-top:0;">Use the access buttons below to see/edit sign-in codes, current device details, and signed-in devices instead of using hidden prompt boxes.</div>
         <div class="admin-menu-grid">
           <button class="action-btn secondary" onclick="toggleDepartmentPanel(true)">Manage Departments</button>
           <button class="action-btn secondary" onclick="toggleProfilesPanel(true)">Manage Profiles</button>
           <button class="action-btn secondary" onclick="toggleMapsPanel(true)">Manage Maps / Buildings</button>
-          <button class="action-btn secondary" onclick="changeDeviceUserProfile()">Change Device User / Department</button>
-          <button class="action-btn secondary" onclick="changeSignInCode()">Change Sign-In Code</button>
+          <button class="action-btn secondary" onclick="toggleDeviceAccessPanel(true)">Device/User/Department Access</button>
+          <button class="action-btn secondary" onclick="toggleSignInCodesPanel(true)">Manage Sign-In Codes</button>
         </div>
       </div>
       <div class="admin-menu-section">
@@ -2242,6 +2243,97 @@
       </div>
       <div id="signInLogBody" style="margin-top:10px;">
         <div class="empty-log">No sign-in records loaded yet.</div>
+      </div>
+    </div>
+  </div>
+
+
+  <div class="panel" id="signInCodesPanel">
+    <div class="panel-header">
+      <span>Manage Sign-In Codes</span>
+      <button class="panel-close-btn" onclick="toggleSignInCodesPanel(false)">&times;</button>
+    </div>
+    <div class="panel-body">
+      <div class="panel-note">Add, edit, or remove sign-in codes. This saves to Supabase app_settings &gt; sign_in_codes so all devices use the same code list.</div>
+      <div class="settings-row">
+        <label>Existing sign-in code
+          <select id="signInCodeEditorSelect" onchange="loadSignInCodeEditor()"></select>
+        </label>
+      </div>
+      <div class="settings-row">
+        <label>Code
+          <input type="text" id="signInCodeEditorCode" placeholder="Example: SHOWTECHELECTRICAL2026">
+        </label>
+      </div>
+      <div class="settings-row">
+        <label>Display label
+          <input type="text" id="signInCodeEditorLabel" placeholder="Example: Showtech Electrical">
+        </label>
+      </div>
+      <div class="settings-row">
+        <label>Access type
+          <select id="signInCodeEditorAccessType" onchange="refreshSignInCodeAccessFields()">
+            <option value="department">One department only</option>
+            <option value="multi">Selected departments</option>
+            <option value="all">All departments / admin view</option>
+          </select>
+        </label>
+      </div>
+      <div class="settings-row" id="signInCodeSingleDepartmentRow">
+        <label>Department
+          <select id="signInCodeEditorDepartment"></select>
+        </label>
+      </div>
+      <div class="settings-row" id="signInCodeMultiDepartmentRow" style="display:none;">
+        <label>Allowed departments, one per line
+          <textarea id="signInCodeEditorAllowedDepartments" placeholder="Explace Cleaning&#10;Impact Cleaning&#10;Showtech Plumbing"></textarea>
+        </label>
+      </div>
+      <div class="export-actions">
+        <button class="action-btn" onclick="saveSignInCodeEditor()">Save Sign-In Code</button>
+        <button class="action-btn secondary" onclick="addNewSignInCodeEditor()">Add New Code</button>
+        <button class="action-btn secondary" style="background:#b71c1c;" onclick="deleteSignInCodeEditor()">Delete Selected Code</button>
+        <button class="action-btn secondary" onclick="resetSignInCodesToDefaults()">Reset Defaults</button>
+        <button class="action-btn secondary" onclick="populateSignInCodeEditor()">Refresh List</button>
+      </div>
+      <div class="panel-note">Tip: Deleting or changing a code can force old browsers to sign in again once they refresh. For one specific device, use Device/User/Department Access.</div>
+    </div>
+  </div>
+
+  <div class="panel" id="deviceAccessPanel">
+    <div class="panel-header">
+      <span>Device/User/Department Access</span>
+      <button class="panel-close-btn" onclick="toggleDeviceAccessPanel(false)">&times;</button>
+    </div>
+    <div class="panel-body">
+      <div class="panel-note">Update this browser's saved user and department/company label, view recent sign-ins, and force a device to sign in again.</div>
+      <div class="admin-menu-section">
+        <h3>This Browser / Device</h3>
+        <div id="currentDeviceAccessSummary" class="log-summary">Loading current device...</div>
+        <div class="settings-row">
+          <label>User name
+            <input type="text" id="deviceAccessUserName" placeholder="Example: Beau">
+          </label>
+        </div>
+        <div class="settings-row">
+          <label>Department / company label
+            <input type="text" id="deviceAccessDepartmentLabel" placeholder="Example: Explace Plumbing">
+          </label>
+        </div>
+        <div class="export-actions">
+          <button class="action-btn" onclick="saveDeviceAccessEditor()">Save This Device</button>
+          <button class="action-btn secondary" onclick="changeDeviceUserProfile(); populateDeviceAccessPanel();">Use Prompt Instead</button>
+          <button class="action-btn secondary" style="background:#b71c1c;" onclick="resetSiteAccessApproval(); alert('This browser will need to sign in again.'); window.location.reload();">Sign Out This Browser</button>
+        </div>
+      </div>
+      <div class="admin-menu-section">
+        <h3>Recent Signed-In Devices</h3>
+        <div class="export-actions">
+          <button class="action-btn secondary" onclick="renderDeviceAccessSignInLog()">Refresh Device List</button>
+        </div>
+        <div id="deviceAccessSignInLogBody" style="margin-top:10px;">
+          <div class="empty-log">No sign-in records loaded yet.</div>
+        </div>
       </div>
     </div>
   </div>
@@ -3364,6 +3456,215 @@
       }
     }
 
+
+
+    function closeAccessAdminPanels(exceptPanelId) {
+      ["signInCodesPanel", "deviceAccessPanel"].forEach(id => {
+        if (id !== exceptPanelId) {
+          const panel = document.getElementById(id);
+          if (panel) panel.classList.remove("open");
+        }
+      });
+    }
+
+    function getDepartmentNameOptionsHtml(selectedValue) {
+      const selected = String(selectedValue || "").trim();
+      const names = departments.map(item => item && item.name ? item.name : "").filter(Boolean);
+      const unique = Array.from(new Set(names));
+      if (selected && !unique.includes(selected) && selected.toLowerCase() !== "all" && selected.toLowerCase() !== "multi") unique.unshift(selected);
+      return unique.map(name => '<option value="' + escapeAttr(name) + '"' + (name === selected ? ' selected' : '') + '>' + escapeHtml(name) + '</option>').join('');
+    }
+
+    function populateSignInCodeEditor(selectedCode) {
+      const select = document.getElementById("signInCodeEditorSelect");
+      if (!select) return;
+      const codes = Object.keys(SIGN_IN_CODES || {}).sort();
+      select.innerHTML = codes.length
+        ? codes.map(code => '<option value="' + escapeAttr(code) + '">' + escapeHtml(code + ' — ' + ((SIGN_IN_CODES[code] && SIGN_IN_CODES[code].label) || '')) + '</option>').join('')
+        : '<option value="">No codes found</option>';
+      if (selectedCode && codes.includes(selectedCode)) select.value = selectedCode;
+      loadSignInCodeEditor();
+    }
+
+    function loadSignInCodeEditor() {
+      const select = document.getElementById("signInCodeEditorSelect");
+      const codeInput = document.getElementById("signInCodeEditorCode");
+      const labelInput = document.getElementById("signInCodeEditorLabel");
+      const accessTypeInput = document.getElementById("signInCodeEditorAccessType");
+      const deptInput = document.getElementById("signInCodeEditorDepartment");
+      const allowedInput = document.getElementById("signInCodeEditorAllowedDepartments");
+      if (!select || !codeInput || !labelInput || !accessTypeInput || !deptInput || !allowedInput) return;
+      const code = select.value;
+      const access = SIGN_IN_CODES[code] || {};
+      const normalized = lookupSignInCode(code) || access;
+      codeInput.value = code || "";
+      labelInput.value = access.label || normalized.label || "";
+      let accessType = "department";
+      const allowedDepartments = access.allowedDepartments || access.allowed_departments || access.departments || access.allowed || normalized.allowedDepartments || [];
+      if (access.canViewAll || access.department === "all" || normalized.canViewAll) accessType = "all";
+      else if (Array.isArray(allowedDepartments) && allowedDepartments.length) accessType = "multi";
+      accessTypeInput.value = accessType;
+      const currentDept = access.department && access.department !== "multi" && access.department !== "all" ? access.department : "";
+      deptInput.innerHTML = getDepartmentNameOptionsHtml(currentDept);
+      deptInput.value = currentDept || (deptInput.options[0] ? deptInput.options[0].value : "");
+      allowedInput.value = Array.isArray(allowedDepartments) ? allowedDepartments.join("\n") : "";
+      refreshSignInCodeAccessFields();
+    }
+
+    function refreshSignInCodeAccessFields() {
+      const accessType = (document.getElementById("signInCodeEditorAccessType") || {}).value || "department";
+      const singleRow = document.getElementById("signInCodeSingleDepartmentRow");
+      const multiRow = document.getElementById("signInCodeMultiDepartmentRow");
+      if (singleRow) singleRow.style.display = accessType === "department" ? "" : "none";
+      if (multiRow) multiRow.style.display = accessType === "multi" ? "" : "none";
+    }
+
+    function addNewSignInCodeEditor() {
+      const select = document.getElementById("signInCodeEditorSelect");
+      const codeInput = document.getElementById("signInCodeEditorCode");
+      const labelInput = document.getElementById("signInCodeEditorLabel");
+      const accessTypeInput = document.getElementById("signInCodeEditorAccessType");
+      const deptInput = document.getElementById("signInCodeEditorDepartment");
+      const allowedInput = document.getElementById("signInCodeEditorAllowedDepartments");
+      if (select) select.value = "";
+      if (codeInput) codeInput.value = "";
+      if (labelInput) labelInput.value = "";
+      if (accessTypeInput) accessTypeInput.value = "department";
+      if (deptInput) deptInput.innerHTML = getDepartmentNameOptionsHtml("");
+      if (allowedInput) allowedInput.value = "";
+      refreshSignInCodeAccessFields();
+      if (codeInput) codeInput.focus();
+    }
+
+    async function saveSignInCodeEditor() {
+      const codeInput = document.getElementById("signInCodeEditorCode");
+      const labelInput = document.getElementById("signInCodeEditorLabel");
+      const accessTypeInput = document.getElementById("signInCodeEditorAccessType");
+      const deptInput = document.getElementById("signInCodeEditorDepartment");
+      const allowedInput = document.getElementById("signInCodeEditorAllowedDepartments");
+      const oldSelect = document.getElementById("signInCodeEditorSelect");
+      const code = normalizeAccessCode(codeInput ? codeInput.value : "");
+      if (!code) {
+        alert("Enter a sign-in code first.");
+        return;
+      }
+      const oldCode = oldSelect ? oldSelect.value : "";
+      const accessType = accessTypeInput ? accessTypeInput.value : "department";
+      const label = String(labelInput ? labelInput.value : "").trim() || code;
+      let next = { label };
+      if (accessType === "all") {
+        next = { label, role: "cne", department: "all", canViewAll: true };
+      } else if (accessType === "multi") {
+        const allowed = String(allowedInput ? allowedInput.value : "").split(/\n|,/).map(v => v.trim()).filter(Boolean);
+        if (!allowed.length) {
+          alert("Enter at least one allowed department for selected-department access.");
+          return;
+        }
+        next = { label, role: "multi_department", department: "multi", canViewAll: false, allowedDepartments: allowed };
+      } else {
+        const department = String(deptInput ? deptInput.value : "").trim();
+        if (!department) {
+          alert("Choose a department first.");
+          return;
+        }
+        next = { label, role: "department", department, canViewAll: false };
+      }
+      if (oldCode && oldCode !== code && SIGN_IN_CODES[oldCode]) delete SIGN_IN_CODES[oldCode];
+      SIGN_IN_CODES[code] = next;
+      await saveSettingToSupabase("sign_in_codes", SIGN_IN_CODES);
+      populateSignInCodeEditor(code);
+      setStatus("Sign-in code saved.");
+      alert("Sign-in code saved.");
+    }
+
+    async function deleteSignInCodeEditor() {
+      const select = document.getElementById("signInCodeEditorSelect");
+      const code = select ? select.value : "";
+      if (!code || !SIGN_IN_CODES[code]) {
+        alert("Choose a sign-in code to delete.");
+        return;
+      }
+      if (!window.confirm("Delete sign-in code " + code + "?\n\nUsers with this code will need another valid code after refresh.")) return;
+      delete SIGN_IN_CODES[code];
+      await saveSettingToSupabase("sign_in_codes", SIGN_IN_CODES);
+      populateSignInCodeEditor();
+      setStatus("Sign-in code deleted.");
+    }
+
+    async function resetSignInCodesToDefaults() {
+      if (!window.confirm("Reset sign-in codes back to the default list?")) return;
+      SIGN_IN_CODES = JSON.parse(JSON.stringify(DEFAULT_SIGN_IN_CODES));
+      await saveSettingToSupabase("sign_in_codes", SIGN_IN_CODES);
+      populateSignInCodeEditor();
+      setStatus("Sign-in codes reset to defaults.");
+    }
+
+    async function toggleSignInCodesPanel(forceOpen) {
+      const panel = document.getElementById("signInCodesPanel");
+      if (!panel) return;
+      const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : !panel.classList.contains('open');
+      if (shouldOpen) {
+        closeAccessAdminPanels("signInCodesPanel");
+        await loadSignInCodesFromSupabase();
+        populateSignInCodeEditor();
+        panel.classList.add('open');
+      } else {
+        panel.classList.remove('open');
+      }
+    }
+
+    function populateDeviceAccessPanel() {
+      const profile = getDeviceProfile();
+      const access = getSavedSiteAccessApprovalRaw();
+      const summary = document.getElementById("currentDeviceAccessSummary");
+      const userInput = document.getElementById("deviceAccessUserName");
+      const deptInput = document.getElementById("deviceAccessDepartmentLabel");
+      if (userInput) userInput.value = profile.user_name || "";
+      if (deptInput) deptInput.value = profile.device_label || "";
+      if (summary) {
+        summary.innerHTML =
+          '<b>Current user:</b> ' + escapeHtml(profile.user_name || 'Not set') + '<br>' +
+          '<b>Department/company:</b> ' + escapeHtml(profile.device_label || 'Not set') + '<br>' +
+          '<b>Device ID:</b> ' + escapeHtml(profile.device_id || 'Not set') + '<br>' +
+          '<b>Current access:</b> ' + escapeHtml(access && access.label ? access.label : 'Not signed in / not loaded');
+      }
+    }
+
+    function saveDeviceAccessEditor() {
+      const userName = String((document.getElementById("deviceAccessUserName") || {}).value || "").trim();
+      const deviceLabel = String((document.getElementById("deviceAccessDepartmentLabel") || {}).value || "").trim();
+      if (!userName) {
+        alert("Enter a user name first.");
+        return;
+      }
+      saveDeviceProfile({ user_name: userName, device_label: deviceLabel });
+      populateProfileDropdowns();
+      populateDeviceAccessPanel();
+      setStatus("Device user/department saved.");
+      alert("Device user/department saved.");
+    }
+
+    async function renderDeviceAccessSignInLog() {
+      const body = document.getElementById("deviceAccessSignInLogBody");
+      if (!body) return;
+      body.innerHTML = '<div class="panel-note">Loading signed-in devices...</div>';
+      const rows = await fetchSignInAccessRows(100);
+      body.innerHTML = buildSignInLogHtml(rows);
+    }
+
+    async function toggleDeviceAccessPanel(forceOpen) {
+      const panel = document.getElementById("deviceAccessPanel");
+      if (!panel) return;
+      const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : !panel.classList.contains('open');
+      if (shouldOpen) {
+        closeAccessAdminPanels("deviceAccessPanel");
+        populateDeviceAccessPanel();
+        panel.classList.add('open');
+        renderDeviceAccessSignInLog();
+      } else {
+        panel.classList.remove('open');
+      }
+    }
 
     function getSavedSiteAccessApprovalRaw() {
       try {
