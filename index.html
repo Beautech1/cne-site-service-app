@@ -42,6 +42,17 @@
       pointer-events: none;
     }
 
+
+
+    /* In view-only SMS report links, keep Print/Close available but hide map/app access. */
+    body.view-only-report-mode #itemReportOpenMapBtn {
+      display: none !important;
+    }
+
+    body.view-only-report-mode #itemReportModal .modal-actions {
+      display: flex !important;
+    }
+
     .view-only-report-note {
       background: #eef7ff;
       border: 1px solid #b7d7ef;
@@ -2147,18 +2158,18 @@
       </div>
       <div id="smsGroupCheckboxes" class="sms-group-list"></div>
       <details class="custom-sms-details">
-        <summary>Custom number</summary>
+        <summary>Custom text message number</summary>
         <div class="custom-sms-row">
           <input type="checkbox" id="pinCustomSmsEnabled" aria-label="Use custom text number">
           <input type="tel" id="pinCustomSmsInput" placeholder="Custom text number">
-          <div class="custom-sms-help">Use only when needed. Uncheck group(s) to send only to custom number. Use commas for multiple numbers.</div>
+          <div class="custom-sms-help">Optional. Check this box only if you want to text a custom number. Uncheck group(s) to send only to the custom number. Use commas for multiple numbers.</div>
         </div>
       </details>
       <label style="display:flex; align-items:center; gap:8px; font-weight:normal;">
         <input type="checkbox" id="pinNotifySmsNowInput" style="width:auto; margin:0;" checked> Open/copy text message after saving this pin
       </label>
       <label style="display:flex; align-items:flex-start; gap:8px; font-weight:normal; line-height:1.35;">
-        <input type="checkbox" id="pinViewOnlyReportLinkInput" style="width:auto; margin:2px 0 0 0;" checked>
+        <input type="checkbox" id="pinViewOnlyReportLinkInput" style="width:auto; margin:2px 0 0 0;">
         <span>Text as view-only report link <small style="display:block; color:#607084;">Recipient can see status/photos/details only. They will not see Clear/Edit buttons or other app controls from the report link.</small></span>
       </label>
       <details class="pin-instructions" id="pinInstructionsDetails">
@@ -2222,11 +2233,11 @@
       </div>
       <div id="editSmsGroupCheckboxes" class="sms-group-list"></div>
       <details class="custom-sms-details">
-        <summary>Custom number</summary>
+        <summary>Custom text message number</summary>
         <div class="custom-sms-row">
           <input type="checkbox" id="editCustomSmsEnabled" aria-label="Use custom text number">
           <input type="tel" id="editCustomSmsInput" placeholder="Custom text number">
-          <div class="custom-sms-help">Use only when needed. Uncheck group(s) to send only to custom number. Use commas for multiple numbers.</div>
+          <div class="custom-sms-help">Optional. Check this box only if you want to text a custom number. Uncheck group(s) to send only to the custom number. Use commas for multiple numbers.</div>
         </div>
       </details>
       <label style="display:flex; align-items:center; gap:8px; font-weight:normal;">
@@ -2290,8 +2301,8 @@
       <div class="panel-note">Loading report...</div>
     </div>
     <div class="modal-actions">
-      <button class="action-btn secondary" onclick="printItemReport()">Print Report</button>
-      <button class="action-btn" onclick="openCurrentReportOnMap()">Open on Map</button>
+      <button class="action-btn secondary" id="itemReportPrintBtn" onclick="printItemReport()">Print Report</button>
+      <button class="action-btn" id="itemReportOpenMapBtn" onclick="openCurrentReportOnMap()">Open on Map</button>
       <button class="action-btn secondary" onclick="closeItemReportModal()">Close</button>
     </div>
   </div>
@@ -5657,8 +5668,10 @@ function resetPinForm() {
   pendingPinPhotoFiles = [];
   if (pinCustomSmsEnabled) pinCustomSmsEnabled.checked = false;
   if (pinCustomSmsInput) pinCustomSmsInput.value = "";
+  const pinCustomSmsDetails = document.querySelector("#pinModal .custom-sms-details");
+  if (pinCustomSmsDetails) pinCustomSmsDetails.open = false;
   pinNotifySmsNowInput.checked = shouldDefaultSmsOpen();
-  if (pinViewOnlyReportLinkInput) pinViewOnlyReportLinkInput.checked = true;
+  if (pinViewOnlyReportLinkInput) pinViewOnlyReportLinkInput.checked = false;
   if (previewObjectUrl) {
     previewObjectUrl.forEach(url => URL.revokeObjectURL(url));
     previewObjectUrl = null;
@@ -6091,7 +6104,7 @@ function resetPinForm() {
           '</div>'
         : '';
       const viewOnlyNote = (!options.print && isViewOnly)
-        ? '<div class="view-only-report-note"><strong>View-only report.</strong><br>This link is for viewing the report status and details only. Clear/edit/admin controls are not available from this link.</div>'
+        ? '<div class="view-only-report-note"><strong>View-only report.</strong><br>This link is for viewing the report status and details only. Clear/edit/admin controls are not available from this link.<br><button class="action-btn secondary" type="button" style="margin-top:8px;" onclick="printItemReport()">Print this report</button></div>'
         : '';
       const mapLinkHtml = (!isViewOnly && !options.print)
         ? '<div style="margin-top:10px;"><strong>Map link:</strong><br><a href="' + escapeHtml(buildAppUrl({ pin: pin.id })) + '" target="_blank" rel="noopener">Open this item on the map</a></div>'
@@ -6263,7 +6276,7 @@ function resetPinForm() {
       const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Item Report ${escapeHtml(String(pin.id || ""))}</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#1f2933;font-size:13px}.mini-report-card{border:1px solid #d9e0e6;border-radius:10px;padding:14px;line-height:1.45;font-size:13px}.mini-report-card h2{font-size:17px;line-height:1.25}.mini-report-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;font-size:13px}.mini-report-detail{margin-top:10px;white-space:pre-wrap}.report-map-photo,.log-photo,.print-report-photo{display:block;margin:8px 0;max-width:460px;max-height:330px;object-fit:contain;border:1px solid #d9e0e6;border-radius:8px;background:#f8fafc}.photo-gallery{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start}.photo-gallery img{width:460px;max-width:100%;height:auto;max-height:330px;object-fit:contain;border:1px solid #d9e0e6;border-radius:8px;background:#f8fafc}.photo-section-title{display:block;font-weight:bold;margin-top:10px;font-size:13px}@media print{button{display:none}}</style></head><body><h1>Item Report</h1>${buildMiniReportHtml(pin, { print: true })}</body></html>`;
       const win = window.open("", "_blank");
       if (!win) {
-        alert("Popup blocked. Please allow popups to print the report.");
+        alert("Your browser blocked the print window. Please allow pop-ups for this site, then tap Print Report again.");
         return;
       }
       win.document.open();
@@ -6882,6 +6895,23 @@ ${rows.map(pin => `
 
     async function initializeApp() {
       if (appInitialized) return;
+
+      // View-only SMS report links should open directly for recipients.
+      // They do not need the CNE Service App sign-in code because this mode
+      // hides the map controls/admin tools and only shows the selected report.
+      if (isViewOnlyReportMode() && hasInitialUrlAction()) {
+        appInitialized = true;
+        applyViewOnlyReportMode();
+        hideAccessBlockedMessage();
+        await loadCentralSettingsFromSupabase();
+        populateMapSelector();
+        populateDepartmentDropdowns();
+        populateProfileDropdowns();
+        selectedDepartmentView = "all";
+        await loadPins(true);
+        return;
+      }
+
       await loadSignInCodesFromSupabase();
       if (!ensureSiteAccess(false)) return;
       appInitialized = true;
