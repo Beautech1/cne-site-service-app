@@ -2053,6 +2053,23 @@
       padding-top: 6px;
     }
 
+
+
+    /* Report-link view: allow text recipients to view only the service order without the full controls. */
+    body.report-view-only .floating-ui,
+    body.report-view-only .leaflet-control-container,
+    body.report-view-only #adminPanel,
+    body.report-view-only #logPanel,
+    body.report-view-only #activeLogPanel,
+    body.report-view-only #allLogsPanel,
+    body.report-view-only #legendPanel {
+      display: none !important;
+    }
+
+    body.report-view-only #map {
+      filter: none;
+    }
+
   </style>
 </head>
 <body>
@@ -3156,6 +3173,18 @@
       enforceAssignedDepartmentView();
     }
 
+    function isDirectReportLink() {
+      try {
+        return !!new URLSearchParams(window.location.search).get("report");
+      } catch (error) {
+        return false;
+      }
+    }
+
+    function isReportViewOnlyMode() {
+      return isDirectReportLink() && !hasSavedSiteAccess();
+    }
+
     function hasSavedSiteAccess() {
       return !!getAccessProfile();
     }
@@ -3197,6 +3226,13 @@
     }
 
     function ensureSiteAccess(forcePrompt = false) {
+      // Text/report links can be opened by recipients without a sign-in code.
+      // They only get the read-only service order/report view unless they already signed in on this browser.
+      if (!forcePrompt && isDirectReportLink() && !hasSavedSiteAccess()) {
+        document.body.classList.add("report-view-only");
+        return true;
+      }
+      document.body.classList.remove("report-view-only");
       if (!forcePrompt && hasSavedSiteAccess()) {
         enforceAssignedDepartmentView();
         return true;
@@ -4881,7 +4917,7 @@
           mapSnapshotHtml +
           photo +
           clearPhoto +
-          '<div data-report-access-history="' + escapeHtml(String(pin.id || "")) + '" style="margin-top:8px;"><div class="report-access-history"><strong>Recipient service order view history</strong><div class="panel-note" style="padding:6px 0 0;">Loading access history...</div></div></div>' +
+          '<div data-report-access-history="' + escapeHtml(String(pin.id || "")) + '" style="margin-top:8px;"><div class="report-access-history"><strong>Recipient service order view history</strong><div class="panel-note" style="padding:6px 0 0;">Checking service order view history...</div></div></div>' +
           '<div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">' +
             '<button class="action-btn secondary" onclick="printPinReportById(' + Number(pin.id || 0) + ')">Print This Report</button>' +
             '<button class="action-btn secondary" onclick="openEditPinModal(' + Number(pin.id || 0) + ')">' + escapeHtml(editLabel) + '</button>' +
@@ -6549,9 +6585,72 @@ function resetPinForm() {
       setTimeout(() => refreshReportAccessHistoryForPin(pinId), 300);
     }
 
+    async function recordAppServiceOrderViewIfNeeded(pinId, contextLabel = "App device") {
+      if (!pinId) return;
+      const profile = getDeviceProfile();
+      const deviceKey = (profile && profile.device_id) ? profile.device_id : "browser-device";
+      const key = String(pinId) + "|" + deviceKey + "|app-service-order-view";
+      if (loggedReportViewKeys.has(key)) return;
+      loggedReportViewKeys.add(key);
+      await recordReportAccessEvent(pinId, "acknowledged", {
+        source: "app",
+        recipient: contextLabel
+      });
+      setTimeout(() => refreshReportAccessHistoryForPin(pinId), 300);
+    }
+
+    function getServiceOrderViewSessionKey(pinId) {
+      const params = getReportAccessParams();
+      return "service-order-viewed|" + String(pinId || "") + "|" + (params.token || "no-token");
+    }
+
+    function hasViewedServiceOrderInThisBrowser(pinId) {
+      try {
+        return sessionStorage.getItem(getServiceOrderViewSessionKey(pinId)) === "1";
+      } catch (error) {
+        return false;
+      }
+    }
+
+    function markServiceOrderViewedInThisBrowser(pinId) {
+      try {
+        sessionStorage.setItem(getServiceOrderViewSessionKey(pinId), "1");
+      } catch (error) {}
+    }
+
+    function buildServiceOrderGateHtml(pin) {
+      const dept = formatDepartmentLabel(pin.category);
+      const mapName = getMapView(getPinMapId(pin)).name;
+      return (
+        '<div class="mini-report-card" style="text-align:center; max-width:560px; margin:0 auto;">' +
+          '<h2 style="margin:0 0 8px;">Service Order Ready</h2>' +
+          '<div class="panel-note" style="font-style:normal; line-height:1.45; padding:0 0 12px;">Click <strong>View Service Order</strong> to open this work request. This will save the viewed timestamp in the service order history.</div>' +
+          '<div style="border:1px solid #d9e0e6; border-radius:8px; padding:10px; background:#f8fbfe; text-align:left; margin-bottom:12px;">' +
+            '<div><strong>Department:</strong> ' + escapeHtml(dept) + '</div>' +
+            '<div><strong>Map / Building:</strong> ' + escapeHtml(mapName) + '</div>' +
+            '<div><strong>Item ID:</strong> ' + escapeHtml(String(pin.id || "")) + '</div>' +
+          '</div>' +
+          '<button class="action-btn" style="justify-content:center; min-width:190px;" onclick="viewServiceOrderAndShowReport(' + Number(pin.id) + ')">View Service Order</button>' +
+        '</div>'
+      );
+    }
+
+    async function viewServiceOrderAndShowReport(pinId) {
+      markServiceOrderViewedInThisBrowser(pinId);
+      const saved = await recordReportAccessEvent(pinId, "acknowledged");
+      if (saved) {
+        setStatus("Service order view saved.");
+      } else {
+        setStatus("Service order view could not be saved. Check Supabase report access table setup.");
+      }
+      await openItemReportModal(pinId, { skipServiceOrderGate: true });
+      await refreshReportAccessHistoryForPin(pinId);
+    }
+
     async function acknowledgeReport(pinId) {
       const saved = await recordReportAccessEvent(pinId, "acknowledged");
       if (saved) {
+        markServiceOrderViewedInThisBrowser(pinId);
         setStatus("Service order view saved.");
         alert("Service order viewed. The timestamp has been saved.");
       } else {
@@ -6597,9 +6696,16 @@ function resetPinForm() {
     }
 
     async function refreshReportAccessHistoryForPin(pinId) {
-      const rows = await fetchReportAccessRows(pinId);
+      const targets = document.querySelectorAll('[data-report-access-history="' + String(pinId) + '"]');
+      if (!targets.length) return;
+      let rows = [];
+      try {
+        rows = await fetchReportAccessRows(pinId);
+      } catch (error) {
+        console.warn("Could not refresh report access history.", error);
+      }
       const html = buildReportAccessHistoryHtml(rows);
-      document.querySelectorAll('[data-report-access-history="' + String(pinId) + '"]').forEach(el => {
+      targets.forEach(el => {
         el.innerHTML = html;
       });
     }
@@ -6628,12 +6734,13 @@ function resetPinForm() {
         : '<div class="panel-note" style="margin-top:12px;">Mini map snapshot is not available for this item. Run the consolidated SQL and check that the floor-plan and site-plan image files are beside this HTML file.</div>';
       const closedByValue = getClosedByValue(pin);
       const closedFromValue = getClosedFromValue(pin);
-      const accessHistoryHtml = options.accessHistoryHtml || '<div data-report-access-history="' + escapeHtml(String(pin.id || "")) + '"><div class="report-access-history"><strong>Recipient service order view history</strong><div class="panel-note" style="padding:6px 0 0;">Loading access history...</div></div></div>';
+      const accessHistoryHtml = options.accessHistoryHtml || '<div data-report-access-history="' + escapeHtml(String(pin.id || "")) + '"><div class="report-access-history"><strong>Recipient service order view history</strong><div class="panel-note" style="padding:6px 0 0;">Checking service order view history...</div></div></div>';
+      const reportViewOnly = options.viewOnly || isReportViewOnlyMode();
       const reportActionRow = (!options.print && pin.id)
         ? '<div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;">' +
             '<button class="action-btn" onclick="acknowledgeReport(' + pin.id + ')">View Service Order</button>' +
-            (pinStatusForActions === "active" ? '<button class="action-btn clear-btn" onclick="clearPinFromReport(' + pin.id + ')">Clear Pin</button>' : '') +
-            '<button class="action-btn secondary" onclick="openEditPinModalFromReport(' + pin.id + ')">' + (pinStatusForActions === "cleared" ? 'Admin Edit Cleared Pin' : 'Edit / Reassign / Relocate Pin') + '</button>' +
+            (!reportViewOnly && pinStatusForActions === "active" ? '<button class="action-btn clear-btn" onclick="clearPinFromReport(' + pin.id + ')">Clear Pin</button>' : '') +
+            (!reportViewOnly ? '<button class="action-btn secondary" onclick="openEditPinModalFromReport(' + pin.id + ')">' + (pinStatusForActions === "cleared" ? 'Admin Edit Cleared Pin' : 'Edit / Reassign / Relocate Pin') + '</button>' : '') +
           '</div>'
         : '';
       return (
@@ -6664,7 +6771,7 @@ function resetPinForm() {
       );
     }
 
-    async function openItemReportModal(pinId) {
+    async function openItemReportModal(pinId, options = {}) {
       let pin = getPinById(pinId);
 
       if (!pin && supabaseClient && pinId) {
@@ -6693,7 +6800,17 @@ function resetPinForm() {
       }
       currentReportPinId = pin.id;
       const directReportId = new URLSearchParams(window.location.search).get("report");
-      if (String(directReportId || "") === String(pin.id)) recordReportViewIfNeeded(pin.id);
+      const directReportMatches = String(directReportId || "") === String(pin.id);
+      const shouldGateServiceOrder = directReportMatches && isReportViewOnlyMode() && !options.skipServiceOrderGate && !hasViewedServiceOrderInThisBrowser(pin.id);
+      if (shouldGateServiceOrder && itemReportBody) {
+        itemReportBody.innerHTML = buildServiceOrderGateHtml(pin);
+        itemReportModal.classList.add("open");
+        modalBackdrop.classList.add("open");
+        return;
+      }
+      if (!directReportMatches) {
+        recordAppServiceOrderViewIfNeeded(pin.id, "App device review");
+      }
       if (getPinStatus(pin) !== "active" && itemReportBody) {
         const statusWord = getClosedStatusWord(pin) || formatPinStatus(pin);
         const statusLower = statusWord.toLowerCase();
@@ -7539,7 +7656,7 @@ ${rows.map(pin => `
       if (!ensureSiteAccess(false)) return;
       appInitialized = true;
       populateMapSelector();
-      ensureDeviceUserProfile(false);
+      if (!isReportViewOnlyMode()) ensureDeviceUserProfile(false);
       await loadCentralSettingsFromSupabase();
       enforceAssignedDepartmentView();
       switchMapView(currentMapId);
@@ -7586,6 +7703,7 @@ ${rows.map(pin => `
     window.printItemReport = printItemReport;
     window.printPinReportById = printPinReportById;
     window.acknowledgeReport = acknowledgeReport;
+    window.viewServiceOrderAndShowReport = viewServiceOrderAndShowReport;
     window.printPinPopupReport = printPinPopupReport;
     window.focusPinOnMap = focusPinOnMap;
     window.submitClearPinForm = submitClearPinForm;
