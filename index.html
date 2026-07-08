@@ -1951,7 +1951,7 @@
       <button class="panel-close-btn" onclick="toggleActiveLogPanel(false)">&times;</button>
     </div>
     <div class="panel-body">
-      <div class="panel-note">Active / outstanding items only. Use Highlight Point to jump to the pin on the map.</div>
+      <div class="panel-note">Active / outstanding items only. Use Edit to update/reassign, or Print This Report for a single printable report.</div>
       <div class="log-panel-actions">
         <button class="action-btn secondary" onclick="renderActiveLog()">Refresh Active Log</button>
         <button class="action-btn secondary" onclick="printActiveLogs()">Print Active Log</button>
@@ -2182,8 +2182,8 @@
         </div>
       </div>
       <div id="smsGroupCheckboxes" class="sms-group-list"></div>
-      <details class="custom-sms-details">
-        <summary>Custom number</summary>
+      <details class="custom-sms-details" open>
+        <summary>Custom text message number</summary>
         <div class="custom-sms-row">
           <input type="checkbox" id="pinCustomSmsEnabled" aria-label="Use custom text number">
           <input type="tel" id="pinCustomSmsInput" placeholder="Custom text number">
@@ -2254,8 +2254,8 @@
           </div>
         </div>
         <div id="editSmsGroupCheckboxes" class="sms-group-list"></div>
-        <details class="custom-sms-details">
-          <summary>Custom number</summary>
+        <details class="custom-sms-details" open>
+          <summary>Custom text message number</summary>
           <div class="custom-sms-row">
             <input type="checkbox" id="editCustomSmsEnabled" aria-label="Use custom text number">
             <input type="tel" id="editCustomSmsInput" placeholder="Custom text number">
@@ -4433,8 +4433,8 @@
       const popupSmsControls = canClearOrCancel && pin.id
         ? '<div class="popup-sms-actions">' +
             '<button class="action-btn secondary" onclick="openCopyTextForActivePin(' + Number(pin.id) + ', false)">Open/Copy Text Message</button>' +
-            '<details class="custom-sms-details">' +
-              '<summary>Custom text number</summary>' +
+            '<details class="custom-sms-details" open>' +
+              '<summary>Custom text message number</summary>' +
               '<div class="custom-sms-row">' +
                 '<input type="checkbox" id="popupCustomSmsEnabled_' + Number(pin.id) + '" aria-label="Use custom text number">' +
                 '<input type="tel" id="popupCustomSmsInput_' + Number(pin.id) + '" placeholder="Custom text number">' +
@@ -4655,8 +4655,7 @@
           photo +
           clearPhoto +
           '<div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">' +
-            '<button class="action-btn secondary" onclick="highlightPinFromLog(' + Number(pin.id || 0) + ')">Highlight Point</button>' +
-            '<button class="action-btn secondary" onclick="navigateLogPin(&quot;' + escapeHtml(getPinMapId(pin)) + '&quot;, &quot;' + escapeHtml(pin.category || 'general') + '&quot;, &quot;' + escapeHtml(status) + '&quot;)">Open map</button>' +
+            '<button class="action-btn secondary" onclick="printPinReportById(' + Number(pin.id || 0) + ')">Print This Report</button>' +
             '<button class="action-btn secondary" onclick="openEditPinModal(' + Number(pin.id || 0) + ')">' + escapeHtml(editLabel) + '</button>' +
           '</div>' +
         '</div>'
@@ -7138,6 +7137,7 @@ ${rows.map(pin => `
     window.closeItemReportModal = closeItemReportModal;
     window.openCurrentReportOnMap = openCurrentReportOnMap;
     window.printItemReport = printItemReport;
+    window.printPinReportById = printPinReportById;
     window.printPinPopupReport = printPinPopupReport;
     window.focusPinOnMap = focusPinOnMap;
     window.submitClearPinForm = submitClearPinForm;
