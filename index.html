@@ -994,6 +994,25 @@
     }
 
 
+    .popup-sms-actions {
+      margin-top: 10px;
+      border: 1px solid #d7e0ea;
+      border-radius: 8px;
+      background: #f8fbfe;
+      padding: 8px;
+    }
+
+    .popup-sms-actions .custom-sms-details {
+      margin-top: 7px;
+      background: #fff;
+    }
+
+    .popup-sms-actions .action-btn {
+      width: 100%;
+      justify-content: center;
+    }
+
+
     @media (max-width: 640px) {
       .mini-report-grid {
         grid-template-columns: 1fr;
@@ -1854,8 +1873,6 @@
           <button class="toolbar-btn" onclick="loadPins(true); closeMobileUiAfterAction();">Refresh</button>
           <button class="toolbar-btn secondary" onclick="toggleActiveLogPanel(); closeMobileUiAfterAction();">Active Log</button>
           <button class="toolbar-btn secondary" onclick="toggleLogPanel(); closeMobileUiAfterAction();">Cleared History Log</button>
-          <button class="toolbar-btn secondary" onclick="printActiveLogs(); closeMobileUiAfterAction();">Print Active Log</button>
-          <button class="toolbar-btn secondary" onclick="printClearedLogs(); closeMobileUiAfterAction();">Print Cleared Log</button>
           <button class="toolbar-btn secondary" onclick="toggleLegendPanel(); closeMobileUiAfterAction();">Legend</button>
           <button class="toolbar-btn secondary" onclick="toggleAdminPanel(); closeMobileUiAfterAction();">Admin</button>
           <input class="hidden-input" id="csvInput" type="file" accept=".csv,text/csv" onchange="handleCsvImport(event)">
@@ -4403,6 +4420,21 @@
           '</div>'
         : "";
 
+      const popupSmsControls = canClearOrCancel && pin.id
+        ? '<div class="popup-sms-actions">' +
+            '<button class="action-btn secondary" onclick="openCopyTextForActivePin(' + Number(pin.id) + ', false)">Open/Copy Text Message</button>' +
+            '<details class="custom-sms-details">' +
+              '<summary>Custom text number</summary>' +
+              '<div class="custom-sms-row">' +
+                '<input type="checkbox" id="popupCustomSmsEnabled_' + Number(pin.id) + '" aria-label="Use custom text number">' +
+                '<input type="tel" id="popupCustomSmsInput_' + Number(pin.id) + '" placeholder="Custom text number">' +
+                '<div class="custom-sms-help">Use commas for multiple numbers. This sends/copies the same report message for this active pin.</div>' +
+                '<button class="action-btn secondary" type="button" onclick="openCopyTextForActivePin(' + Number(pin.id) + ', true)">Open/Copy With Custom Number</button>' +
+              '</div>' +
+            '</details>' +
+          '</div>'
+        : "";
+
       return (
         closeButton +
         "<b>" + escapeHtml(pin.title) + "</b>" +
@@ -4420,6 +4452,7 @@
         (pin.created_at ? "Saved: " + new Date(pin.created_at).toLocaleString() : "") +
         (getPinStatus(pin) === "cleared" && pin.cleared_at ? "<br>Cleared: " + new Date(pin.cleared_at).toLocaleString() : "") +
         "</small>" +
+        popupSmsControls +
         actionRow
       );
     }
@@ -6453,6 +6486,51 @@ function triggerEditSmsNotification(pin) {
   }
 }
 
+function getAllSmsRecipientsForDepartment(category) {
+  const dept = getDepartment(category);
+  const groupRecipients = Array.isArray(dept.smsGroups)
+    ? dept.smsGroups.flatMap(group => Array.isArray(group.numbers) ? group.numbers : [])
+    : [];
+  return uniqueSmsRecipients(groupRecipients);
+}
+
+function getPopupCustomSmsRecipients(pinId) {
+  const enabledEl = document.getElementById("popupCustomSmsEnabled_" + pinId);
+  const inputEl = document.getElementById("popupCustomSmsInput_" + pinId);
+  return getCustomSmsRecipients(enabledEl, inputEl);
+}
+
+function openCopyTextForActivePin(pinId, includeCustom) {
+  const pin = getPinById(pinId);
+  if (!pin) {
+    alert("This pin could not be found. Refresh the app and try again.");
+    return;
+  }
+
+  const message = buildNotificationMessage(pin);
+  const baseRecipients = getAllSmsRecipientsForDepartment(pin.category);
+  const customRecipients = includeCustom ? getPopupCustomSmsRecipients(pinId) : [];
+  const smsRecipients = uniqueSmsRecipients(baseRecipients.concat(customRecipients));
+  const categoryLabel = formatDepartmentLabel(pin.category);
+
+  if (!smsRecipients.length) {
+    showSmsFallbackModal([], message, "No saved text recipients were found for " + categoryLabel + ". Copy the message below, or open Custom text number and enter a phone number.");
+    setStatus("Copy text message shown. No saved text recipients found for this department.");
+    return;
+  }
+
+  if (!isLikelyMobileSmsDevice()) {
+    showSmsFallbackModal(smsRecipients, message, "Copy the message below and send it manually to the selected " + categoryLabel + " recipient(s). Custom numbers are included when entered and checked.");
+    setStatus("Copy text message shown because this device may not support SMS.");
+    return;
+  }
+
+  const opened = openSmsDraft(smsRecipients, message);
+  if (opened) {
+    setStatus("Text draft opened for " + categoryLabel + ".");
+  }
+}
+
 function openSmsDraft(recipients, message) {
   if (!recipients.length) return false;
 
@@ -7017,6 +7095,7 @@ ${rows.map(pin => `
     window.changeDeviceUserProfile = changeDeviceUserProfile;
     window.retrySiteAccess = retrySiteAccess;
     window.resetSiteAccessApproval = resetSiteAccessApproval;
+    window.openCopyTextForActivePin = openCopyTextForActivePin;
     window.copySmsFallbackMessage = copySmsFallbackMessage;
     window.copySmsFallbackRecipients = copySmsFallbackRecipients;
     window.closeSmsFallbackModal = closeSmsFallbackModal;
