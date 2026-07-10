@@ -3400,12 +3400,14 @@
           user_agent: navigator.userAgent || "",
           source: "sign_in_code"
         };
-        const { error } = await supabaseClient.from(SIGN_IN_ACCESS_TABLE).insert(payload);
+        const { data, error } = await supabaseClient.from(SIGN_IN_ACCESS_TABLE).insert(payload).select("id, device_id, created_at");
         if (error) {
-          console.warn("Sign-in timestamp was not saved. Run the sign-in access SQL if this is the first time using this tracking.", error);
+          console.error("Sign-in device record was not saved.", error);
+          window.__lastDeviceLogError = error.message || String(error);
           return false;
         }
-        return true;
+        window.__lastDeviceLogError = "";
+        return Array.isArray(data) ? data.length > 0 : true;
       } catch (error) {
         console.warn("Sign-in timestamp was not saved.", error);
         return false;
@@ -3548,32 +3550,53 @@
       const saved = await registerCurrentSavedSession();
       await renderSignedInDevicesList();
       if (!saved && body && !body.querySelector('.log-item[style*="border-color:#d32f2f"]')) {
-        body.insertAdjacentHTML('afterbegin', '<div class="log-item" style="border-color:#d32f2f; background:#fff5f5;"><div class="log-title" style="color:#b71c1c;">This device was not saved</div><div><small>The app_sign_in_access insert failed. Run the supplied Supabase SQL, then press this button again.</small></div></div>');
+        const detail = window.__lastDeviceLogError || 'Unknown Supabase insert error.';
+        body.insertAdjacentHTML('afterbegin', '<div class="log-item" style="border-color:#d32f2f; background:#fff5f5;"><div class="log-title" style="color:#b71c1c;">This device was not saved</div><div><small>' + escapeHtml(detail) + '</small></div><div class="panel-note" style="padding-bottom:0;">Run the new repair SQL, then press Register / Refresh This Device again.</div></div>');
       }
+    }
+
+    function withDeviceQueryTimeout(promise, label, timeoutMs = 12000) {
+      return Promise.race([
+        promise,
+        new Promise(resolve => setTimeout(() => resolve({ rows: [], error: new Error(label + " timed out after " + Math.round(timeoutMs / 1000) + " seconds.") }), timeoutMs))
+      ]);
     }
 
     async function renderSignedInDevicesList() {
       const body = document.getElementById('signedInDevicesBody');
       if (!body) return;
-      body.innerHTML = '<div class="panel-note">Refreshing signed-in browsers/devices...</div>';
-      const [signInResult, signOutResult] = await Promise.all([
+      body.innerHTML = '<div class="panel-note">Loading signed-in browsers/devices...</div>';
+
+      const signInResult = await withDeviceQueryTimeout(
         fetchSignInAccessRows(500, true),
-        fetchDeviceSignOutRows(500)
-      ]);
+        'Signed-in device query'
+      );
+
       if (signInResult.error) {
         const message = signInResult.error.message || String(signInResult.error);
         body.innerHTML = '<div class="log-item" style="border-color:#d32f2f; background:#fff5f5;">' +
           '<div class="log-title" style="color:#b71c1c;">Device list could not load</div>' +
           '<div><small>' + escapeHtml(message) + '</small></div>' +
-          '<div class="panel-note" style="padding-bottom:0;">Check that the <b>app_sign_in_access</b> table exists and that its SELECT/INSERT policies allow the app to read it.</div>' +
+          '<div class="panel-note" style="padding-bottom:0;">The sign-ins exist in Supabase, but this browser could not read the app_sign_in_access table. Confirm SELECT access and that this HTML uses the correct Supabase project URL and anon key.</div>' +
         '</div>';
         return;
       }
-      let warning = '';
+
+      // Show devices immediately. Kick status is loaded separately so it cannot block the list.
+      body.innerHTML = buildSignedInDevicesHtml(signInResult.rows, []);
+
+      const signOutResult = await withDeviceQueryTimeout(
+        fetchDeviceSignOutRows(500),
+        'Kick-status query'
+      );
+
       if (signOutResult.error) {
-        warning = '<div class="log-item" style="border-color:#f9a825; background:#fffde7;"><small><b>Kick status could not be loaded:</b> ' + escapeHtml(signOutResult.error.message || String(signOutResult.error)) + '. Check the app_device_signout_requests table and policies.</small></div>';
+        const warning = '<div class="log-item" style="border-color:#f9a825; background:#fffde7;"><small><b>Devices loaded, but kick status could not be loaded:</b> ' + escapeHtml(signOutResult.error.message || String(signOutResult.error)) + '</small></div>';
+        body.innerHTML = warning + buildSignedInDevicesHtml(signInResult.rows, []);
+        return;
       }
-      body.innerHTML = warning + buildSignedInDevicesHtml(signInResult.rows, signOutResult.rows);
+
+      body.innerHTML = buildSignedInDevicesHtml(signInResult.rows, signOutResult.rows);
     }
 
     async function toggleSignedInDevicesPanel(forceOpen) {
@@ -3911,7 +3934,7 @@
         const { error } = await supabaseClient.from(DEVICE_SIGNOUT_TABLE).insert(payload);
         if (error) {
           console.warn('Could not save force re-sign-in request.', error);
-          alert('Could not save the force re-sign-in request. Run the device sign-out SQL first.');
+          alert('Could not save the force re-sign-in request: ' + (error.message || String(error)) + '\n\nRun the new device logging repair SQL.');
           return;
         }
         alert('Force re-sign-in request saved for ' + displayLabel + '.');
