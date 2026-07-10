@@ -2111,7 +2111,7 @@
 </head>
 <body>
 
-  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.10-D</button>
+  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.10-E</button>
   <div class="floating-ui" id="floatingUi">
     <button class="mobile-ui-toggle" id="mobileUiToggle" type="button" onclick="toggleMobileUi()">
       <span class="mobile-ui-toggle-main">
@@ -2290,7 +2290,7 @@
 
   <div class="panel" id="signedInDevicesPanel">
     <div class="panel-header">
-      <span>Signed-In Devices / Kick Out <small style="font-weight:normal; opacity:.9;">BUILD 2026-07-10D</small></span>
+      <span>Signed-In Devices / Kick Out <small style="font-weight:normal; opacity:.9;">BUILD 2026-07-10E</small></span>
       <button class="panel-close-btn" onclick="toggleSignedInDevicesPanel(false)">&times;</button>
     </div>
     <div class="panel-body">
@@ -2764,7 +2764,7 @@
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1iZnV6ZXR4Zndwb2RqY2pybGdlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5ODc0NjgsImV4cCI6MjA5MDU2MzQ2OH0.Q0yFDCzAhE772OaeMaioq8LE_arUINllgSnM4VvZPCI";
     const SUPABASE_TABLE = "pins";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.10-D";
+    const APP_VERSION = "2026.07.10-E";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const SIGN_IN_ACCESS_TABLE = "app_sign_in_access";
@@ -3494,6 +3494,13 @@
       }
     }
 
+    function formatDateTime(value) {
+      if (!value) return "";
+      const date = value instanceof Date ? value : new Date(value);
+      if (Number.isNaN(date.getTime())) return String(value);
+      return date.toLocaleString();
+    }
+
     function buildSignInLogHtml(rows) {
       if (!rows || !rows.length) {
         return '<div class="empty-log">No sign-in records found yet.</div>';
@@ -3605,10 +3612,10 @@
     async function renderSignedInDevicesList() {
       const body = document.getElementById('signedInDevicesBody');
       if (!body) return;
-      body.innerHTML = '<div class="panel-note">Loading signed-in browsers/devices… <b>BUILD 2026-07-10D</b></div>';
+      body.innerHTML = '<div class="panel-note">Loading signed-in browsers/devices… <b>BUILD 2026-07-10E</b></div>';
       const visibleTimeout = window.setTimeout(() => {
         if (body && /Loading signed-in browsers\/devices/.test(body.textContent || '')) {
-          body.innerHTML = '<div class="log-item" style="border-color:#d32f2f;background:#fff5f5;"><div class="log-title" style="color:#b71c1c;">Device list timed out — BUILD 2026-07-10D</div><div><small>The page loaded the new build, but the Supabase request did not complete.</small></div></div>';
+          body.innerHTML = '<div class="log-item" style="border-color:#d32f2f;background:#fff5f5;"><div class="log-title" style="color:#b71c1c;">Device list timed out — BUILD 2026-07-10E</div><div><small>The page loaded the new build, but the Supabase request did not complete.</small></div></div>';
         }
       }, 12000);
 
