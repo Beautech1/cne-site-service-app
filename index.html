@@ -2166,6 +2166,10 @@
     </div>
     <div class="panel-body">
       <div class="panel-note">Admin tools for logs, exports, department settings, profile names, and CSV imports.</div>
+      <div id="adminAuthStatus" class="log-summary">Admin authentication required.</div>
+      <div class="export-actions" style="margin-bottom:10px;">
+        <button class="action-btn secondary" onclick="adminSignOut()">Sign Out Admin</button>
+      </div>
       <div class="admin-menu-section">
         <h3>Logs & Exports</h3>
         <div class="admin-menu-grid">
@@ -2290,7 +2294,7 @@
 
   <div class="panel" id="signedInDevicesPanel">
     <div class="panel-header">
-      <span>Signed-In Devices / Kick Out <small style="font-weight:normal; opacity:.9;">BUILD 2026-07-10E</small></span>
+      <span>Signed-In Devices / Kick Out <small style="font-weight:normal; opacity:.9;">BUILD 2026-07-10F</small></span>
       <button class="panel-close-btn" onclick="toggleSignedInDevicesPanel(false)">&times;</button>
     </div>
     <div class="panel-body">
@@ -2764,7 +2768,7 @@
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1iZnV6ZXR4Zndwb2RqY2pybGdlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5ODc0NjgsImV4cCI6MjA5MDU2MzQ2OH0.Q0yFDCzAhE772OaeMaioq8LE_arUINllgSnM4VvZPCI";
     const SUPABASE_TABLE = "pins";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.10-E";
+    const APP_VERSION = "2026.07.10-F";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const SIGN_IN_ACCESS_TABLE = "app_sign_in_access";
@@ -2806,7 +2810,9 @@
       "CARPENTRY2026": { label: "Carpentry", role: "department", department: "Carpentry", canViewAll: false }
     };
     let SIGN_IN_CODES = { ...DEFAULT_SIGN_IN_CODES };
-    const ADMIN_PASSWORD = "cneadmin12345"; // Change this admin password before sharing the file.
+    const ADMIN_EMAIL = "beaufelipe@gmail.com";
+    const ADMIN_USERS_TABLE = "app_admin_users";
+    let cachedAdminUser = null;
     const DEFAULT_MAP_VIEWS = [
       { id: "outdoor_site", name: "Outdoor Site Map", type: "outdoor", image: null },
       { id: "food_building_main", name: "Food Building - Main Floor", type: "floorplan", image: "./floor-plan-food-building.png" }
@@ -3612,10 +3618,10 @@
     async function renderSignedInDevicesList() {
       const body = document.getElementById('signedInDevicesBody');
       if (!body) return;
-      body.innerHTML = '<div class="panel-note">Loading signed-in browsers/devices… <b>BUILD 2026-07-10E</b></div>';
+      body.innerHTML = '<div class="panel-note">Loading signed-in browsers/devices… <b>BUILD 2026-07-10F</b></div>';
       const visibleTimeout = window.setTimeout(() => {
         if (body && /Loading signed-in browsers\/devices/.test(body.textContent || '')) {
-          body.innerHTML = '<div class="log-item" style="border-color:#d32f2f;background:#fff5f5;"><div class="log-title" style="color:#b71c1c;">Device list timed out — BUILD 2026-07-10E</div><div><small>The page loaded the new build, but the Supabase request did not complete.</small></div></div>';
+          body.innerHTML = '<div class="log-item" style="border-color:#d32f2f;background:#fff5f5;"><div class="log-title" style="color:#b71c1c;">Device list timed out — BUILD 2026-07-10F</div><div><small>The page loaded the new build, but the Supabase request did not complete.</small></div></div>';
         }
       }, 12000);
 
@@ -3956,6 +3962,123 @@
       window.addEventListener('focus', () => checkDeviceSignOutRequest(true));
     }
 
+
+    function setAdminAuthStatus(message) {
+      const el = document.getElementById('adminAuthStatus');
+      if (el) el.textContent = message || 'Admin authentication required.';
+    }
+
+    function showAdminLoginDialog() {
+      return new Promise((resolve) => {
+        const old = document.getElementById('adminLoginOverlay');
+        if (old) old.remove();
+        const overlay = document.createElement('div');
+        overlay.id = 'adminLoginOverlay';
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.48);z-index:10000;display:flex;align-items:center;justify-content:center;padding:12px;box-sizing:border-box;';
+        overlay.innerHTML = `
+          <div style="width:min(420px,100%);background:#fff;border-radius:12px;box-shadow:0 18px 50px rgba(0,0,0,.35);overflow:hidden;">
+            <div style="background:#005a9c;color:#fff;padding:13px 15px;font-weight:800;">CNE Service App Admin Sign-In</div>
+            <form id="adminLoginForm" style="padding:15px;display:grid;gap:11px;">
+              <label style="display:grid;gap:5px;font-size:12px;font-weight:700;color:#243447;">Email
+                <input id="adminLoginEmail" type="email" autocomplete="username" value="${ADMIN_EMAIL}" required style="padding:10px;border:1px solid #c9d2dc;border-radius:7px;font-size:16px;">
+              </label>
+              <label style="display:grid;gap:5px;font-size:12px;font-weight:700;color:#243447;">Password
+                <input id="adminLoginPassword" type="password" autocomplete="current-password" required style="padding:10px;border:1px solid #c9d2dc;border-radius:7px;font-size:16px;">
+              </label>
+              <div id="adminLoginError" style="display:none;color:#b91c1c;font-size:12px;line-height:1.35;"></div>
+              <div style="display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;">
+                <button type="button" id="adminLoginCancel" class="action-btn secondary">Cancel</button>
+                <button type="submit" id="adminLoginSubmit" class="action-btn">Sign In</button>
+              </div>
+            </form>
+          </div>`;
+        document.body.appendChild(overlay);
+        const form = overlay.querySelector('#adminLoginForm');
+        const cancel = overlay.querySelector('#adminLoginCancel');
+        const submit = overlay.querySelector('#adminLoginSubmit');
+        const errorEl = overlay.querySelector('#adminLoginError');
+        const passwordEl = overlay.querySelector('#adminLoginPassword');
+        const finish = (value) => { overlay.remove(); resolve(value); };
+        cancel.addEventListener('click', () => finish(null));
+        overlay.addEventListener('click', (event) => { if (event.target === overlay) finish(null); });
+        form.addEventListener('submit', (event) => {
+          event.preventDefault();
+          errorEl.style.display = 'none';
+          submit.disabled = true;
+          submit.textContent = 'Signing in...';
+          resolve({
+            email: overlay.querySelector('#adminLoginEmail').value.trim(),
+            password: passwordEl.value,
+            overlay,
+            errorEl,
+            submit
+          });
+        }, { once: true });
+        setTimeout(() => passwordEl.focus(), 50);
+      });
+    }
+
+    async function verifyCurrentAdminUser() {
+      if (!supabaseClient) return null;
+      const { data: sessionData, error: sessionError } = await supabaseClient.auth.getSession();
+      if (sessionError || !sessionData || !sessionData.session || !sessionData.session.user) return null;
+      const user = sessionData.session.user;
+      const { data, error } = await supabaseClient
+        .from(ADMIN_USERS_TABLE)
+        .select('user_id,email,is_active')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .maybeSingle();
+      if (error || !data) return null;
+      cachedAdminUser = { user, admin: data };
+      return cachedAdminUser;
+    }
+
+    async function requireAdminAuth() {
+      if (!supabaseClient) {
+        alert('Supabase is not connected. Admin authentication is unavailable.');
+        return false;
+      }
+      const existing = await verifyCurrentAdminUser();
+      if (existing) {
+        setAdminAuthStatus(`Signed in securely as ${existing.user.email || existing.admin.email || 'administrator'}.`);
+        return true;
+      }
+      const credentials = await showAdminLoginDialog();
+      if (!credentials) return false;
+      const { email, password, overlay, errorEl, submit } = credentials;
+      const { error: signInError } = await supabaseClient.auth.signInWithPassword({ email, password });
+      if (signInError) {
+        errorEl.textContent = signInError.message || 'Admin sign-in failed.';
+        errorEl.style.display = 'block';
+        submit.disabled = false;
+        submit.textContent = 'Sign In';
+        // Keep dialog open and re-run authentication through a fresh call.
+        await new Promise(resolve => setTimeout(resolve, 50));
+        overlay.remove();
+        alert('Admin sign-in failed: ' + (signInError.message || 'Unknown error'));
+        return false;
+      }
+      const verified = await verifyCurrentAdminUser();
+      overlay.remove();
+      if (!verified) {
+        await supabaseClient.auth.signOut();
+        alert('This Supabase account is not authorized as a CNE Service App administrator.');
+        setAdminAuthStatus('Signed out — administrator access was not authorized.');
+        return false;
+      }
+      setAdminAuthStatus(`Signed in securely as ${verified.user.email || email}.`);
+      return true;
+    }
+
+    async function adminSignOut() {
+      if (!supabaseClient) return;
+      await supabaseClient.auth.signOut();
+      cachedAdminUser = null;
+      setAdminAuthStatus('Admin signed out.');
+      if (adminPanel) adminPanel.classList.remove('open');
+    }
+
     async function forceDeviceReSignIn(deviceId, label) {
       const normalizedDeviceId = String(deviceId || "").trim();
       if (!normalizedDeviceId) {
@@ -3963,11 +4086,7 @@
         return;
       }
       if (!adminPanel || !adminPanel.classList.contains('open')) {
-        const password = window.prompt('Enter admin password to force this device to sign in again:');
-        if (password !== ADMIN_PASSWORD) {
-          alert('Incorrect admin password.');
-          return;
-        }
+        if (!(await requireAdminAuth())) return;
       }
       const displayLabel = String(label || normalizedDeviceId || "this device").trim();
       const ok = window.confirm('Force re-sign-in for ' + displayLabel + '?\n\nThat browser/device will be asked for the sign-in code again the next time it checks in or refreshes.');
@@ -4754,16 +4873,12 @@
       if (editSmsSection) editSmsSection.style.display = isClearedStatus ? "none" : "grid";
     }
 
-    function openEditPinModal(pinId) {
+    async function openEditPinModal(pinId) {
       const pin = allPins.find(item => item.id === pinId);
       if (!pin) return;
 
       if (getPinStatus(pin) === "cleared") {
-        const password = window.prompt('Enter admin password to update a cleared pin:');
-        if (password !== ADMIN_PASSWORD) {
-          alert('Incorrect password.');
-          return;
-        }
+        if (!(await requireAdminAuth())) return;
       }
 
       pendingEditPinId = pinId;
@@ -6591,15 +6706,11 @@
       return printLogRows("cleared");
     }
 
-    function toggleAllLogsPanel(forceOpen) {
+    async function toggleAllLogsPanel(forceOpen) {
       const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : !allLogsPanel.classList.contains('open');
       if (shouldOpen) {
         if (!adminPanel || !adminPanel.classList.contains('open')) {
-          const password = window.prompt('Enter admin password to view all logs:');
-          if (password !== ADMIN_PASSWORD) {
-            alert('Incorrect password.');
-            return;
-          }
+          if (!(await requireAdminAuth())) return;
         }
         populateAllLogsFilters();
         renderAllLogs();
@@ -6609,15 +6720,11 @@
       }
     }
 
-    function toggleDeleteHistoryPanel(forceOpen) {
+    async function toggleDeleteHistoryPanel(forceOpen) {
       const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : !deleteHistoryPanel.classList.contains('open');
       if (shouldOpen) {
         if (!adminPanel || !adminPanel.classList.contains('open')) {
-          const password = window.prompt('Enter admin password to delete history:');
-          if (password !== ADMIN_PASSWORD) {
-            alert('Incorrect password.');
-            return;
-          }
+          if (!(await requireAdminAuth())) return;
         }
         populateDeleteHistorySelect();
         deleteHistoryPanel.classList.add('open');
@@ -6669,14 +6776,10 @@
       setStatus("Pin deleted from history.");
     }
 
-    function toggleAdminPanel(forceOpen) {
+    async function toggleAdminPanel(forceOpen) {
       const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : !adminPanel.classList.contains('open');
       if (shouldOpen) {
-        const password = window.prompt('Enter admin password:');
-        if (password !== ADMIN_PASSWORD) {
-          alert('Incorrect password.');
-          return;
-        }
+        if (!(await requireAdminAuth())) return;
         adminPanel.classList.add('open');
       } else {
         adminPanel.classList.remove('open');
@@ -6712,15 +6815,11 @@
       }
     }
 
-    function toggleDepartmentPanel(forceOpen) {
+    async function toggleDepartmentPanel(forceOpen) {
       const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : !departmentPanel.classList.contains('open');
       if (shouldOpen) {
         if (!adminPanel || !adminPanel.classList.contains('open')) {
-          const password = window.prompt('Enter admin password to manage departments:');
-          if (password !== ADMIN_PASSWORD) {
-            alert('Incorrect password.');
-            return;
-          }
+          if (!(await requireAdminAuth())) return;
         }
         departmentPanel.classList.add('open');
         loadDepartmentEditor();
@@ -8437,6 +8536,8 @@ ${rows.map(pin => `
     window.renderSignedInDevicesList = renderSignedInDevicesList;
     window.registerCurrentDeviceAndRefresh = registerCurrentDeviceAndRefresh;
     window.toggleAdminPanel = toggleAdminPanel;
+    window.adminSignOut = adminSignOut;
+    window.requireAdminAuth = requireAdminAuth;
     window.toggleAllLogsPanel = toggleAllLogsPanel;
     window.renderAllLogs = renderAllLogs;
     window.populateAllLogsFilters = populateAllLogsFilters;
