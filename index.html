@@ -2255,7 +2255,7 @@
       <button class="panel-close-btn" onclick="toggleSignedInDevicesPanel(false)">&times;</button>
     </div>
     <div class="panel-body">
-      <div class="panel-note">Shows each browser/device that has signed in, grouped by device ID. Use this to force one device to sign in again. The device will be kicked out on refresh/reopen or during the automatic check-in.</div>
+      <div class="panel-note">Shows each browser/device that has signed in, grouped by device ID, plus its latest kick status. Use Refresh Device List after kicking a device. The other browser will be signed out on refresh/reopen, when it returns to the tab, or during the automatic check-in.</div>
       <div class="export-actions">
         <button class="action-btn secondary" onclick="renderSignedInDevicesList()">Refresh Device List</button>
         <button class="action-btn secondary" onclick="toggleSignInLogPanel(true)">View Full Sign-In History</button>
@@ -3412,8 +3412,11 @@
       }
     }
 
-    async function fetchSignInAccessRows(limit = 100) {
-      if (!supabaseClient) return [];
+    async function fetchSignInAccessRows(limit = 100, includeResult = false) {
+      if (!supabaseClient) {
+        const result = { rows: [], error: new Error("Supabase is not connected.") };
+        return includeResult ? result : result.rows;
+      }
       try {
         const { data, error } = await supabaseClient
           .from(SIGN_IN_ACCESS_TABLE)
@@ -3422,12 +3425,30 @@
           .limit(limit);
         if (error) {
           console.warn("Could not load sign-in timestamp history. Run the sign-in access SQL if needed.", error);
-          return [];
+          const result = { rows: [], error };
+          return includeResult ? result : result.rows;
         }
-        return Array.isArray(data) ? data : [];
+        const result = { rows: Array.isArray(data) ? data : [], error: null };
+        return includeResult ? result : result.rows;
       } catch (error) {
         console.warn("Could not load sign-in timestamp history.", error);
-        return [];
+        const result = { rows: [], error };
+        return includeResult ? result : result.rows;
+      }
+    }
+
+    async function fetchDeviceSignOutRows(limit = 500) {
+      if (!supabaseClient) return { rows: [], error: new Error("Supabase is not connected.") };
+      try {
+        const { data, error } = await supabaseClient
+          .from(DEVICE_SIGNOUT_TABLE)
+          .select("id, device_id, reason, requested_by_device_id, requested_by_label, created_at")
+          .order("created_at", { ascending: false })
+          .limit(limit);
+        if (error) return { rows: [], error };
+        return { rows: Array.isArray(data) ? data : [], error: null };
+      } catch (error) {
+        return { rows: [], error };
       }
     }
 
@@ -3458,10 +3479,15 @@
     }
 
 
-    function buildSignedInDevicesHtml(rows) {
+    function buildSignedInDevicesHtml(rows, signOutRows = []) {
       if (!rows || !rows.length) {
-        return '<div class="empty-log">No signed-in devices found yet.</div>';
+        return '<div class="empty-log">No signed-in devices found yet. A browser only appears here after it signs in once using this updated app.</div>';
       }
+      const latestKickByDevice = new Map();
+      (Array.isArray(signOutRows) ? signOutRows : []).forEach(item => {
+        const id = String(item.device_id || '').trim();
+        if (id && !latestKickByDevice.has(id)) latestKickByDevice.set(id, item);
+      });
       const byDevice = new Map();
       rows.forEach(row => {
         const id = String(row.device_id || '').trim();
@@ -3482,6 +3508,13 @@
         const dept = row.can_view_all ? 'All Departments' : (row.department === 'multi' ? 'Selected departments' : (row.department || ''));
         const browser = row.user_agent ? String(row.user_agent).slice(0, 120) : '';
         const isCurrent = currentDeviceId && deviceId === currentDeviceId;
+        const latestKick = latestKickByDevice.get(deviceId) || null;
+        const signInAt = row.created_at ? new Date(row.created_at).getTime() : 0;
+        const kickAt = latestKick && latestKick.created_at ? new Date(latestKick.created_at).getTime() : 0;
+        const isKickedOut = kickAt > signInAt;
+        const kickStatus = latestKick && latestKick.created_at
+          ? '<div style="margin-top:7px; padding:7px 8px; border-radius:7px; background:' + (isKickedOut ? '#ffebee' : '#eef7ff') + '; color:' + (isKickedOut ? '#8e0000' : '#003f70') + ';"><small><b>' + (isKickedOut ? 'SIGNED OUT / RE-SIGN-IN REQUIRED' : 'Previous kick completed') + '</b><br>Kick requested: ' + escapeHtml(formatDateTime(latestKick.created_at)) + (latestKick.requested_by_label ? '<br>Requested by: ' + escapeHtml(latestKick.requested_by_label) : '') + '</small></div>'
+          : '<div style="margin-top:7px;"><small><b>Status:</b> Signed in</small></div>';
         const label = (userName || enteredDept || deviceId) + (enteredDept ? ' / ' + enteredDept : '');
         return '<div class="log-item">' +
           '<div class="log-title">' + escapeHtml(label || 'Signed-in device') + (isCurrent ? ' <small style="color:#005a9c;">(this browser)</small>' : '') + '</div>' +
@@ -3492,8 +3525,9 @@
           '<div><small><b>User name:</b> ' + escapeHtml(userName) + '</small></div>' +
           '<div><small><b>Device ID:</b> ' + escapeHtml(deviceId) + '</small></div>' +
           (browser ? '<div><small><b>Browser/device:</b> ' + escapeHtml(browser) + '</small></div>' : '') +
+          kickStatus +
           '<div class="export-actions" style="margin-top:8px;">' +
-            '<button class="action-btn" style="background:#b71c1c;" onclick="forceDeviceReSignInFromButton(this)" data-device-id="' + escapeAttr(deviceId) + '" data-device-label="' + escapeAttr(label || deviceId) + '">Kick Out / Force Re-Sign In</button>' +
+            '<button class="action-btn" style="background:#b71c1c;" onclick="forceDeviceReSignInFromButton(this)" data-device-id="' + escapeAttr(deviceId) + '" data-device-label="' + escapeAttr(label || deviceId) + '">' + (isKickedOut ? 'Send Kick Again' : 'Kick Out / Force Re-Sign In') + '</button>' +
           '</div>' +
         '</div>';
       }).join('');
@@ -3502,9 +3536,25 @@
     async function renderSignedInDevicesList() {
       const body = document.getElementById('signedInDevicesBody');
       if (!body) return;
-      body.innerHTML = '<div class="panel-note">Loading signed-in browsers/devices...</div>';
-      const rows = await fetchSignInAccessRows(500);
-      body.innerHTML = buildSignedInDevicesHtml(rows);
+      body.innerHTML = '<div class="panel-note">Refreshing signed-in browsers/devices...</div>';
+      const [signInResult, signOutResult] = await Promise.all([
+        fetchSignInAccessRows(500, true),
+        fetchDeviceSignOutRows(500)
+      ]);
+      if (signInResult.error) {
+        const message = signInResult.error.message || String(signInResult.error);
+        body.innerHTML = '<div class="log-item" style="border-color:#d32f2f; background:#fff5f5;">' +
+          '<div class="log-title" style="color:#b71c1c;">Device list could not load</div>' +
+          '<div><small>' + escapeHtml(message) + '</small></div>' +
+          '<div class="panel-note" style="padding-bottom:0;">Check that the <b>app_sign_in_access</b> table exists and that its SELECT/INSERT policies allow the app to read it.</div>' +
+        '</div>';
+        return;
+      }
+      let warning = '';
+      if (signOutResult.error) {
+        warning = '<div class="log-item" style="border-color:#f9a825; background:#fffde7;"><small><b>Kick status could not be loaded:</b> ' + escapeHtml(signOutResult.error.message || String(signOutResult.error)) + '. Check the app_device_signout_requests table and policies.</small></div>';
+      }
+      body.innerHTML = warning + buildSignedInDevicesHtml(signInResult.rows, signOutResult.rows);
     }
 
     async function toggleSignedInDevicesPanel(forceOpen) {
@@ -3803,7 +3853,11 @@
       if (deviceSignOutCheckTimer) return;
       deviceSignOutCheckTimer = window.setInterval(() => {
         checkDeviceSignOutRequest(true);
-      }, 60000);
+      }, 20000);
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) checkDeviceSignOutRequest(true);
+      });
+      window.addEventListener('focus', () => checkDeviceSignOutRequest(true));
     }
 
     async function forceDeviceReSignIn(deviceId, label) {
