@@ -2257,7 +2257,7 @@
     <div class="panel-body">
       <div class="panel-note">Shows each browser/device that has signed in, grouped by device ID, plus its latest kick status. Use Refresh Device List after kicking a device. The other browser will be signed out on refresh/reopen, when it returns to the tab, or during the automatic check-in.</div>
       <div class="export-actions">
-        <button class="action-btn secondary" onclick="renderSignedInDevicesList()">Refresh Device List</button>
+        <button class="action-btn secondary" onclick="registerCurrentDeviceAndRefresh()">Register / Refresh This Device</button>
         <button class="action-btn secondary" onclick="toggleSignInLogPanel(true)">View Full Sign-In History</button>
       </div>
       <div id="signedInDevicesBody" style="margin-top:10px;">
@@ -3531,6 +3531,25 @@
           '</div>' +
         '</div>';
       }).join('');
+    }
+
+
+    async function registerCurrentSavedSession() {
+      const access = getAccessProfile();
+      if (!access || isReportViewOnlyMode()) return false;
+      const profile = getDeviceProfile();
+      if (!profile.user_name) ensureDeviceUserProfile(false);
+      return await recordSignInAccessEvent(access, access.code || "SAVED_SESSION");
+    }
+
+    async function registerCurrentDeviceAndRefresh() {
+      const body = document.getElementById('signedInDevicesBody');
+      if (body) body.innerHTML = '<div class="panel-note">Saving this browser/device and refreshing the list...</div>';
+      const saved = await registerCurrentSavedSession();
+      await renderSignedInDevicesList();
+      if (!saved && body && !body.querySelector('.log-item[style*="border-color:#d32f2f"]')) {
+        body.insertAdjacentHTML('afterbegin', '<div class="log-item" style="border-color:#d32f2f; background:#fff5f5;"><div class="log-title" style="color:#b71c1c;">This device was not saved</div><div><small>The app_sign_in_access insert failed. Run the supplied Supabase SQL, then press this button again.</small></div></div>');
+      }
     }
 
     async function renderSignedInDevicesList() {
@@ -8317,6 +8336,7 @@ ${rows.map(pin => `
       appInitialized = true;
       populateMapSelector();
       if (!isReportViewOnlyMode()) ensureDeviceUserProfile(false);
+      if (!isReportViewOnlyMode()) await registerCurrentSavedSession();
       await loadCentralSettingsFromSupabase();
       enforceAssignedDepartmentView();
       switchMapView(currentMapId);
@@ -8338,6 +8358,7 @@ ${rows.map(pin => `
     window.forceDeviceReSignInFromButton = forceDeviceReSignInFromButton;
     window.toggleSignedInDevicesPanel = toggleSignedInDevicesPanel;
     window.renderSignedInDevicesList = renderSignedInDevicesList;
+    window.registerCurrentDeviceAndRefresh = registerCurrentDeviceAndRefresh;
     window.toggleAdminPanel = toggleAdminPanel;
     window.toggleAllLogsPanel = toggleAllLogsPanel;
     window.renderAllLogs = renderAllLogs;
