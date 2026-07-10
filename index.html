@@ -2070,9 +2070,48 @@
       filter: none;
     }
 
+
+    /* Always-visible app build identifier for troubleshooting. */
+    .app-version-badge {
+      position: fixed;
+      left: 8px;
+      bottom: 8px;
+      z-index: 5000;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 8px;
+      border-radius: 999px;
+      background: rgba(31, 41, 51, 0.88);
+      color: #fff;
+      border: 1px solid rgba(255,255,255,0.35);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.22);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+      line-height: 1;
+      user-select: text;
+      cursor: pointer;
+    }
+
+    .app-version-badge:active {
+      transform: scale(0.98);
+    }
+
+    @media (max-width: 520px) {
+      .app-version-badge {
+        left: 6px;
+        bottom: 6px;
+        padding: 4px 7px;
+        font-size: 9px;
+      }
+    }
+
   </style>
 </head>
 <body>
+
+  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.10-D</button>
   <div class="floating-ui" id="floatingUi">
     <button class="mobile-ui-toggle" id="mobileUiToggle" type="button" onclick="toggleMobileUi()">
       <span class="mobile-ui-toggle-main">
@@ -2251,7 +2290,7 @@
 
   <div class="panel" id="signedInDevicesPanel">
     <div class="panel-header">
-      <span>Signed-In Devices / Kick Out</span>
+      <span>Signed-In Devices / Kick Out <small style="font-weight:normal; opacity:.9;">BUILD 2026-07-10D</small></span>
       <button class="panel-close-btn" onclick="toggleSignedInDevicesPanel(false)">&times;</button>
     </div>
     <div class="panel-body">
@@ -2725,6 +2764,7 @@
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1iZnV6ZXR4Zndwb2RqY2pybGdlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5ODc0NjgsImV4cCI6MjA5MDU2MzQ2OH0.Q0yFDCzAhE772OaeMaioq8LE_arUINllgSnM4VvZPCI";
     const SUPABASE_TABLE = "pins";
     const SUPABASE_BUCKET = "pin-photos";
+    const APP_VERSION = "2026.07.10-D";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const SIGN_IN_ACCESS_TABLE = "app_sign_in_access";
@@ -3565,13 +3605,19 @@
     async function renderSignedInDevicesList() {
       const body = document.getElementById('signedInDevicesBody');
       if (!body) return;
-      body.innerHTML = '<div class="panel-note">Loading signed-in browsers/devices...</div>';
+      body.innerHTML = '<div class="panel-note">Loading signed-in browsers/devices… <b>BUILD 2026-07-10D</b></div>';
+      const visibleTimeout = window.setTimeout(() => {
+        if (body && /Loading signed-in browsers\/devices/.test(body.textContent || '')) {
+          body.innerHTML = '<div class="log-item" style="border-color:#d32f2f;background:#fff5f5;"><div class="log-title" style="color:#b71c1c;">Device list timed out — BUILD 2026-07-10D</div><div><small>The page loaded the new build, but the Supabase request did not complete.</small></div></div>';
+        }
+      }, 12000);
 
       const signInResult = await withDeviceQueryTimeout(
         fetchSignInAccessRows(500, true),
         'Signed-in device query'
       );
 
+      window.clearTimeout(visibleTimeout);
       if (signInResult.error) {
         const message = signInResult.error.message || String(signInResult.error);
         body.innerHTML = '<div class="log-item" style="border-color:#d32f2f; background:#fff5f5;">' +
@@ -3596,6 +3642,7 @@
         return;
       }
 
+      window.clearTimeout(visibleTimeout);
       body.innerHTML = buildSignedInDevicesHtml(signInResult.rows, signOutResult.rows);
     }
 
@@ -8387,6 +8434,29 @@ ${rows.map(pin => `
     window.renderAllLogs = renderAllLogs;
     window.populateAllLogsFilters = populateAllLogsFilters;
     window.cancelPin = cancelPin;
+    function copyAppVersion() {
+      const text = `CNE Service App Version ${APP_VERSION}`;
+      const badge = document.getElementById("appVersionBadge");
+      const original = badge ? badge.textContent : "";
+      const showCopied = function() {
+        if (!badge) return;
+        badge.textContent = "Version copied";
+        setTimeout(function() { badge.textContent = `Version ${APP_VERSION}`; }, 1400);
+      };
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(showCopied).catch(function() {
+          window.prompt("Copy this app version:", text);
+        });
+      } else {
+        window.prompt("Copy this app version:", text);
+      }
+    }
+
+    document.title = `CNE Service App — v${APP_VERSION}`;
+    const versionBadge = document.getElementById("appVersionBadge");
+    if (versionBadge) versionBadge.textContent = `Version ${APP_VERSION}`;
+
+    window.copyAppVersion = copyAppVersion;
     window.toggleLogPanel = toggleLogPanel;
     window.toggleDeleteHistoryPanel = toggleDeleteHistoryPanel;
     window.populateDeleteHistorySelect = populateDeleteHistorySelect;
