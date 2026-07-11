@@ -2876,7 +2876,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.11-K";
+    const APP_VERSION = "2026.07.11-L";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const SIGN_IN_ACCESS_TABLE = "app_sign_in_access";
@@ -5909,7 +5909,7 @@
 
     function populateOperationalLogFilters() {
       const departmentOptions = ['<option value="all">All departments</option>'].concat(
-        getVisibleDepartments().map(d => '<option value="' + escapeHtml(d.key) + '">' + escapeHtml(d.label) + '</option>')
+        getDepartmentsAvailableForDepartmentView().map(d => '<option value="' + escapeHtml(d.key) + '">' + escapeHtml(d.name || d.label || formatDepartmentLabel(d.key)) + '</option>')
       ).join('');
       const mapOptions = ['<option value="all">All maps / buildings</option>'].concat(
         mapViews.filter(m => m && m.id).map(m => '<option value="' + escapeHtml(m.id) + '">' + escapeHtml(m.name) + '</option>')
