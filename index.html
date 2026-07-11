@@ -631,6 +631,58 @@
       margin: 0 0 10px;
     }
 
+    .log-filter-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin: 0 0 10px;
+      padding: 9px;
+      border: 1px solid #d9e0e6;
+      border-radius: 8px;
+      background: #f8fbfe;
+    }
+
+    .log-filter-grid label {
+      display: grid;
+      gap: 4px;
+      font-size: 11px;
+      font-weight: 700;
+      color: #334155;
+    }
+
+    .log-filter-grid select,
+    .log-filter-grid input {
+      width: 100%;
+      box-sizing: border-box;
+      border: 1px solid #c9d2dc;
+      border-radius: 6px;
+      padding: 7px 8px;
+      background: #fff;
+      font: inherit;
+    }
+
+    .log-filter-search { grid-column: 1 / -1; }
+
+    .log-compact-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 10px;
+      margin-top: 3px;
+      font-size: 12px;
+      color: #334155;
+    }
+
+    .log-origin-line {
+      margin-top: 5px;
+      font-size: 12px;
+      color: #334155;
+    }
+
+    @media (max-width: 520px) {
+      .log-filter-grid { grid-template-columns: 1fr; }
+      .log-filter-search { grid-column: auto; }
+    }
+
     .log-summary {
       border: 1px solid #d9e0e6;
       border-radius: 8px;
@@ -2240,8 +2292,19 @@
     </div>
     <div class="panel-body">
       <div class="log-panel-actions">
-        <button class="action-btn secondary" onclick="renderLog(getClearedPinsForDeleteList())">Refresh Cleared Log</button>
+        <button class="action-btn secondary" onclick="populateOperationalLogFilters(); renderClearedLog()">Refresh Cleared Log</button>
         <button class="action-btn secondary" onclick="printClearedLogs()">Print Cleared Log</button>
+      </div>
+      <div class="log-filter-grid">
+        <label>Assigned department
+          <select id="clearedLogDepartmentFilter" onchange="renderClearedLog()"></select>
+        </label>
+        <label>Map / building
+          <select id="clearedLogMapFilter" onchange="renderClearedLog()"></select>
+        </label>
+        <label class="log-filter-search">Search
+          <input id="clearedLogSearchFilter" type="search" placeholder="Title, details, user..." oninput="renderClearedLog()">
+        </label>
       </div>
       <div id="logBody">
         <div class="empty-log">No cleared pins yet.</div>
@@ -2257,8 +2320,19 @@
     <div class="panel-body">
       <div class="panel-note">Active / outstanding items only. Use Edit to update/reassign, or Print This Report for a single printable report.</div>
       <div class="log-panel-actions">
-        <button class="action-btn secondary" onclick="renderActiveLog()">Refresh Active Log</button>
+        <button class="action-btn secondary" onclick="populateOperationalLogFilters(); renderActiveLog()">Refresh Active Log</button>
         <button class="action-btn secondary" onclick="printActiveLogs()">Print Active Log</button>
+      </div>
+      <div class="log-filter-grid">
+        <label>Assigned department
+          <select id="activeLogDepartmentFilter" onchange="renderActiveLog()"></select>
+        </label>
+        <label>Map / building
+          <select id="activeLogMapFilter" onchange="renderActiveLog()"></select>
+        </label>
+        <label class="log-filter-search">Search
+          <input id="activeLogSearchFilter" type="search" placeholder="Title, details, user..." oninput="renderActiveLog()">
+        </label>
       </div>
       <div id="activeLogBody">
         <div class="empty-log">No active pins found.</div>
@@ -2802,7 +2876,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.11-I";
+    const APP_VERSION = "2026.07.11-J";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const SIGN_IN_ACCESS_TABLE = "app_sign_in_access";
@@ -5634,11 +5708,9 @@
         closeButton +
         "<b>" + escapeHtml(pin.title) + "</b>" +
         "<br><small><b>Status:</b> " + escapeHtml(formatPinStatus(pin)) + "</small>" +
-        "<br><small><b>Department:</b> " + escapeHtml(categoryLabel) + "</small>" +
-        "<br><small><b>Map / Building:</b> " + escapeHtml(getMapView(getPinMapId(pin)).name) + "</small>" +
-        ((pin.original_reported_by || pin.reported_by) ? "<br><small><b>Original reported by:</b> " + escapeHtml(pin.original_reported_by || pin.reported_by) + "</small>" : "") +
-        (pin.created_by_user_name ? "<br><small><b>Created by user:</b> " + escapeHtml(pin.created_by_user_name) + "</small>" : "") +
-        ((pin.created_by_department || pin.created_device_label) ? "<br><small><b>Created by department/company:</b> " + escapeHtml(pin.created_by_department || pin.created_device_label) + "</small>" : "") +
+        "<br><small><b>Assigned to:</b> " + escapeHtml(categoryLabel) + "</small>" +
+        "<br><small><b>Location:</b> " + escapeHtml(getMapView(getPinMapId(pin)).name) + "</small>" +
+        getPinOriginSummaryHtml(pin, "small") +
         (closedByValue ? "<br><small><b>" + escapeHtml(getClosedByLabel(pin)) + ":</b> " + escapeHtml(closedByValue) + "</small>" : "") +
         (isCleared && formatTimeToClear(pin) ? "<br><small><b>Time to clear:</b> " + escapeHtml(formatTimeToClear(pin)) + "</small>" : "") +
         (isCleared && pin.clear_comment ? "<br><small><b>Clear comments:</b> " + escapeHtml(pin.clear_comment) + "</small>" : "") +
@@ -5811,6 +5883,56 @@
       }
     }
 
+    function getPinOriginSummaryHtml(pin, wrapperTag = "div") {
+      const reported = String(pin.original_reported_by || pin.reported_by || "").trim();
+      const createdBy = String(pin.created_by_user_name || "").trim();
+      const creatorDept = String(pin.created_by_department || pin.created_device_label || "").trim();
+      const samePerson = reported && createdBy && reported.toLowerCase() === createdBy.toLowerCase();
+      const lines = [];
+      if (samePerson) {
+        lines.push('<b>Reported/created by:</b> ' + escapeHtml(reported) + (creatorDept ? ' <span aria-hidden="true">•</span> ' + escapeHtml(creatorDept) : ''));
+      } else {
+        if (reported) lines.push('<b>Reported by:</b> ' + escapeHtml(reported));
+        if (createdBy || creatorDept) lines.push('<b>Created by:</b> ' + escapeHtml(createdBy || 'Unknown') + (creatorDept ? ' <span aria-hidden="true">•</span> ' + escapeHtml(creatorDept) : ''));
+      }
+      return lines.map(line => '<' + wrapperTag + ' class="log-origin-line">' + line + '</' + wrapperTag + '>').join('');
+    }
+
+    function operationalLogSearchText(pin) {
+      return [
+        pin.title, pin.description, formatDepartmentLabel(pin.category),
+        getMapView(getPinMapId(pin)).name, pin.original_reported_by, pin.reported_by,
+        pin.created_by_user_name, pin.created_by_department, pin.created_device_label,
+        pin.cleared_by, pin.clear_comment
+      ].filter(Boolean).join(' ').toLowerCase();
+    }
+
+    function populateOperationalLogFilters() {
+      const departmentOptions = ['<option value="all">All departments</option>'].concat(
+        getVisibleDepartments().map(d => '<option value="' + escapeHtml(d.key) + '">' + escapeHtml(d.label) + '</option>')
+      ).join('');
+      const mapOptions = ['<option value="all">All maps / buildings</option>'].concat(
+        mapViews.filter(m => m && m.id).map(m => '<option value="' + escapeHtml(m.id) + '">' + escapeHtml(m.name) + '</option>')
+      ).join('');
+      [['activeLogDepartmentFilter', departmentOptions], ['clearedLogDepartmentFilter', departmentOptions],
+       ['activeLogMapFilter', mapOptions], ['clearedLogMapFilter', mapOptions]].forEach(([id, html]) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const current = el.value || 'all';
+        el.innerHTML = html;
+        if ([...el.options].some(o => o.value === current)) el.value = current;
+      });
+    }
+
+    function filterOperationalLogRows(rows, prefix) {
+      const dept = document.getElementById(prefix + 'DepartmentFilter')?.value || 'all';
+      const mapId = document.getElementById(prefix + 'MapFilter')?.value || 'all';
+      const term = (document.getElementById(prefix + 'SearchFilter')?.value || '').trim().toLowerCase();
+      return rows.filter(pin => dept === 'all' || String(pin.category || 'general') === dept)
+        .filter(pin => mapId === 'all' || String(getPinMapId(pin)) === mapId)
+        .filter(pin => !term || operationalLogSearchText(pin).includes(term));
+    }
+
     function buildLogItemHtml(pin, options = {}) {
       const status = getPinStatus(pin);
       const isCleared = status === "cleared";
@@ -5830,12 +5952,12 @@
       return (
         '<div class="log-item">' +
           '<div class="log-title">' + escapeHtml(pin.title || 'Untitled pin') + '</div>' +
-          '<div><small><b>Status:</b> ' + escapeHtml(formatPinStatus(pin)) + '</small></div>' +
-          '<div><small><b>Department:</b> ' + escapeHtml(formatDepartmentLabel(pin.category)) + '</small></div>' +
-          '<div><small><b>Map / Building:</b> ' + escapeHtml(getMapView(getPinMapId(pin)).name) + '</small></div>' +
-          ((pin.original_reported_by || pin.reported_by) ? '<div><small><b>Original reported by:</b> ' + escapeHtml(pin.original_reported_by || pin.reported_by) + '</small></div>' : '') +
-          (pin.created_by_user_name ? '<div><small><b>Created by user:</b> ' + escapeHtml(pin.created_by_user_name) + '</small></div>' : '') +
-          ((pin.created_by_department || pin.created_device_label) ? '<div><small><b>Created by department/company:</b> ' + escapeHtml(pin.created_by_department || pin.created_device_label) + '</small></div>' : '') +
+          '<div class="log-compact-meta">' +
+            '<span><b>Status:</b> ' + escapeHtml(formatPinStatus(pin)) + '</span>' +
+            '<span><b>Assigned to:</b> ' + escapeHtml(formatDepartmentLabel(pin.category)) + '</span>' +
+            '<span><b>Location:</b> ' + escapeHtml(getMapView(getPinMapId(pin)).name) + '</span>' +
+          '</div>' +
+          getPinOriginSummaryHtml(pin) +
           (closedByValue ? '<div><small><b>' + escapeHtml(getClosedByLabel(pin)) + ':</b> ' + escapeHtml(closedByValue) + '</small></div>' : '') +
           (closedFromValue ? '<div><small><b>' + escapeHtml(getClosedFromLabel(pin)) + ':</b> ' + escapeHtml(closedFromValue) + '</small></div>' : '') +
           (isCleared && formatTimeToClear(pin) ? '<div><small><b>Time to clear:</b> ' + escapeHtml(formatTimeToClear(pin)) + '</small></div>' : '') +
@@ -5859,11 +5981,17 @@
     }
 
     function renderLog(logPins) {
-      if (!logPins || !logPins.length) {
-        logBody.innerHTML = '<div class="empty-log">No cleared pins yet.</div>';
+      const rows = filterOperationalLogRows(logPins || [], 'clearedLog');
+      if (!rows.length) {
+        logBody.innerHTML = '<div class="empty-log">No cleared pins match these filters.</div>';
         return;
       }
-      logBody.innerHTML = logPins.map(pin => buildLogItemHtml(pin)).join('');
+      logBody.innerHTML = rows.map(pin => buildLogItemHtml(pin)).join('');
+    }
+
+    function renderClearedLog() {
+      populateOperationalLogFilters();
+      renderLog(getClearedPinsForDeleteList());
     }
 
     function getActiveLogRows() {
@@ -5876,9 +6004,10 @@
 
     function renderActiveLog() {
       if (!activeLogBody) return;
-      const rows = getActiveLogRows();
+      populateOperationalLogFilters();
+      const rows = filterOperationalLogRows(getActiveLogRows(), 'activeLog');
       if (!rows.length) {
-        activeLogBody.innerHTML = '<div class="empty-log">No active pins found.</div>';
+        activeLogBody.innerHTML = '<div class="empty-log">No active pins match these filters.</div>';
         return;
       }
       activeLogBody.innerHTML = rows.map(pin => buildLogItemHtml(pin)).join('');
@@ -6207,7 +6336,7 @@
       updateOutstandingSummary();
       if (allLogsPanel && allLogsPanel.classList.contains("open")) renderAllLogs();
       if (activeLogPanel && activeLogPanel.classList.contains("open")) renderActiveLog();
-      if (logPanel && logPanel.classList.contains("open")) renderLog(getClearedPinsForDeleteList());
+      if (logPanel && logPanel.classList.contains("open")) renderClearedLog();
       setStatus(`Showing ${filtered.length} pin${filtered.length === 1 ? "" : "s"} on ${getMapView(currentMapId).name} (${statusValue}, ${categoryValue}).`);
     }
 
@@ -6591,7 +6720,7 @@
       }
       deleteHistoryDetails.innerHTML =
         '<b>' + escapeHtml(pin.title || 'Untitled pin') + '</b><br>' +
-        '<b>Department:</b> ' + escapeHtml(formatDepartmentLabel(pin.category)) + '<br>' +
+        '<b>Assigned to:</b> ' + escapeHtml(formatDepartmentLabel(pin.category)) + '<br>' +
         '<b>Map:</b> ' + escapeHtml(getMapView(getPinMapId(pin)).name) + '<br>' +
         ((pin.original_reported_by || pin.reported_by) ? '<b>Original reported by:</b> ' + escapeHtml(pin.original_reported_by || pin.reported_by) + '<br>' : '') +
         (pin.created_by_user_name ? '<b>Created by user:</b> ' + escapeHtml(pin.created_by_user_name) + '<br>' : '') +
@@ -6855,7 +6984,7 @@
     function toggleLogPanel(forceOpen) {
       const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : !logPanel.classList.contains('open');
       if (shouldOpen) {
-        renderLog(getClearedPinsForDeleteList());
+        renderClearedLog();
         logPanel.classList.add('open');
       } else {
         logPanel.classList.remove('open');
