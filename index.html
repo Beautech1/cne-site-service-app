@@ -978,6 +978,110 @@
       font-weight: normal;
     }
 
+    /* Compact text-group selector: efficient for departments with many groups. */
+    .sms-group-card-header {
+      align-items: flex-start;
+      margin-bottom: 5px;
+    }
+
+    .sms-group-header-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 5px;
+      flex-wrap: wrap;
+      flex: 0 0 auto;
+    }
+
+    .sms-group-selection-count {
+      font-size: 10px;
+      font-weight: 800;
+      color: #003f70;
+      background: #e7f3ff;
+      border: 1px solid #b7d7ef;
+      border-radius: 999px;
+      padding: 3px 7px;
+      white-space: nowrap;
+    }
+
+    .sms-group-mini-btn {
+      border: 1px solid #b7c5d4;
+      border-radius: 6px;
+      background: #fff;
+      color: #334155;
+      padding: 3px 6px;
+      font-size: 10px;
+      font-weight: 700;
+      cursor: pointer;
+      line-height: 1.2;
+    }
+
+    .sms-group-mini-btn:hover {
+      border-color: #005a9c;
+      background: #eef7ff;
+    }
+
+    .sms-group-list {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 4px;
+      max-height: 154px;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      padding: 2px 3px 2px 1px;
+      scrollbar-width: thin;
+    }
+
+    .sms-group-option {
+      min-width: 0;
+      min-height: 34px;
+      padding: 4px 6px;
+      border-radius: 7px;
+      gap: 5px !important;
+      box-sizing: border-box;
+    }
+
+    .sms-group-option:has(input:checked) {
+      border-color: #78afd5;
+      background: #eef7ff;
+    }
+
+    .sms-group-option input[type="checkbox"] {
+      width: 14px;
+      height: 14px;
+    }
+
+    .sms-group-name {
+      font-size: 10.5px;
+    }
+
+    .sms-group-meta {
+      font-size: 8.5px;
+      line-height: 1.05;
+    }
+
+    @media (max-width: 760px) {
+      .sms-group-list {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        max-height: 148px;
+      }
+      .sms-group-card-subtitle {
+        display: none;
+      }
+    }
+
+    @media (max-width: 380px) {
+      .sms-group-card-header {
+        display: grid;
+        gap: 5px;
+      }
+      .sms-group-header-actions {
+        justify-content: flex-start;
+      }
+      .sms-group-list {
+        max-height: 142px;
+      }
+    }
+
     .custom-sms-details {
       border: 1px solid #d7e0ea;
       border-radius: 8px;
@@ -2682,8 +2786,13 @@
       <div class="sms-groups-visible-card" id="pinSmsGroupsVisible">
         <div class="sms-group-card-header">
           <div>
-            <div class="sms-group-card-title">Text group to notify</div>
-            <div class="sms-group-card-subtitle">These groups are always shown. Uncheck a group if you do not want to text it.</div>
+            <div class="sms-group-card-title">Text groups to notify</div>
+            <div class="sms-group-card-subtitle">Selected groups are highlighted. Scroll only when the list is long.</div>
+          </div>
+          <div class="sms-group-header-actions">
+            <span class="sms-group-selection-count" id="pinSmsSelectionCount">0 selected</span>
+            <button class="sms-group-mini-btn" type="button" onclick="setSmsGroupSelection('pin', true)">All</button>
+            <button class="sms-group-mini-btn" type="button" onclick="setSmsGroupSelection('pin', false)">None</button>
           </div>
         </div>
         <div id="smsGroupCheckboxes" class="sms-group-list"></div>
@@ -2764,8 +2873,13 @@
         <div class="sms-groups-visible-card" id="editSmsGroupsVisible">
           <div class="sms-group-card-header">
             <div>
-              <div class="sms-group-card-title">Text group to notify</div>
-              <div class="sms-group-card-subtitle">These groups are always shown. Uncheck a group if you do not want to text it.</div>
+              <div class="sms-group-card-title">Text groups to notify</div>
+              <div class="sms-group-card-subtitle">Selected groups are highlighted. Scroll only when the list is long.</div>
+            </div>
+            <div class="sms-group-header-actions">
+              <span class="sms-group-selection-count" id="editSmsSelectionCount">0 selected</span>
+              <button class="sms-group-mini-btn" type="button" onclick="setSmsGroupSelection('edit', true)">All</button>
+              <button class="sms-group-mini-btn" type="button" onclick="setSmsGroupSelection('edit', false)">None</button>
             </div>
           </div>
           <div id="editSmsGroupCheckboxes" class="sms-group-list"></div>
@@ -2876,7 +2990,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.11-L";
+    const APP_VERSION = "2026.07.11-M";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const SIGN_IN_ACCESS_TABLE = "app_sign_in_access";
@@ -4953,6 +5067,31 @@
       if (previousTitle) editPinTitleInput.value = previousTitle;
     }
 
+    function updateSmsGroupSelectionCount(mode) {
+      const isEdit = mode === "edit";
+      const selector = isEdit ? ".edit-sms-group-checkbox" : ".sms-group-checkbox";
+      const countEl = document.getElementById(isEdit ? "editSmsSelectionCount" : "pinSmsSelectionCount");
+      if (!countEl) return;
+      const boxes = Array.from(document.querySelectorAll(selector));
+      const selected = boxes.filter(box => box.checked).length;
+      countEl.textContent = `${selected} of ${boxes.length} selected`;
+    }
+
+    function setSmsGroupSelection(mode, checked) {
+      const selector = mode === "edit" ? ".edit-sms-group-checkbox" : ".sms-group-checkbox";
+      document.querySelectorAll(selector).forEach(box => { box.checked = !!checked; });
+      updateSmsGroupSelectionCount(mode);
+    }
+
+    function bindSmsGroupSelectionTracking(mode) {
+      const container = document.getElementById(mode === "edit" ? "editSmsGroupCheckboxes" : "smsGroupCheckboxes");
+      if (!container) return;
+      container.onchange = function(event) {
+        if (event.target && event.target.matches('input[type="checkbox"]')) updateSmsGroupSelectionCount(mode);
+      };
+      updateSmsGroupSelectionCount(mode);
+    }
+
     function populateEditSmsGroupCheckboxes() {
       if (!editSmsGroupCheckboxes || !editPinCategoryInput) return;
       if (editCustomSmsEnabled) editCustomSmsEnabled.checked = false;
@@ -4963,12 +5102,14 @@
       const dept = getDepartment(editPinCategoryInput.value);
       if (!dept.smsGroups.length) {
         editSmsGroupCheckboxes.innerHTML = '<div class="panel-note" style="padding:0;">No text groups set for this department.</div>';
+        updateSmsGroupSelectionCount("edit");
         return;
       }
       editSmsGroupCheckboxes.innerHTML = dept.smsGroups.map((group, index) => {
         const cleanNumbers = (group.numbers || []).map(cleanPhoneNumber).filter(Boolean);
         return `<label class="sms-group-option"><input type="checkbox" class="edit-sms-group-checkbox" value="${index}" checked><span class="sms-group-text"><span class="sms-group-name">${escapeHtml(group.name)}</span><span class="sms-group-meta">${cleanNumbers.length} phone number${cleanNumbers.length === 1 ? "" : "s"}</span></span></label>`;
       }).join("");
+      bindSmsGroupSelectionTracking("edit");
     }
 
     function populateEditProfileDropdowns(reportedBy, clearedBy) {
@@ -5503,12 +5644,14 @@
       const dept = getDepartment(pinCategoryInput.value);
       if (!dept.smsGroups.length) {
         smsGroupCheckboxes.innerHTML = '<div class="panel-note" style="padding:0;">No text groups set for this department.</div>';
+        updateSmsGroupSelectionCount("pin");
         return;
       }
       smsGroupCheckboxes.innerHTML = dept.smsGroups.map((group, index) => {
         const cleanNumbers = (group.numbers || []).map(cleanPhoneNumber).filter(Boolean);
         return `<label class="sms-group-option"><input type="checkbox" class="sms-group-checkbox" value="${index}" checked><span class="sms-group-text"><span class="sms-group-name">${escapeHtml(group.name)}</span><span class="sms-group-meta">${cleanNumbers.length} phone number${cleanNumbers.length === 1 ? "" : "s"}</span></span></label>`;
       }).join("");
+      bindSmsGroupSelectionTracking("pin");
     }
 
     function onPinDepartmentChange() {
