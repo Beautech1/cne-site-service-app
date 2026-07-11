@@ -2608,6 +2608,7 @@
           <label class="permission-option"><input type="checkbox" id="permClearPins"><span>Clear active pins<small>Complete work requests and add clear notes/photos.</small></span></label>
           <label class="permission-option"><input type="checkbox" id="permPrintReports"><span>Print reports<small>Print or save active and cleared reports.</small></span></label>
           <label class="permission-option"><input type="checkbox" id="permViewAdmin"><span>Open Admin menu<small>Still requires the secure Supabase admin login.</small></span></label>
+          <label class="permission-option"><input type="checkbox" id="permOwnPinsOutsidePrimary"><span>Additional departments: own profile pins only<small>For departments beyond the profile’s primary department, only show pins created by this profile.</small></span></label>
         </div>
       </div>
       <div class="admin-menu-section">
@@ -3052,7 +3053,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.11-O";
+    const APP_VERSION = "2026.07.11-P";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const SIGN_IN_ACCESS_TABLE = "app_sign_in_access";
@@ -3484,7 +3485,8 @@
       editPins: true,
       clearPins: true,
       printReports: true,
-      viewAdmin: true
+      viewAdmin: true,
+      ownPinsOutsidePrimary: false
     });
 
     function normalizeUserPermissions(value) {
@@ -3501,7 +3503,8 @@
         editPins: read("editPins", "can_edit_pins", true),
         clearPins: read("clearPins", "can_clear_pins", true),
         printReports: read("printReports", "can_print_reports", true),
-        viewAdmin: read("viewAdmin", "can_view_admin", true)
+        viewAdmin: read("viewAdmin", "can_view_admin", true),
+        ownPinsOutsidePrimary: read("ownPinsOutsidePrimary", "own_pins_outside_primary", false)
       };
     }
 
@@ -3685,6 +3688,38 @@
       const normalized = normalizeAccessDepartmentKey(key || "");
       if (currentUserCanViewAllDepartments()) return true;
       return getAllowedDepartmentKeys().includes(normalized);
+    }
+
+    function getPrimaryDepartmentKey() {
+      const access = getAccessProfile();
+      if (!access || access.canViewAll) return "all";
+      const allowed = getAllowedDepartmentKeys();
+      if (allowed.length) return allowed[0];
+      return normalizeAccessDepartmentKey(access.department || "");
+    }
+
+    function pinWasCreatedByCurrentProfile(pin) {
+      const access = getAccessProfile();
+      if (!access) return true;
+      const profileLabel = normalizeAccessDepartmentKey(access.label || "");
+      const primaryKey = getPrimaryDepartmentKey();
+      const primaryName = normalizeAccessDepartmentKey(formatDepartmentLabel(primaryKey));
+      const creatorValues = [
+        pin && pin.created_by_department,
+        pin && pin.created_device_label
+      ].map(value => normalizeAccessDepartmentKey(value || "")).filter(Boolean);
+      return creatorValues.some(value => value === profileLabel || value === primaryKey || value === primaryName);
+    }
+
+    function userCanViewPinForCurrentAccess(pin) {
+      const access = getAccessProfile();
+      if (!access || access.canViewAll) return true;
+      const pinDepartment = normalizeAccessDepartmentKey((pin && pin.category) || "general");
+      if (!userCanAccessDepartmentKey(pinDepartment)) return false;
+      const permissions = getCurrentPermissions();
+      const primaryKey = getPrimaryDepartmentKey();
+      if (!permissions.ownPinsOutsidePrimary || pinDepartment === primaryKey) return true;
+      return pinWasCreatedByCurrentProfile(pin);
     }
 
     function getAssignedDepartmentKey() {
@@ -4086,7 +4121,8 @@
 
     const PERMISSION_FIELD_IDS = {
       viewActive: "permViewActive", viewCleared: "permViewCleared", addPins: "permAddPins",
-      editPins: "permEditPins", clearPins: "permClearPins", printReports: "permPrintReports", viewAdmin: "permViewAdmin"
+      editPins: "permEditPins", clearPins: "permClearPins", printReports: "permPrintReports", viewAdmin: "permViewAdmin",
+      ownPinsOutsidePrimary: "permOwnPinsOutsidePrimary"
     };
 
     function setPermissionEditorValues(permissions) {
@@ -4101,8 +4137,8 @@
     }
 
     function applyPermissionPreset(name) {
-      if(name === "readonly") setPermissionEditorValues({viewActive:true,viewCleared:true,addPins:false,editPins:false,clearPins:false,printReports:true,viewAdmin:false});
-      else if(name === "operations") setPermissionEditorValues({viewActive:true,viewCleared:true,addPins:true,editPins:true,clearPins:true,printReports:true,viewAdmin:false});
+      if(name === "readonly") setPermissionEditorValues({viewActive:true,viewCleared:true,addPins:false,editPins:false,clearPins:false,printReports:true,viewAdmin:false,ownPinsOutsidePrimary:false});
+      else if(name === "operations") setPermissionEditorValues({viewActive:true,viewCleared:true,addPins:true,editPins:true,clearPins:true,printReports:true,viewAdmin:false,ownPinsOutsidePrimary:false});
       else setPermissionEditorValues(DEFAULT_USER_PERMISSIONS);
     }
 
@@ -4320,7 +4356,8 @@
           yesNo(permissions.editPins),
           yesNo(permissions.clearPins),
           yesNo(permissions.printReports),
-          yesNo(permissions.viewAdmin)
+          yesNo(permissions.viewAdmin),
+          yesNo(permissions.ownPinsOutsidePrimary)
         ];
       });
 
@@ -6807,7 +6844,7 @@
         category: pin.category || "general",
         map_id: pin.map_id || "outdoor_site",
         location_type: pin.location_type || "gps"
-      }));
+      })).filter(userCanViewPinForCurrentAccess);
 
       applyFilters();
       if (showMessage) setStatus(`Loaded ${allPins.length} total pin${allPins.length === 1 ? "" : "s"}.`);
