@@ -2037,6 +2037,35 @@
     }
 
 
+    .pin-change-history {
+      border: 1px solid #d9e0e6;
+      border-radius: 8px;
+      padding: 10px;
+      margin-top: 12px;
+      background: #fffdf6;
+      color: #243447;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .pin-change-row {
+      border-top: 1px solid #e6edf3;
+      margin-top: 7px;
+      padding-top: 7px;
+    }
+
+    .pin-change-badge {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 999px;
+      background: #e7f3ff;
+      border: 1px solid #b7d7ef;
+      color: #003f70;
+      font-size: 10px;
+      font-weight: 800;
+      margin-right: 5px;
+    }
+
     .report-access-history {
       border: 1px solid #d9e0e6;
       border-radius: 8px;
@@ -2294,7 +2323,7 @@
 
   <div class="panel" id="signedInDevicesPanel">
     <div class="panel-header">
-      <span>Signed-In Devices / Kick Out <small style="font-weight:normal; opacity:.9;">BUILD 2026-07-10F</small></span>
+      <span>Signed-In Devices / Kick Out <small style="font-weight:normal; opacity:.9;">BUILD 2026-07-10G</small></span>
       <button class="panel-close-btn" onclick="toggleSignedInDevicesPanel(false)">&times;</button>
     </div>
     <div class="panel-body">
@@ -2595,8 +2624,12 @@
           <input type="tel" id="pinCustomSmsInput" placeholder="Custom text number">
           <div class="custom-sms-help">Mobile: add a custom number if needed. Laptop/PC: use the copy/paste option below.</div>
         </div>
+        <div id="desktopTextNotificationNotice" class="desktop-text-tool-row" style="display:none; align-items:flex-start; background:#fff7e6; border-color:#e0a800; line-height:1.35;">
+          <span aria-hidden="true" style="font-size:18px; line-height:1; margin-top:1px;">⚠</span>
+          <span><b>Laptop/PC notification:</b> Saving the pin does not automatically notify the selected text group. After saving, a prepared message will open. You must copy it and send it manually by text, Teams, or email.</span>
+        </div>
         <label class="desktop-text-tool-row">
-          <input type="checkbox" id="pinNotifySmsNowInput"> Show copy/paste text message after saving this pin
+          <input type="checkbox" id="pinNotifySmsNowInput"> Open the prepared copy/paste message after saving
         </label>
       </div>
       <details class="pin-instructions" id="pinInstructionsDetails">
@@ -2767,8 +2800,9 @@
     const SUPABASE_URL = "https://mbfuzetxfwpodjcjrlge.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1iZnV6ZXR4Zndwb2RqY2pybGdlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5ODc0NjgsImV4cCI6MjA5MDU2MzQ2OH0.Q0yFDCzAhE772OaeMaioq8LE_arUINllgSnM4VvZPCI";
     const SUPABASE_TABLE = "pins";
+    const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.10-F";
+    const APP_VERSION = "2026.07.11-H";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const SIGN_IN_ACCESS_TABLE = "app_sign_in_access";
@@ -3618,10 +3652,10 @@
     async function renderSignedInDevicesList() {
       const body = document.getElementById('signedInDevicesBody');
       if (!body) return;
-      body.innerHTML = '<div class="panel-note">Loading signed-in browsers/devices… <b>BUILD 2026-07-10F</b></div>';
+      body.innerHTML = '<div class="panel-note">Loading signed-in browsers/devices… <b>BUILD 2026-07-10G</b></div>';
       const visibleTimeout = window.setTimeout(() => {
         if (body && /Loading signed-in browsers\/devices/.test(body.textContent || '')) {
-          body.innerHTML = '<div class="log-item" style="border-color:#d32f2f;background:#fff5f5;"><div class="log-title" style="color:#b71c1c;">Device list timed out — BUILD 2026-07-10F</div><div><small>The page loaded the new build, but the Supabase request did not complete.</small></div></div>';
+          body.innerHTML = '<div class="log-item" style="border-color:#d32f2f;background:#fff5f5;"><div class="log-title" style="color:#b71c1c;">Device list timed out — BUILD 2026-07-10G</div><div><small>The page loaded the new build, but the Supabase request did not complete.</small></div></div>';
         }
       }, 12000);
 
@@ -5009,6 +5043,7 @@
       }
 
       const updatedPin = data && data.length ? data[0] : { ...pin, ...updatePayload };
+      await savePinChangeLog(pin, updatedPin, reportedBy);
       const index = allPins.findIndex(item => item.id === pendingEditPinId);
       if (index !== -1) {
         allPins[index] = {
@@ -6969,6 +7004,7 @@ function resetPinForm() {
   const pinTextOptionsDetails = document.getElementById("pinTextOptionsDetails");
   if (pinTextOptionsDetails) pinTextOptionsDetails.open = false;
   if (pinNotifySmsNowInput) pinNotifySmsNowInput.checked = shouldDefaultSmsOpen();
+  updateDesktopTextNotificationNotice();
   if (previewObjectUrl) {
     previewObjectUrl.forEach(url => URL.revokeObjectURL(url));
     previewObjectUrl = null;
@@ -7580,6 +7616,126 @@ function resetPinForm() {
     }
 
 
+    function normalizeAuditValue(value) {
+      if (Array.isArray(value)) return value;
+      if (value === undefined) return null;
+      return value;
+    }
+
+    function buildPinChangeSet(beforePin, afterPin) {
+      const fields = [
+        ["category", "Department"],
+        ["title", "Title"],
+        ["description", "Location and service details"],
+        ["reported_by", "Reported by"],
+        ["status", "Status"],
+        ["cleared_by", "Cleared by"],
+        ["clear_comment", "Clear comments"],
+        ["map_id", "Map / building"],
+        ["location_type", "Location type"],
+        ["lat", "Latitude"],
+        ["lng", "Longitude"],
+        ["x_percent", "Floor-plan X"],
+        ["y_percent", "Floor-plan Y"],
+        ["photo_urls", "Reported photos"],
+        ["clear_photo_urls", "Completion photos"]
+      ];
+      const changes = {};
+      fields.forEach(([key, label]) => {
+        const beforeValue = normalizeAuditValue(beforePin ? beforePin[key] : null);
+        const afterValue = normalizeAuditValue(afterPin ? afterPin[key] : null);
+        if (JSON.stringify(beforeValue) !== JSON.stringify(afterValue)) {
+          changes[key] = { label, from: beforeValue, to: afterValue };
+        }
+      });
+      return changes;
+    }
+
+    function getPinChangeAction(changes) {
+      if (changes.category) return "reassigned";
+      if (changes.status) {
+        const next = String(changes.status.to || "").toLowerCase();
+        if (next === "cleared") return "cleared";
+        if (next === "cancelled") return "cancelled";
+        if (next === "active") return "reopened";
+      }
+      if (changes.lat || changes.lng || changes.x_percent || changes.y_percent || changes.map_id) return "relocated";
+      return "updated";
+    }
+
+    async function savePinChangeLog(beforePin, afterPin, changedBy) {
+      if (!supabaseClient || !afterPin || !afterPin.id) return;
+      const changes = buildPinChangeSet(beforePin, afterPin);
+      if (!Object.keys(changes).length) return;
+      const profile = getDeviceProfile();
+      const action = getPinChangeAction(changes);
+      const payload = {
+        pin_id: afterPin.id,
+        action,
+        changed_by: changedBy || getSavedUserName() || "Unknown user",
+        device_id: profile.device_id || null,
+        device_label: getDefaultDeviceLabel() || null,
+        user_agent: navigator.userAgent || null,
+        from_department: beforePin && beforePin.category ? beforePin.category : null,
+        to_department: afterPin.category || null,
+        changes,
+        snapshot_before: beforePin || {},
+        snapshot_after: afterPin || {}
+      };
+      const { error } = await supabaseClient.from(PIN_CHANGE_LOG_TABLE).insert(payload);
+      if (error) console.warn("Could not save pin change history.", error);
+    }
+
+    function formatAuditValue(value, fieldKey) {
+      if (value === null || value === undefined || value === "") return "Blank";
+      if (fieldKey === "category") return formatDepartmentLabel(String(value));
+      if (fieldKey === "status") return String(value).charAt(0).toUpperCase() + String(value).slice(1);
+      if (Array.isArray(value)) return value.length + " item" + (value.length === 1 ? "" : "s");
+      if (typeof value === "object") return JSON.stringify(value);
+      return String(value);
+    }
+
+    function buildPinChangeHistoryHtml(rows, title = "Service order change history") {
+      if (!rows || !rows.length) {
+        return '<div class="pin-change-history"><strong>' + escapeHtml(title) + '</strong><div class="panel-note" style="padding:6px 0 0;">No reassignment or edit history has been recorded yet.</div></div>';
+      }
+      const items = rows.map(row => {
+        const changes = row.changes && typeof row.changes === "object" ? row.changes : {};
+        const detailHtml = Object.entries(changes).map(([key, change]) => {
+          const label = change && change.label ? change.label : key;
+          const fromValue = change ? formatAuditValue(change.from, key) : "Blank";
+          const toValue = change ? formatAuditValue(change.to, key) : "Blank";
+          return '<div><strong>' + escapeHtml(label) + ':</strong> ' + escapeHtml(fromValue) + ' &rarr; ' + escapeHtml(toValue) + '</div>';
+        }).join("");
+        const actionLabel = String(row.action || "updated").replace(/_/g, " ");
+        return '<div class="pin-change-row"><div><span class="pin-change-badge">' + escapeHtml(actionLabel.toUpperCase()) + '</span><strong>' + escapeHtml(formatDateTime(row.created_at)) + '</strong></div>' +
+          '<div>Changed by: ' + escapeHtml(row.changed_by || "Unknown user") + (row.device_label ? ' &bull; ' + escapeHtml(row.device_label) : '') + '</div>' + detailHtml + '</div>';
+      }).join("");
+      return '<div class="pin-change-history"><strong>' + escapeHtml(title) + '</strong>' + items + '</div>';
+    }
+
+    async function loadPinChangeHistory(pinId) {
+      if (!supabaseClient || !pinId) return [];
+      const { data, error } = await supabaseClient
+        .from(PIN_CHANGE_LOG_TABLE)
+        .select("id, pin_id, action, changed_by, device_id, device_label, from_department, to_department, changes, created_at")
+        .eq("pin_id", pinId)
+        .order("created_at", { ascending: true });
+      if (error) {
+        console.warn("Could not load pin change history.", error);
+        return [];
+      }
+      return data || [];
+    }
+
+    async function refreshPinChangeHistoryForPin(pinId) {
+      const targets = document.querySelectorAll('[data-pin-change-history="' + String(pinId) + '"]');
+      if (!targets.length) return;
+      const rows = await loadPinChangeHistory(pinId);
+      const html = buildPinChangeHistoryHtml(rows);
+      targets.forEach(target => { target.innerHTML = html; });
+    }
+
     function buildMiniReportHtml(pin, options = {}) {
       const pinStatusForActions = getPinStatus(pin);
       const isCleared = pinStatusForActions === "cleared";
@@ -7629,6 +7785,7 @@ function resetPinForm() {
           mapSnapshotHtml +
           (reportedPhotos ? '<div style="margin-top:12px;">' + reportedPhotos + '</div>' : '') +
           (clearPhotos ? '<div style="margin-top:12px;">' + clearPhotos + '</div>' : '') +
+          (options.changeHistoryHtml || (pin.id ? '<div data-pin-change-history="' + escapeHtml(String(pin.id)) + '"><div class="pin-change-history"><strong>Service order change history</strong><div class="panel-note" style="padding:6px 0 0;">Loading change history...</div></div></div>' : '')) +
           reportActionRow +
         '</div>'
       );
@@ -7674,6 +7831,7 @@ function resetPinForm() {
         const timeText = getPinStatus(pin) === "cleared" && pin.cleared_at ? '<br><small>Cleared: ' + escapeHtml(formatDateTime(pin.cleared_at)) + '</small>' : '';
         const logName = getPinStatus(pin) === "cleared" ? 'Cleared History Log / All Pin Logs' : 'All Pin Logs';
         itemReportBody.innerHTML = '<div class="panel-note" style="background:#fff3cd; border:1px solid #ffe08a; border-radius:8px; padding:10px;"><strong>This report is already ' + escapeHtml(statusLower) + '.</strong><br>This item may have been removed from the active map or ' + escapeHtml(statusLower) + byText + '. It will remain available in the ' + logName + '.' + timeText + '</div>' + buildMiniReportHtml(pin);
+        refreshPinChangeHistoryForPin(pin.id);
         itemReportModal.classList.add("open");
         modalBackdrop.classList.add("open");
         return;
@@ -7683,6 +7841,7 @@ function resetPinForm() {
         await ensureMapSnapshotForPin(pin);
       }
       itemReportBody.innerHTML = buildMiniReportHtml(pin);
+      refreshPinChangeHistoryForPin(pin.id);
       itemReportModal.classList.add("open");
       modalBackdrop.classList.add("open");
     }
@@ -7774,7 +7933,8 @@ function resetPinForm() {
       if (!pin.map_snapshot_url) await ensureMapSnapshotForPin(pin);
       const accessRows = await fetchReportAccessRows(pin.id, 20);
       const accessHistoryHtml = buildReportAccessHistoryHtml(accessRows);
-      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Item Report ${escapeHtml(String(pin.id || ""))}</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#1f2933;font-size:13px}.mini-report-card{border:1px solid #d9e0e6;border-radius:10px;padding:14px;line-height:1.45;font-size:13px}.mini-report-card h2{font-size:17px;line-height:1.25}.mini-report-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;font-size:13px}.mini-report-detail{margin-top:10px;white-space:pre-wrap}.report-map-photo,.log-photo,.print-report-photo{display:block;margin:8px 0;max-width:460px;max-height:330px;object-fit:contain;border:1px solid #d9e0e6;border-radius:8px;background:#f8fafc}.photo-gallery{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start}.photo-gallery img{width:460px;max-width:100%;height:auto;max-height:330px;object-fit:contain;border:1px solid #d9e0e6;border-radius:8px;background:#f8fafc}.photo-section-title{display:block;font-weight:bold;margin-top:10px;font-size:13px}.report-access-history{border:1px solid #d9e0e6;border-radius:8px;padding:10px;margin-top:12px;background:#f8fbfe}.report-access-row{border-top:1px solid #e6edf3;padding-top:6px;margin-top:6px}@media print{button{display:none}}</style></head><body><h1>Item Report</h1>${buildMiniReportHtml(pin, { print: true, accessHistoryHtml })}</body></html>`;
+      const changeHistoryHtml = buildPinChangeHistoryHtml(await loadPinChangeHistory(pin.id));
+      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Item Report ${escapeHtml(String(pin.id || ""))}</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#1f2933;font-size:13px}.mini-report-card{border:1px solid #d9e0e6;border-radius:10px;padding:14px;line-height:1.45;font-size:13px}.mini-report-card h2{font-size:17px;line-height:1.25}.mini-report-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;font-size:13px}.mini-report-detail{margin-top:10px;white-space:pre-wrap}.report-map-photo,.log-photo,.print-report-photo{display:block;margin:8px 0;max-width:460px;max-height:330px;object-fit:contain;border:1px solid #d9e0e6;border-radius:8px;background:#f8fafc}.photo-gallery{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start}.photo-gallery img{width:460px;max-width:100%;height:auto;max-height:330px;object-fit:contain;border:1px solid #d9e0e6;border-radius:8px;background:#f8fafc}.photo-section-title{display:block;font-weight:bold;margin-top:10px;font-size:13px}.report-access-history{border:1px solid #d9e0e6;border-radius:8px;padding:10px;margin-top:12px;background:#f8fbfe}.report-access-row{border-top:1px solid #e6edf3;padding-top:6px;margin-top:6px}.pin-change-history{border:1px solid #d9e0e6;border-radius:8px;padding:10px;margin-top:12px;background:#fffdf6}.pin-change-row{border-top:1px solid #e6edf3;padding-top:7px;margin-top:7px}.pin-change-badge{display:inline-block;padding:2px 7px;border-radius:999px;background:#e7f3ff;border:1px solid #b7d7ef;font-size:10px;font-weight:bold;margin-right:5px}@media print{button{display:none}}</style></head><body><h1>Item Report</h1>${buildMiniReportHtml(pin, { print: true, accessHistoryHtml, changeHistoryHtml })}</body></html>`;
       const win = window.open("", "_blank");
       if (!win) {
         alert("Popup blocked. Please allow popups to print the report.");
@@ -7880,6 +8040,15 @@ function isLikelyMobileSmsDevice() {
   const coarsePointer = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
   const narrowScreen = Math.min(window.innerWidth || 9999, window.innerHeight || 9999) < 820;
   return mobileByUa || (coarsePointer && narrowScreen);
+}
+
+function updateDesktopTextNotificationNotice() {
+  const notice = document.getElementById("desktopTextNotificationNotice");
+  const checkboxRow = pinNotifySmsNowInput ? pinNotifySmsNowInput.closest("label") : null;
+  const isDesktop = !isLikelyMobileSmsDevice();
+  if (notice) notice.style.display = isDesktop ? "flex" : "none";
+  if (checkboxRow) checkboxRow.style.display = isDesktop ? "flex" : "none";
+  if (pinNotifySmsNowInput && isDesktop) pinNotifySmsNowInput.checked = true;
 }
 
 function buildPendingEditPinForMessage() {
@@ -8031,9 +8200,11 @@ function triggerSmsNotification(pin) {
   const isMobileSms = isLikelyMobileSmsDevice();
 
   // Mobile/tablet: selected text groups are always visible, so open the SMS draft automatically.
-  // Laptop/PC: only show the copy/paste popup when the desktop option is checked.
+  // Laptop/PC: there is no automatic SMS service. The prepared message must be copied and sent manually.
+  // Keep the checkbox as an explicit user choice, but it is checked by default whenever the form opens.
   if (!isMobileSms && (!pinNotifySmsNowInput || !pinNotifySmsNowInput.checked)) {
-    setStatus("Pin saved. Copy/paste text message was not opened.");
+    setStatus("Pin saved, but no notification was sent. On a laptop/PC, open the pin and use Copy Text Message to notify the selected group manually.");
+    alert("Pin saved, but no notification was sent. On a laptop or desktop computer, notifications are only sent when you copy the prepared message and send it manually by text, Teams, or email.");
     return;
   }
 
@@ -8048,8 +8219,8 @@ function triggerSmsNotification(pin) {
   }
 
   if (!isMobileSms) {
-    showSmsFallbackModal(smsRecipients, message, `Pin saved. Copy the message below and send it manually to the selected ${categoryLabel} group(s).`);
-    setStatus("Pin saved. Copy/paste text message shown for laptop/PC.");
+    showSmsFallbackModal(smsRecipients, message, `Laptop/PC notice: the pin was saved, but no notification has been sent yet. Copy this prepared message and send it manually to the selected ${categoryLabel} group(s) by text, Teams, or email.`);
+    setStatus("Pin saved. No automatic notification was sent; copy and send the prepared message manually.");
     return;
   }
 
@@ -8088,7 +8259,7 @@ function showSmsFallbackModal(recipients, message, note) {
     modal.id = "smsFallbackModal";
     modal.className = "modal";
     modal.innerHTML = `
-      <div class="modal-header">Copy Text Message</div>
+      <div class="modal-header">Copy and Send Notification</div>
       <div class="modal-body">
         <div class="panel-note" id="smsFallbackNote" style="padding-top:0;"></div>
         <label>Send to
@@ -8097,7 +8268,7 @@ function showSmsFallbackModal(recipients, message, note) {
         <label>Message
           <textarea id="smsFallbackMessage" readonly style="min-height:160px;"></textarea>
         </label>
-        <div class="panel-note" id="smsFallbackCopyStatus">Use Copy Message on computers, then paste into email, Teams, or your phone texting app.</div>
+        <div class="panel-note" id="smsFallbackCopyStatus">This computer cannot send the notification automatically. Copy the message, then send it manually by text, Teams, or email.</div>
       </div>
       <div class="modal-actions">
         <button class="action-btn" type="button" onclick="copySmsFallbackMessage()">Copy Message</button>
@@ -8110,7 +8281,7 @@ function showSmsFallbackModal(recipients, message, note) {
   document.getElementById("smsFallbackNote").textContent = note || "Copy the message below and send it manually.";
   document.getElementById("smsFallbackRecipients").value = recipientsText;
   document.getElementById("smsFallbackMessage").value = message;
-  document.getElementById("smsFallbackCopyStatus").textContent = "Use Copy Message on computers, then paste into email, Teams, or your phone texting app.";
+  document.getElementById("smsFallbackCopyStatus").textContent = "This computer cannot send the notification automatically. Copy the message, then send it manually by text, Teams, or email.";
   modal.classList.add("open");
   if (modalBackdrop) modalBackdrop.classList.add("open");
 }
@@ -8633,7 +8804,7 @@ ${rows.map(pin => `
     window.printClearedLogs = printClearedLogs;
     window.exportClearLogCsv = exportClearLogCsv;
 
-    window.addEventListener("resize", positionFloorPopup);
+    window.addEventListener("resize", function() { positionFloorPopup(); updateDesktopTextNotificationNotice(); });
     window.addEventListener("orientationchange", function() {
       setTimeout(positionFloorPopup, 150);
     });
