@@ -2326,6 +2326,46 @@
       }
     }
 
+
+    /* Version U: clearer spacing for pin forms and safer destructive-action wording. */
+    #pinModal .modal-body > label,
+    #editPinModal .modal-body > label,
+    #clearModal .modal-body > label {
+      display: grid;
+      gap: 7px;
+      margin: 0;
+      padding: 4px 0 11px;
+      border-bottom: 1px solid #e6edf3;
+    }
+
+    #pinModal .modal-body > label:last-of-type,
+    #editPinModal .modal-body > label:last-of-type,
+    #clearModal .modal-body > label:last-of-type {
+      border-bottom: none;
+    }
+
+    #pinModal .modal-body input,
+    #pinModal .modal-body select,
+    #pinModal .modal-body textarea,
+    #editPinModal .modal-body input,
+    #editPinModal .modal-body select,
+    #editPinModal .modal-body textarea,
+    #clearModal .modal-body input,
+    #clearModal .modal-body select,
+    #clearModal .modal-body textarea {
+      margin-top: 1px;
+    }
+
+    #editPinModal label:has(#editPinReportedByInput),
+    #pinModal label:has(#pinReportedByInput) {
+      padding-top: 8px;
+    }
+
+    #editPinModal label:has(#editPinDescriptionInput),
+    #pinModal label:has(#pinDescriptionInput) {
+      padding-bottom: 14px;
+    }
+
   </style>
 </head>
 <body>
@@ -2935,7 +2975,7 @@
 
 
   <div class="modal" id="editPinModal">
-    <div class="modal-header" id="editPinModalHeader">Edit / Reassign / Relocate Pin</div>
+    <div class="modal-header" id="editPinModalHeader">Edit / Reassign / Cancel Pin</div>
     <div class="modal-body">
       <div class="panel-note" id="editPinStatusNote" style="padding-top:0;">Update this request, reassign it, or relocate the pin.</div>
       <div class="panel-note" id="editPinLocationNote" style="padding-top:0;">Current location stays unless you relocate it.</div>
@@ -3067,7 +3107,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.11-T";
+    const APP_VERSION = "2026.07.11-V";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const SIGN_IN_ACCESS_TABLE = "app_sign_in_access";
@@ -5615,7 +5655,7 @@
       }
 
       pendingEditPinId = pinId;
-      if (editPinModalHeader) editPinModalHeader.textContent = getPinStatus(pin) === "cleared" ? "Admin Edit Cleared Pin" : "Edit / Reassign / Relocate Pin";
+      if (editPinModalHeader) editPinModalHeader.textContent = getPinStatus(pin) === "cleared" ? "Admin Edit Cleared Pin" : "Edit / Reassign / Cancel Pin";
       if (editPinStatusNote) editPinStatusNote.textContent = getPinStatus(pin) === "cleared"
         ? "This pin is already cleared. Admins can correct details, add completion photos, or reopen it."
         : (getPinStatus(pin) === "cancelled" ? "This call is cancelled. Admins can correct details or return it to active." : "Update this active request or reassign it to another department.");
@@ -6312,15 +6352,11 @@
 
       const canClearOrCancel = pinStatus === "active";
       const editButton = pin.id
-        ? '<button class="action-btn secondary" onclick="openEditPinModalFromReport(' + pin.id + ')">' + (pinStatus === "cleared" ? 'Admin edit cleared pin' : 'Edit / Reassign / Relocate Pin') + '</button>'
+        ? '<button class="action-btn secondary" onclick="openEditPinModalFromReport(' + pin.id + ')">' + (pinStatus === "cleared" ? 'Admin edit cleared pin' : 'Edit / Reassign / Cancel Pin') + '</button>'
         : "";
 
       const clearButton = canClearOrCancel
         ? (pin.id ? '<button class="action-btn clear-btn" onclick="clearPinFromReport(' + pin.id + ')">Clear pin</button>' : "")
-        : "";
-
-      const cancelButton = canClearOrCancel
-        ? (pin.id ? '<button class="action-btn secondary" style="background:#8a4b08;" onclick="cancelPinFromReport(' + pin.id + ')">Cancel</button>' : "")
         : "";
 
       const printButton = pin.id
@@ -6329,7 +6365,7 @@
 
       const actionRow = pin.id
         ? '<div class="pin-popup-actions">' +
-            '<div class="pin-popup-actions-row">' + printButton + editButton + cancelButton + '</div>' +
+            '<div class="pin-popup-actions-row">' + printButton + editButton + '</div>' +
             (clearButton ? '<div class="pin-popup-actions-row">' + clearButton + '</div>' : '') +
           '</div>'
         : "";
@@ -8574,7 +8610,7 @@ function resetPinForm() {
       const reportActionRow = (!options.print && pin.id && !reportViewOnly)
         ? '<div style="margin-top:12px; display:flex; gap:12px; flex-wrap:wrap; align-items:center; justify-content:flex-start;">' +
             (pinStatusForActions === "active" ? '<button class="action-btn clear-btn" onclick="clearPinFromReport(' + pin.id + ')">Clear Pin</button>' : '') +
-            '<button class="action-btn secondary" onclick="openEditPinModalFromReport(' + pin.id + ')">' + (pinStatusForActions === "cleared" ? 'Admin Edit Cleared Pin' : 'Edit / Reassign / Relocate Pin') + '</button>' +
+            '<button class="action-btn secondary" onclick="openEditPinModalFromReport(' + pin.id + ')">' + (pinStatusForActions === "cleared" ? 'Admin Edit Cleared Pin' : 'Edit / Reassign / Cancel Pin') + '</button>' +
           '</div>'
         : '';
       return (
