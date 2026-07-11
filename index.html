@@ -2573,6 +2573,19 @@
           <input type="text" id="signInCodeEditorLabel" placeholder="Example: Showtech Electrical">
         </label>
       </div>
+      <div class="admin-menu-section" style="margin-top:10px;">
+        <h3>Profile status</h3>
+        <label class="settings-check" style="margin-bottom:10px;">
+          <input type="checkbox" id="signInCodeEditorEnabled" checked>
+          <span><b>Enabled</b><br><small>Turn this off to block this profile from signing in. Devices already signed in with this code will be signed out during the next access check.</small></span>
+        </label>
+        <div class="settings-row" style="margin:0;">
+          <label>Sign-in code expiry date (optional)
+            <input type="date" id="signInCodeEditorExpiresAt">
+            <small style="font-weight:normal; color:#55606e;">Leave blank for no expiry. The profile stops working at the end of the selected date.</small>
+          </label>
+        </div>
+      </div>
       <div class="settings-row">
         <label>Access type
           <select id="signInCodeEditorAccessType" onchange="refreshSignInCodeAccessFields()">
@@ -2628,7 +2641,7 @@
         <button class="action-btn secondary" onclick="populateSignInCodeEditor()">Refresh List</button>
         <button class="action-btn secondary" onclick="exportSignInProfilesPrivilegesCsv()">Export Profiles &amp; Privileges</button>
       </div>
-      <div class="panel-note">Tip: Deleting or changing a code can force old browsers to sign in again once they refresh. For one specific device, use Device/User/Department Access.</div>
+      <div class="panel-note">Tip: Disable a profile to block all devices using that code. Use the optional expiry date for temporary access. For one specific device, use Signed-In Devices / Kick Out.</div>
     </div>
   </div>
 
@@ -3053,7 +3066,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.11-P";
+    const APP_VERSION = "2026.07.11-R";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const SIGN_IN_ACCESS_TABLE = "app_sign_in_access";
@@ -3549,6 +3562,27 @@
       populateMapSelector();
     }
 
+    function normalizeProfileExpiryDate(value) {
+      const raw = String(value || "").trim();
+      if (!raw) return "";
+      const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : raw.slice(0, 10);
+      return /^\d{4}-\d{2}-\d{2}$/.test(dateOnly) ? dateOnly : "";
+    }
+
+    function isSignInProfileExpired(access) {
+      const expiry = normalizeProfileExpiryDate(access && (access.expiresAt || access.expires_at || access.expiryDate || access.expiry_date));
+      if (!expiry) return false;
+      const endOfDay = new Date(expiry + "T23:59:59.999");
+      return !Number.isNaN(endOfDay.getTime()) && Date.now() > endOfDay.getTime();
+    }
+
+    function getSignInProfileStatus(access) {
+      if (!access || typeof access !== "object") return { active: false, reason: "missing" };
+      if (access.enabled === false || access.is_enabled === false) return { active: false, reason: "disabled" };
+      if (isSignInProfileExpired(access)) return { active: false, reason: "expired" };
+      return { active: true, reason: "active" };
+    }
+
     function normalizeSignInCodes(value) {
       const source = value && typeof value === "object" ? value : DEFAULT_SIGN_IN_CODES;
       const normalized = {};
@@ -3567,7 +3601,9 @@
           canViewAll: !!access.canViewAll || normalizeAccessDepartmentKey(department) === "all",
           allowedDepartments,
           permissions: normalizeUserPermissions(access.permissions || access),
-          allowedMapIds: normalizeAllowedMapIds(access.allowedMapIds || access.allowed_map_ids || access.maps)
+          allowedMapIds: normalizeAllowedMapIds(access.allowedMapIds || access.allowed_map_ids || access.maps),
+          enabled: access.enabled !== false && access.is_enabled !== false,
+          expiresAt: normalizeProfileExpiryDate(access.expiresAt || access.expires_at || access.expiryDate || access.expiry_date)
         };
       });
       return Object.keys(normalized).length ? normalized : { ...DEFAULT_SIGN_IN_CODES };
@@ -3601,6 +3637,8 @@
       const normalizedCode = normalizeAccessCode(code);
       const access = SIGN_IN_CODES[normalizedCode];
       if (!access) return null;
+      const status = getSignInProfileStatus(access);
+      if (!status.active) return null;
       const rawAllowedDepartments = access.allowedDepartments || access.allowed_departments || access.departments || access.allowed;
       const allowedDepartments = normalizeAllowedDepartmentsList(rawAllowedDepartments, normalizedCode);
       const department = allowedDepartments.length ? "multi" : normalizeAccessDepartmentKey(access.department || "all");
@@ -3612,7 +3650,9 @@
         canViewAll: !!access.canViewAll || normalizeAccessDepartmentKey(access.department || "all") === "all",
         allowedDepartments: allowedDepartments.map(normalizeAccessDepartmentKey),
         permissions: normalizeUserPermissions(access.permissions || access),
-        allowedMapIds: normalizeAllowedMapIds(access.allowedMapIds || access.allowed_map_ids || access.maps)
+        allowedMapIds: normalizeAllowedMapIds(access.allowedMapIds || access.allowed_map_ids || access.maps),
+        enabled: access.enabled !== false && access.is_enabled !== false,
+        expiresAt: normalizeProfileExpiryDate(access.expiresAt || access.expires_at || access.expiryDate || access.expiry_date)
       };
     }
 
@@ -3640,6 +3680,9 @@
               approved_at: saved.approved_at || null
             };
           }
+          // The code was deleted, disabled, or expired. Do not keep stale browser access.
+          resetSiteAccessApproval();
+          return null;
         }
 
         const savedAllowed = Array.isArray(saved.allowedDepartments) ? saved.allowedDepartments.map(normalizeAccessDepartmentKey).filter(Boolean) : [];
@@ -3900,7 +3943,7 @@
       try {
         const { data, error } = await supabaseClient
           .from(DEVICE_SIGNOUT_TABLE)
-          .select("id, device_id, reason, requested_by_device_id, requested_by_label, created_at")
+          .select("id, device_id, reason, requested_by_device_id, requested_by_label, requested_by_user_agent, created_at, expires_at")
           .order("created_at", { ascending: false })
           .limit(limit);
         if (error) return { rows: [], error };
@@ -3976,9 +4019,14 @@
         const latestKick = latestKickByDevice.get(deviceId) || null;
         const signInAt = row.created_at ? new Date(row.created_at).getTime() : 0;
         const kickAt = latestKick && latestKick.created_at ? new Date(latestKick.created_at).getTime() : 0;
-        const isKickedOut = kickAt > signInAt;
+        const defaultExpiryAt = latestKick && latestKick.created_at ? (new Date(latestKick.created_at).getTime() + (30 * 24 * 60 * 60 * 1000)) : 0;
+        const expiryAt = latestKick && latestKick.expires_at ? new Date(latestKick.expires_at).getTime() : defaultExpiryAt;
+        const isExpiredKick = !!latestKick && !!expiryAt && expiryAt <= Date.now();
+        const isKickedOut = !!latestKick && !isExpiredKick && kickAt > signInAt;
+        const expiryDateValue = latestKick && expiryAt ? new Date(expiryAt).toISOString().slice(0, 10) : '';
         const kickStatus = latestKick && latestKick.created_at
-          ? '<div style="margin-top:7px; padding:7px 8px; border-radius:7px; background:' + (isKickedOut ? '#ffebee' : '#eef7ff') + '; color:' + (isKickedOut ? '#8e0000' : '#003f70') + ';"><small><b>' + (isKickedOut ? 'SIGNED OUT / RE-SIGN-IN REQUIRED' : 'Previous kick completed') + '</b><br>Kick requested: ' + escapeHtml(formatDateTime(latestKick.created_at)) + (latestKick.requested_by_label ? '<br>Requested by: ' + escapeHtml(latestKick.requested_by_label) : '') + '</small></div>'
+          ? '<div style="margin-top:7px; padding:7px 8px; border-radius:7px; background:' + (isKickedOut ? '#ffebee' : (isExpiredKick ? '#f3f4f6' : '#eef7ff')) + '; color:' + (isKickedOut ? '#8e0000' : (isExpiredKick ? '#4b5563' : '#003f70')) + ';"><small><b>' + (isKickedOut ? 'SIGNED OUT / RE-SIGN-IN REQUIRED' : (isExpiredKick ? 'Kick expired' : 'Previous kick completed')) + '</b><br>Kick requested: ' + escapeHtml(formatDateTime(latestKick.created_at)) + '<br>Kick expires: ' + escapeHtml(formatDateTime(new Date(expiryAt))) + (latestKick.requested_by_label ? '<br>Requested by: ' + escapeHtml(latestKick.requested_by_label) : '') + '</small>' +
+            '<div style="display:flex; gap:6px; align-items:end; flex-wrap:wrap; margin-top:7px;"><label style="font-size:11px; font-weight:700;">Update expiry<input type="date" id="kickExpiry_' + escapeAttr(String(latestKick.id || '')) + '" value="' + escapeAttr(expiryDateValue) + '" style="display:block; margin-top:3px; padding:5px 6px;"></label><button class="action-btn secondary" onclick="updateDeviceKickExpiry(' + Number(latestKick.id || 0) + ')">Save Expiry</button></div></div>'
           : '<div style="margin-top:7px;"><small><b>Status:</b> Signed in</small></div>';
         const label = (userName || enteredDept || deviceId) + (enteredDept ? ' / ' + enteredDept : '');
         return '<div class="log-item">' +
@@ -4169,8 +4217,11 @@
       });
       select.innerHTML = codes.length
         ? codes.map(code => {
-            const label = String((SIGN_IN_CODES[code] && SIGN_IN_CODES[code].label) || code).trim();
-            return '<option value="' + escapeAttr(code) + '">' + escapeHtml(label + ' — ' + code) + '</option>';
+            const profile = SIGN_IN_CODES[code] || {};
+            const label = String(profile.label || code).trim();
+            const status = getSignInProfileStatus(profile);
+            const suffix = status.reason === "disabled" ? " [Disabled]" : (status.reason === "expired" ? " [Expired]" : "");
+            return '<option value="' + escapeAttr(code) + '">' + escapeHtml(label + suffix + ' — ' + code) + '</option>';
           }).join('')
         : '<option value="">No codes found</option>';
       if (selectedCode && codes.includes(selectedCode)) select.value = selectedCode;
@@ -4184,12 +4235,16 @@
       const accessTypeInput = document.getElementById("signInCodeEditorAccessType");
       const deptInput = document.getElementById("signInCodeEditorDepartment");
       const allowedInput = document.getElementById("signInCodeEditorAllowedDepartments");
+      const enabledInput = document.getElementById("signInCodeEditorEnabled");
+      const expiresInput = document.getElementById("signInCodeEditorExpiresAt");
       if (!select || !codeInput || !labelInput || !accessTypeInput || !deptInput || !allowedInput) return;
       const code = select.value;
       const access = SIGN_IN_CODES[code] || {};
       const normalized = lookupSignInCode(code) || access;
       codeInput.value = code || "";
       labelInput.value = access.label || normalized.label || "";
+      if (enabledInput) enabledInput.checked = access.enabled !== false && access.is_enabled !== false;
+      if (expiresInput) expiresInput.value = normalizeProfileExpiryDate(access.expiresAt || access.expires_at || access.expiryDate || access.expiry_date);
       let accessType = "department";
       const allowedDepartments = access.allowedDepartments || access.allowed_departments || access.departments || access.allowed || normalized.allowedDepartments || [];
       if (access.canViewAll || access.department === "all" || normalized.canViewAll) accessType = "all";
@@ -4225,6 +4280,10 @@
       if (accessTypeInput) accessTypeInput.value = "department";
       if (deptInput) deptInput.innerHTML = getDepartmentNameOptionsHtml("");
       if (allowedInput) allowedInput.value = "";
+      const enabledInput = document.getElementById("signInCodeEditorEnabled");
+      const expiresInput = document.getElementById("signInCodeEditorExpiresAt");
+      if (enabledInput) enabledInput.checked = true;
+      if (expiresInput) expiresInput.value = "";
       applyPermissionPreset("readonly");
       populateMapAccessEditor([]);
       refreshSignInCodeAccessFields();
@@ -4237,6 +4296,8 @@
       const accessTypeInput = document.getElementById("signInCodeEditorAccessType");
       const deptInput = document.getElementById("signInCodeEditorDepartment");
       const allowedInput = document.getElementById("signInCodeEditorAllowedDepartments");
+      const enabledInput = document.getElementById("signInCodeEditorEnabled");
+      const expiresInput = document.getElementById("signInCodeEditorExpiresAt");
       const oldSelect = document.getElementById("signInCodeEditorSelect");
       const code = normalizeAccessCode(codeInput ? codeInput.value : "");
       if (!code) {
@@ -4266,6 +4327,8 @@
       }
       next.permissions = readPermissionEditorValues();
       next.allowedMapIds = readAllowedMapIdsEditor();
+      next.enabled = enabledInput ? !!enabledInput.checked : true;
+      next.expiresAt = normalizeProfileExpiryDate(expiresInput ? expiresInput.value : "");
       if (!next.permissions.viewActive && !next.permissions.viewCleared) {
         alert("Select at least one viewing permission: active pins/log or cleared pins/log.");
         return;
@@ -4306,6 +4369,9 @@
       const headers = [
         "Display label",
         "Sign-in code",
+        "Enabled",
+        "Expiry date",
+        "Current status",
         "Access type",
         "Allowed department(s)",
         "Allowed map view(s)",
@@ -4315,7 +4381,8 @@
         "Edit/reassign active pins",
         "Clear active pins",
         "Print reports",
-        "Open Admin menu"
+        "Open Admin menu",
+        "Additional departments: own profile pins only"
       ];
 
       const rows = entries.map(([code, profile]) => {
@@ -4344,9 +4411,15 @@
               .sort((a,b) => a.localeCompare(b, undefined, {sensitivity:"base", numeric:true})).join("; ")
           : "All maps";
 
+        const profileStatus = getSignInProfileStatus(profile);
+        const expiryDate = normalizeProfileExpiryDate(profile.expiresAt || profile.expires_at || profile.expiryDate || profile.expiry_date);
+
         return [
           String(profile.label || normalized.label || code),
           code,
+          yesNo(profile.enabled !== false && profile.is_enabled !== false),
+          expiryDate || "No expiry",
+          profileStatus.reason === "disabled" ? "Disabled" : (profileStatus.reason === "expired" ? "Expired" : "Active"),
           accessType,
           departmentsText,
           mapsText,
@@ -4475,6 +4548,32 @@
       }
     }
 
+    async function checkCurrentSignInCodeStatus(showNotice = false) {
+      const savedAccess = getSavedSiteAccessApprovalRaw();
+      if (!savedAccess || !savedAccess.approved || !savedAccess.code) return false;
+      try {
+        await loadSignInCodesFromSupabase();
+        const rawProfile = SIGN_IN_CODES[normalizeAccessCode(savedAccess.code)];
+        const status = getSignInProfileStatus(rawProfile);
+        if (!rawProfile || !status.active) {
+          resetSiteAccessApproval();
+          if (showNotice) {
+            const message = !rawProfile
+              ? "This sign-in profile is no longer available."
+              : (status.reason === "disabled"
+                  ? "This sign-in profile has been disabled by an administrator."
+                  : "This sign-in profile has expired.");
+            alert(message + " Please contact CNE Operations if access is still required.");
+          }
+          window.location.reload();
+          return true;
+        }
+      } catch (error) {
+        console.warn("Could not verify sign-in profile status.", error);
+      }
+      return false;
+    }
+
     async function checkDeviceSignOutRequest(showNotice = false) {
       if (!supabaseClient) return false;
       const savedAccess = getSavedSiteAccessApprovalRaw();
@@ -4486,7 +4585,7 @@
       try {
         const { data, error } = await supabaseClient
           .from(DEVICE_SIGNOUT_TABLE)
-          .select("id, created_at, reason")
+          .select("id, created_at, expires_at, reason")
           .eq("device_id", deviceId)
           .order("created_at", { ascending: false })
           .limit(1);
@@ -4501,7 +4600,9 @@
 
         const approvedAt = savedAccess.approved_at ? new Date(savedAccess.approved_at).getTime() : 0;
         const forceAt = new Date(latest.created_at).getTime();
-        if (forceAt > approvedAt) {
+        const defaultExpiryAt = forceAt + (30 * 24 * 60 * 60 * 1000);
+        const expiryAt = latest.expires_at ? new Date(latest.expires_at).getTime() : defaultExpiryAt;
+        if (expiryAt > Date.now() && forceAt > approvedAt) {
           resetSiteAccessApproval();
           if (showNotice) {
             alert("This device was signed out by an admin. Please enter the sign-in code again.");
@@ -4517,13 +4618,20 @@
 
     function startDeviceSignOutWatcher() {
       if (deviceSignOutCheckTimer) return;
-      deviceSignOutCheckTimer = window.setInterval(() => {
-        checkDeviceSignOutRequest(true);
+      deviceSignOutCheckTimer = window.setInterval(async () => {
+        const blocked = await checkCurrentSignInCodeStatus(true);
+        if (!blocked) checkDeviceSignOutRequest(true);
       }, 20000);
-      document.addEventListener('visibilitychange', () => {
-        if (!document.hidden) checkDeviceSignOutRequest(true);
+      document.addEventListener('visibilitychange', async () => {
+        if (!document.hidden) {
+          const blocked = await checkCurrentSignInCodeStatus(true);
+          if (!blocked) checkDeviceSignOutRequest(true);
+        }
       });
-      window.addEventListener('focus', () => checkDeviceSignOutRequest(true));
+      window.addEventListener('focus', async () => {
+        const blocked = await checkCurrentSignInCodeStatus(true);
+        if (!blocked) checkDeviceSignOutRequest(true);
+      });
     }
 
 
@@ -4653,8 +4761,14 @@
         if (!(await requireAdminAuth())) return;
       }
       const displayLabel = String(label || normalizedDeviceId || "this device").trim();
-      const ok = window.confirm('Force re-sign-in for ' + displayLabel + '?\n\nThat browser/device will be asked for the sign-in code again the next time it checks in or refreshes.');
-      if (!ok) return;
+      const defaultExpiry = new Date(Date.now() + (30 * 24 * 60 * 60 * 1000)).toISOString().slice(0, 10);
+      const expiryInput = window.prompt('Force re-sign-in for ' + displayLabel + '?\n\nEnter the kick expiry date. The standard is 30 days. After this date, the kick record will no longer force the device to remain signed out.', defaultExpiry);
+      if (expiryInput === null) return;
+      const parsedExpiry = new Date(String(expiryInput).trim() + 'T23:59:59');
+      if (!String(expiryInput).trim() || Number.isNaN(parsedExpiry.getTime())) {
+        alert('Please enter a valid expiry date.');
+        return;
+      }
       if (!supabaseClient) {
         alert('Supabase is not connected.');
         return;
@@ -4666,7 +4780,8 @@
           reason: 'admin_force_resign',
           requested_by_device_id: profile.device_id || '',
           requested_by_label: getDefaultDeviceLabel() || profile.user_name || '',
-          requested_by_user_agent: navigator.userAgent || ''
+          requested_by_user_agent: navigator.userAgent || '',
+          expires_at: parsedExpiry.toISOString()
         };
         const { error } = await supabaseClient.from(DEVICE_SIGNOUT_TABLE).insert(payload);
         if (error) {
@@ -4682,6 +4797,29 @@
         console.warn('Force re-sign-in failed.', error);
         alert('Force re-sign-in failed. Check the console/Supabase setup.');
       }
+    }
+
+    async function updateDeviceKickExpiry(kickId) {
+      const id = Number(kickId || 0);
+      if (!id) return;
+      if (!(await requireAdminAuth())) return;
+      const input = document.getElementById('kickExpiry_' + id);
+      const value = input ? String(input.value || '').trim() : '';
+      const parsed = value ? new Date(value + 'T23:59:59') : null;
+      if (!parsed || Number.isNaN(parsed.getTime())) {
+        alert('Please choose a valid expiry date.');
+        return;
+      }
+      const { error } = await supabaseClient
+        .from(DEVICE_SIGNOUT_TABLE)
+        .update({ expires_at: parsed.toISOString() })
+        .eq('id', id);
+      if (error) {
+        alert('Could not update the kick expiry: ' + (error.message || String(error)));
+        return;
+      }
+      alert('Kick expiry updated to ' + parsed.toLocaleDateString() + '.');
+      renderSignedInDevicesList();
     }
 
     function forceDeviceReSignInFromButton(button) {
