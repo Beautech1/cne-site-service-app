@@ -2140,7 +2140,7 @@
 </head>
 <body>
 
-  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.10-E</button>
+  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.11-I</button>
   <div class="floating-ui" id="floatingUi">
     <button class="mobile-ui-toggle" id="mobileUiToggle" type="button" onclick="toggleMobileUi()">
       <span class="mobile-ui-toggle-main">
@@ -2802,7 +2802,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.11-H";
+    const APP_VERSION = "2026.07.11-I";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const SIGN_IN_ACCESS_TABLE = "app_sign_in_access";
@@ -3177,6 +3177,17 @@
     function getDefaultDeviceLabel() {
       const profile = getDeviceProfile();
       return profile.device_label || profile.user_name || profile.device_id;
+    }
+
+    function getCurrentCreatorDepartmentLabel() {
+      const profile = getDeviceProfile();
+      const access = getAccessProfile();
+      return String(
+        profile.device_label ||
+        (access && access.label) ||
+        getAssignedDepartmentName() ||
+        ""
+      ).trim();
     }
 
     function normalizeAccessCode(value) {
@@ -5625,7 +5636,9 @@
         "<br><small><b>Status:</b> " + escapeHtml(formatPinStatus(pin)) + "</small>" +
         "<br><small><b>Department:</b> " + escapeHtml(categoryLabel) + "</small>" +
         "<br><small><b>Map / Building:</b> " + escapeHtml(getMapView(getPinMapId(pin)).name) + "</small>" +
-        (pin.reported_by ? "<br><small><b>Reported by:</b> " + escapeHtml(pin.reported_by) + "</small>" : "") +
+        ((pin.original_reported_by || pin.reported_by) ? "<br><small><b>Original reported by:</b> " + escapeHtml(pin.original_reported_by || pin.reported_by) + "</small>" : "") +
+        (pin.created_by_user_name ? "<br><small><b>Created by user:</b> " + escapeHtml(pin.created_by_user_name) + "</small>" : "") +
+        ((pin.created_by_department || pin.created_device_label) ? "<br><small><b>Created by department/company:</b> " + escapeHtml(pin.created_by_department || pin.created_device_label) + "</small>" : "") +
         (closedByValue ? "<br><small><b>" + escapeHtml(getClosedByLabel(pin)) + ":</b> " + escapeHtml(closedByValue) + "</small>" : "") +
         (isCleared && formatTimeToClear(pin) ? "<br><small><b>Time to clear:</b> " + escapeHtml(formatTimeToClear(pin)) + "</small>" : "") +
         (isCleared && pin.clear_comment ? "<br><small><b>Clear comments:</b> " + escapeHtml(pin.clear_comment) + "</small>" : "") +
@@ -5820,8 +5833,9 @@
           '<div><small><b>Status:</b> ' + escapeHtml(formatPinStatus(pin)) + '</small></div>' +
           '<div><small><b>Department:</b> ' + escapeHtml(formatDepartmentLabel(pin.category)) + '</small></div>' +
           '<div><small><b>Map / Building:</b> ' + escapeHtml(getMapView(getPinMapId(pin)).name) + '</small></div>' +
-          (pin.reported_by ? '<div><small><b>Reported by:</b> ' + escapeHtml(pin.reported_by) + '</small></div>' : '') +
-          (pin.created_device_label ? '<div><small><b>Created by user dept/company:</b> ' + escapeHtml(pin.created_device_label) + '</small></div>' : '') +
+          ((pin.original_reported_by || pin.reported_by) ? '<div><small><b>Original reported by:</b> ' + escapeHtml(pin.original_reported_by || pin.reported_by) + '</small></div>' : '') +
+          (pin.created_by_user_name ? '<div><small><b>Created by user:</b> ' + escapeHtml(pin.created_by_user_name) + '</small></div>' : '') +
+          ((pin.created_by_department || pin.created_device_label) ? '<div><small><b>Created by department/company:</b> ' + escapeHtml(pin.created_by_department || pin.created_device_label) + '</small></div>' : '') +
           (closedByValue ? '<div><small><b>' + escapeHtml(getClosedByLabel(pin)) + ':</b> ' + escapeHtml(closedByValue) + '</small></div>' : '') +
           (closedFromValue ? '<div><small><b>' + escapeHtml(getClosedFromLabel(pin)) + ':</b> ' + escapeHtml(closedFromValue) + '</small></div>' : '') +
           (isCleared && formatTimeToClear(pin) ? '<div><small><b>Time to clear:</b> ' + escapeHtml(formatTimeToClear(pin)) + '</small></div>' : '') +
@@ -6207,7 +6221,7 @@
 
       const { data, error } = await supabaseClient
         .from(SUPABASE_TABLE)
-        .select("id, title, description, lat, lng, photo_url, photo_urls, clear_photo_urls, map_snapshot_url, category, is_cleared, created_at, cleared_at, reported_by, cleared_by, clear_comment, status, map_id, location_type, x_percent, y_percent, created_device_id, created_device_label, created_user_agent, cleared_device_id, cleared_device_label, cleared_user_agent, last_action, last_action_by, last_action_device_id, last_action_device_label, last_action_user_agent")
+        .select("id, title, description, lat, lng, photo_url, photo_urls, clear_photo_urls, map_snapshot_url, category, is_cleared, created_at, cleared_at, reported_by, original_reported_by, created_by_user_name, created_by_department, cleared_by, clear_comment, status, map_id, location_type, x_percent, y_percent, created_device_id, created_device_label, created_user_agent, cleared_device_id, cleared_device_label, cleared_user_agent, last_action, last_action_by, last_action_device_id, last_action_device_label, last_action_user_agent")
         .order("created_at", { ascending: true });
 
       if (error) {
@@ -6218,6 +6232,9 @@
 
       allPins = (data || []).map(pin => ({
         ...pin,
+        original_reported_by: pin.original_reported_by || pin.reported_by || null,
+        created_by_user_name: pin.created_by_user_name || null,
+        created_by_department: pin.created_by_department || pin.created_device_label || null,
         category: pin.category || "general",
         map_id: pin.map_id || "outdoor_site",
         location_type: pin.location_type || "gps"
@@ -6246,6 +6263,9 @@
         map_snapshot_url: null,
         category: category || "general",
         reported_by: reportedBy || null,
+        original_reported_by: reportedBy || null,
+        created_by_user_name: getDeviceProfile().user_name || reportedBy || null,
+        created_by_department: getCurrentCreatorDepartmentLabel() || null,
         created_device_id: getDeviceProfile().device_id,
         created_device_label: getDefaultDeviceLabel(),
         created_user_agent: navigator.userAgent || null,
@@ -6445,7 +6465,7 @@
         .eq("id", clearingPinId)
         .eq("status", "active")
         .eq("is_cleared", false)
-        .select("id, title, description, lat, lng, photo_url, photo_urls, clear_photo_urls, map_snapshot_url, category, is_cleared, created_at, cleared_at, reported_by, cleared_by, clear_comment, status, map_id, location_type, x_percent, y_percent, created_device_id, created_device_label, created_user_agent, cleared_device_id, cleared_device_label, cleared_user_agent, last_action, last_action_by, last_action_device_id, last_action_device_label, last_action_user_agent")
+        .select("id, title, description, lat, lng, photo_url, photo_urls, clear_photo_urls, map_snapshot_url, category, is_cleared, created_at, cleared_at, reported_by, original_reported_by, created_by_user_name, created_by_department, cleared_by, clear_comment, status, map_id, location_type, x_percent, y_percent, created_device_id, created_device_label, created_user_agent, cleared_device_id, cleared_device_label, cleared_user_agent, last_action, last_action_by, last_action_device_id, last_action_device_label, last_action_user_agent")
         .maybeSingle();
 
       if (error) {
@@ -6461,7 +6481,7 @@
       if (!data) {
         const { data: currentRow } = await supabaseClient
           .from(SUPABASE_TABLE)
-          .select("id, title, description, lat, lng, photo_url, photo_urls, clear_photo_urls, map_snapshot_url, category, is_cleared, created_at, cleared_at, reported_by, cleared_by, clear_comment, status, map_id, location_type, x_percent, y_percent, created_device_id, created_device_label, created_user_agent, cleared_device_id, cleared_device_label, cleared_user_agent, last_action, last_action_by, last_action_device_id, last_action_device_label, last_action_user_agent")
+          .select("id, title, description, lat, lng, photo_url, photo_urls, clear_photo_urls, map_snapshot_url, category, is_cleared, created_at, cleared_at, reported_by, original_reported_by, created_by_user_name, created_by_department, cleared_by, clear_comment, status, map_id, location_type, x_percent, y_percent, created_device_id, created_device_label, created_user_agent, cleared_device_id, cleared_device_label, cleared_user_agent, last_action, last_action_by, last_action_device_id, last_action_device_label, last_action_user_agent")
           .eq("id", clearingPinId)
           .maybeSingle();
 
@@ -6573,8 +6593,9 @@
         '<b>' + escapeHtml(pin.title || 'Untitled pin') + '</b><br>' +
         '<b>Department:</b> ' + escapeHtml(formatDepartmentLabel(pin.category)) + '<br>' +
         '<b>Map:</b> ' + escapeHtml(getMapView(getPinMapId(pin)).name) + '<br>' +
-        (pin.reported_by ? '<b>Reported by:</b> ' + escapeHtml(pin.reported_by) + '<br>' : '') +
-        (pin.created_device_label ? '<b>Created by user dept/company:</b> ' + escapeHtml(pin.created_device_label) + '<br>' : '') +
+        ((pin.original_reported_by || pin.reported_by) ? '<b>Original reported by:</b> ' + escapeHtml(pin.original_reported_by || pin.reported_by) + '<br>' : '') +
+        (pin.created_by_user_name ? '<b>Created by user:</b> ' + escapeHtml(pin.created_by_user_name) + '<br>' : '') +
+        ((pin.created_by_department || pin.created_device_label) ? '<b>Created by department/company:</b> ' + escapeHtml(pin.created_by_department || pin.created_device_label) + '<br>' : '') +
         (pin.cleared_by ? '<b>Cleared by:</b> ' + escapeHtml(pin.cleared_by) + '<br>' : '') +
         (pin.cleared_device_label ? '<b>Cleared by user dept/company:</b> ' + escapeHtml(pin.cleared_device_label) + '<br>' : '') +
         (pin.clear_comment ? '<b>Clear comments:</b> ' + escapeHtml(pin.clear_comment) + '<br>' : '') +
@@ -7770,7 +7791,9 @@ function resetPinForm() {
             '<div><strong>Status:</strong> ' + escapeHtml(status) + '</div>' +
             '<div><strong>Department:</strong> ' + escapeHtml(dept) + '</div>' +
             '<div><strong>Map / Building:</strong> ' + escapeHtml(mapName) + '</div>' +
-            '<div><strong>Reported by:</strong> ' + escapeHtml(pin.reported_by || "") + '</div>' +
+            '<div><strong>Original reported by:</strong> ' + escapeHtml(pin.original_reported_by || pin.reported_by || "") + '</div>' +
+            (pin.created_by_user_name ? '<div><strong>Created by user:</strong> ' + escapeHtml(pin.created_by_user_name) + '</div>' : '') +
+            ((pin.created_by_department || pin.created_device_label) ? '<div><strong>Created by department/company:</strong> ' + escapeHtml(pin.created_by_department || pin.created_device_label) + '</div>' : '') +
             (closedByValue ? '<div><strong>' + escapeHtml(getClosedByLabel(pin)) + ':</strong> ' + escapeHtml(closedByValue) + '</div>' : '') +
             (closedFromValue ? '<div><strong>' + escapeHtml(getClosedFromLabel(pin)) + ':</strong> ' + escapeHtml(closedFromValue) + '</div>' : '') +
             (isCleared && formatTimeToClear(pin) ? '<div><strong>Time to clear:</strong> ' + escapeHtml(formatTimeToClear(pin)) + '</div>' : '') +
@@ -7797,7 +7820,7 @@ function resetPinForm() {
       if (!pin && supabaseClient && pinId) {
         const { data, error } = await supabaseClient
           .from(SUPABASE_TABLE)
-          .select("id, title, description, lat, lng, photo_url, photo_urls, clear_photo_urls, map_snapshot_url, category, is_cleared, created_at, cleared_at, reported_by, cleared_by, clear_comment, status, map_id, location_type, x_percent, y_percent, created_device_id, created_device_label, created_user_agent, cleared_device_id, cleared_device_label, cleared_user_agent, last_action, last_action_by, last_action_device_id, last_action_device_label, last_action_user_agent")
+          .select("id, title, description, lat, lng, photo_url, photo_urls, clear_photo_urls, map_snapshot_url, category, is_cleared, created_at, cleared_at, reported_by, original_reported_by, created_by_user_name, created_by_department, cleared_by, clear_comment, status, map_id, location_type, x_percent, y_percent, created_device_id, created_device_label, created_user_agent, cleared_device_id, cleared_device_label, cleared_user_agent, last_action, last_action_by, last_action_device_id, last_action_device_label, last_action_user_agent")
           .eq("id", pinId)
           .maybeSingle();
 
