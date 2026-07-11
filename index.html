@@ -2625,6 +2625,7 @@
         <button class="action-btn secondary" style="background:#b71c1c;" onclick="deleteSignInCodeEditor()">Delete Selected Code</button>
         <button class="action-btn secondary" onclick="resetSignInCodesToDefaults()">Reset Defaults</button>
         <button class="action-btn secondary" onclick="populateSignInCodeEditor()">Refresh List</button>
+        <button class="action-btn secondary" onclick="exportSignInProfilesPrivilegesCsv()">Export Profiles &amp; Privileges</button>
       </div>
       <div class="panel-note">Tip: Deleting or changing a code can force old browsers to sign in again once they refresh. For one specific device, use Device/User/Department Access.</div>
     </div>
@@ -3051,7 +3052,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.11-N";
+    const APP_VERSION = "2026.07.11-O";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const SIGN_IN_ACCESS_TABLE = "app_sign_in_access";
@@ -4124,9 +4125,17 @@
     function populateSignInCodeEditor(selectedCode) {
       const select = document.getElementById("signInCodeEditorSelect");
       if (!select) return;
-      const codes = Object.keys(SIGN_IN_CODES || {}).sort();
+      const codes = Object.keys(SIGN_IN_CODES || {}).sort((codeA, codeB) => {
+        const labelA = String((SIGN_IN_CODES[codeA] && SIGN_IN_CODES[codeA].label) || codeA).trim();
+        const labelB = String((SIGN_IN_CODES[codeB] && SIGN_IN_CODES[codeB].label) || codeB).trim();
+        return labelA.localeCompare(labelB, undefined, { sensitivity: "base", numeric: true }) ||
+          codeA.localeCompare(codeB, undefined, { sensitivity: "base", numeric: true });
+      });
       select.innerHTML = codes.length
-        ? codes.map(code => '<option value="' + escapeAttr(code) + '">' + escapeHtml(code + ' — ' + ((SIGN_IN_CODES[code] && SIGN_IN_CODES[code].label) || '')) + '</option>').join('')
+        ? codes.map(code => {
+            const label = String((SIGN_IN_CODES[code] && SIGN_IN_CODES[code].label) || code).trim();
+            return '<option value="' + escapeAttr(code) + '">' + escapeHtml(label + ' — ' + code) + '</option>';
+          }).join('')
         : '<option value="">No codes found</option>';
       if (selectedCode && codes.includes(selectedCode)) select.value = selectedCode;
       loadSignInCodeEditor();
@@ -4238,6 +4247,95 @@
       populateSignInCodeEditor(code);
       setStatus("Sign-in code saved.");
       alert("Sign-in code saved.");
+    }
+
+
+    function exportSignInProfilesPrivilegesCsv() {
+      const entries = Object.entries(SIGN_IN_CODES || {}).sort((a, b) => {
+        const labelA = String((a[1] && a[1].label) || a[0]).trim();
+        const labelB = String((b[1] && b[1].label) || b[0]).trim();
+        return labelA.localeCompare(labelB, undefined, { sensitivity: "base", numeric: true }) ||
+          a[0].localeCompare(b[0], undefined, { sensitivity: "base", numeric: true });
+      });
+
+      if (!entries.length) {
+        alert("No sign-in profiles are available to export.");
+        return;
+      }
+
+      const mapNameById = Object.fromEntries((mapViews || []).map(view => [String(view.id), String(view.name || view.id)]));
+      const yesNo = value => value ? "Yes" : "No";
+      const csvCell = value => '"' + String(value == null ? "" : value).replace(/"/g, '""') + '"';
+
+      const headers = [
+        "Display label",
+        "Sign-in code",
+        "Access type",
+        "Allowed department(s)",
+        "Allowed map view(s)",
+        "View active pins/log",
+        "View cleared pins/log",
+        "Add new pins",
+        "Edit/reassign active pins",
+        "Clear active pins",
+        "Print reports",
+        "Open Admin menu"
+      ];
+
+      const rows = entries.map(([code, profile]) => {
+        const normalized = lookupSignInCode(code) || profile || {};
+        const permissions = normalizeUserPermissions(profile.permissions || normalized.permissions || DEFAULT_USER_PERMISSIONS);
+        const allowedDepartments = profile.allowedDepartments || profile.allowed_departments ||
+          profile.departments || profile.allowed || normalized.allowedDepartments || [];
+
+        let accessType = "One department";
+        let departmentsText = String(profile.department || normalized.department || "").trim();
+        if (profile.canViewAll || profile.department === "all" || normalized.canViewAll) {
+          accessType = "All departments";
+          departmentsText = "All departments";
+        } else if ((Array.isArray(allowedDepartments) && allowedDepartments.length) ||
+                   profile.department === "multi" || normalized.department === "multi") {
+          accessType = "Selected departments";
+          departmentsText = (Array.isArray(allowedDepartments) ? allowedDepartments : [])
+            .map(String).filter(Boolean).sort((a,b) => a.localeCompare(b, undefined, {sensitivity:"base", numeric:true})).join("; ");
+        }
+
+        const allowedMapIds = normalizeAllowedMapIds(
+          profile.allowedMapIds || profile.allowed_map_ids || normalized.allowedMapIds || []
+        );
+        const mapsText = allowedMapIds.length
+          ? allowedMapIds.map(id => mapNameById[String(id)] || String(id))
+              .sort((a,b) => a.localeCompare(b, undefined, {sensitivity:"base", numeric:true})).join("; ")
+          : "All maps";
+
+        return [
+          String(profile.label || normalized.label || code),
+          code,
+          accessType,
+          departmentsText,
+          mapsText,
+          yesNo(permissions.viewActive),
+          yesNo(permissions.viewCleared),
+          yesNo(permissions.addPins),
+          yesNo(permissions.editPins),
+          yesNo(permissions.clearPins),
+          yesNo(permissions.printReports),
+          yesNo(permissions.viewAdmin)
+        ];
+      });
+
+      const csv = "\uFEFF" + [headers, ...rows].map(row => row.map(csvCell).join(",")).join("\r\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const dateStamp = new Date().toISOString().slice(0, 10);
+      link.href = url;
+      link.download = "CNE_Service_App_Profiles_Privileges_" + dateStamp + ".csv";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setStatus("Profiles and privileges exported for Excel.");
     }
 
     async function deleteSignInCodeEditor() {
