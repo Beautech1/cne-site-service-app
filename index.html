@@ -889,8 +889,15 @@
     }
 
     .mini-report-detail {
-      margin-top: 10px;
-      white-space: pre-wrap;
+      margin-top: 7px;
+      white-space: pre-line;
+      line-height: 1.32;
+    }
+
+    .compact-pin-description {
+      margin-top: 5px;
+      white-space: pre-line;
+      line-height: 1.28;
     }
 
 
@@ -3107,7 +3114,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.11-V";
+    const APP_VERSION = "2026.07.11-W";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const SIGN_IN_ACCESS_TABLE = "app_sign_in_access";
@@ -6216,16 +6223,45 @@
         .replace(/'/g, "&#39;");
     }
 
+
+    function compactDisplayText(value) {
+      return String(value ?? "")
+        .replace(/\r\n?/g, "\n")
+        .replace(/[ \t]+\n/g, "\n")
+        .replace(/\n[ \t]+/g, "\n")
+        .replace(/\n{2,}/g, "\n")
+        .trim();
+    }
+
     function buildLegend() {
       if (!legendBody) return;
+
       const allowedDepartments = getDepartmentsAvailableForDepartmentView();
       const selected = isValidDepartmentView(selectedDepartmentView) ? selectedDepartmentView : "all";
-      const legendDepartments = selected === "all"
-        ? allowedDepartments
+      const statusValue = statusFilter ? statusFilter.value : "active";
+
+      const visibleDepartmentKeys = new Set(
+        (Array.isArray(allPins) ? allPins : [])
+          .filter(pin => {
+            const statusMatch = statusValue === "all" || getPinStatus(pin) === statusValue;
+            const departmentMatch = selected === "all" || (pin.category || "general") === selected;
+            const mapMatch = pinBelongsToMap(pin, currentMapId);
+            return statusMatch && departmentMatch && mapMatch;
+          })
+          .map(pin => pin.category || "general")
+      );
+
+      let legendDepartments = selected === "all"
+        ? allowedDepartments.filter(dept => visibleDepartmentKeys.has(dept.key))
         : allowedDepartments.filter(dept => dept.key === selected);
 
+      // A selected department should remain identifiable even when it currently has no visible pins.
+      if (!legendDepartments.length && selected !== "all") {
+        legendDepartments = allowedDepartments.filter(dept => dept.key === selected);
+      }
+
       if (!legendDepartments.length) {
-        legendBody.innerHTML = '<div class="panel-note" style="grid-column:1/-1;">No department legend is available for this sign-in profile.</div>';
+        legendBody.innerHTML = '<div class="panel-note" style="grid-column:1/-1;">No departments have pins in the current map and status view.</div>';
         return;
       }
 
@@ -6382,7 +6418,7 @@
         (closedByValue ? "<br><small><b>" + escapeHtml(getClosedByLabel(pin)) + ":</b> " + escapeHtml(closedByValue) + "</small>" : "") +
         (isCleared && formatTimeToClear(pin) ? "<br><small><b>Time to clear:</b> " + escapeHtml(formatTimeToClear(pin)) + "</small>" : "") +
         (isCleared && pin.clear_comment ? "<br><small><b>Clear comments:</b> " + escapeHtml(pin.clear_comment) + "</small>" : "") +
-        (pin.description && pin.description.trim() !== "" ? "<br>" + escapeHtml(pin.description) : "") +
+        (pin.description && compactDisplayText(pin.description) !== "" ? '<div class="compact-pin-description">' + escapeHtml(compactDisplayText(pin.description)) + '</div>' : "") +
         photoHtml +
         clearPhotoHtml +
         "<br><br><small>" +
@@ -6630,7 +6666,7 @@
           (closedFromValue ? '<div><small><b>' + escapeHtml(getClosedFromLabel(pin)) + ':</b> ' + escapeHtml(closedFromValue) + '</small></div>' : '') +
           (isCleared && formatTimeToClear(pin) ? '<div><small><b>Time to clear:</b> ' + escapeHtml(formatTimeToClear(pin)) + '</small></div>' : '') +
           (isCleared && pin.clear_comment ? '<div><small><b>Clear comments:</b> ' + escapeHtml(pin.clear_comment) + '</small></div>' : '') +
-          (pin.description ? '<div style="margin-top:6px; white-space:pre-wrap;">' + escapeHtml(pin.description) + '</div>' : '') +
+          (pin.description && compactDisplayText(pin.description) ? '<div class="compact-pin-description">' + escapeHtml(compactDisplayText(pin.description)) + '</div>' : '') +
           '<div class="log-meta">' +
             (pin.created_at ? 'Created: ' + new Date(pin.created_at).toLocaleString() + '<br>' : '') +
             closedMetaLine +
@@ -8632,7 +8668,7 @@ function resetPinForm() {
             (isCancelled ? '<div><strong>Cancelled:</strong> Yes</div>' : '') +
             '<div><strong>Item ID:</strong> ' + escapeHtml(String(pin.id || "")) + '</div>' +
           '</div>' +
-          (pin.description ? '<div class="mini-report-detail"><strong>Location and service details:</strong><br>' + escapeHtml(pin.description) + '</div>' : '') +
+          (pin.description && compactDisplayText(pin.description) ? '<div class="mini-report-detail"><strong>Location and service details:</strong><br>' + escapeHtml(compactDisplayText(pin.description)) + '</div>' : '') +
           '<div style="margin-top:10px;"><strong>Map link:</strong><br><a href="' + escapeHtml(buildAppUrl({ pin: pin.id })) + '" target="_blank" rel="noopener">Open this item on the map</a></div>' +
           mapSnapshotHtml +
           (reportedPhotos ? '<div style="margin-top:12px;">' + reportedPhotos + '</div>' : '') +
@@ -8786,7 +8822,7 @@ function resetPinForm() {
       const accessRows = await fetchReportAccessRows(pin.id, 20);
       const accessHistoryHtml = buildReportAccessHistoryHtml(accessRows);
       const changeHistoryHtml = buildPinChangeHistoryHtml(await loadPinChangeHistory(pin.id));
-      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Item Report ${escapeHtml(String(pin.id || ""))}</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#1f2933;font-size:13px}.mini-report-card{border:1px solid #d9e0e6;border-radius:10px;padding:14px;line-height:1.45;font-size:13px}.mini-report-card h2{font-size:17px;line-height:1.25}.mini-report-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;font-size:13px}.mini-report-detail{margin-top:10px;white-space:pre-wrap}.report-map-photo,.log-photo,.print-report-photo{display:block;margin:8px 0;max-width:460px;max-height:330px;object-fit:contain;border:1px solid #d9e0e6;border-radius:8px;background:#f8fafc}.photo-gallery{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start}.photo-gallery img{width:460px;max-width:100%;height:auto;max-height:330px;object-fit:contain;border:1px solid #d9e0e6;border-radius:8px;background:#f8fafc}.photo-section-title{display:block;font-weight:bold;margin-top:10px;font-size:13px}.report-access-history{border:1px solid #d9e0e6;border-radius:8px;padding:10px;margin-top:12px;background:#f8fbfe}.report-access-row{border-top:1px solid #e6edf3;padding-top:6px;margin-top:6px}.pin-change-history{border:1px solid #d9e0e6;border-radius:8px;padding:10px;margin-top:12px;background:#fffdf6}.pin-change-row{border-top:1px solid #e6edf3;padding-top:7px;margin-top:7px}.pin-change-badge{display:inline-block;padding:2px 7px;border-radius:999px;background:#e7f3ff;border:1px solid #b7d7ef;font-size:10px;font-weight:bold;margin-right:5px}@media print{button{display:none}}</style></head><body><h1>Item Report</h1>${buildMiniReportHtml(pin, { print: true, accessHistoryHtml, changeHistoryHtml })}</body></html>`;
+      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Item Report ${escapeHtml(String(pin.id || ""))}</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#1f2933;font-size:13px}.mini-report-card{border:1px solid #d9e0e6;border-radius:10px;padding:14px;line-height:1.45;font-size:13px}.mini-report-card h2{font-size:17px;line-height:1.25}.mini-report-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;font-size:13px}.mini-report-detail{margin-top:7px;white-space:pre-line;line-height:1.32}.compact-pin-description{margin-top:5px;white-space:pre-line;line-height:1.28}.report-map-photo,.log-photo,.print-report-photo{display:block;margin:8px 0;max-width:460px;max-height:330px;object-fit:contain;border:1px solid #d9e0e6;border-radius:8px;background:#f8fafc}.photo-gallery{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start}.photo-gallery img{width:460px;max-width:100%;height:auto;max-height:330px;object-fit:contain;border:1px solid #d9e0e6;border-radius:8px;background:#f8fafc}.photo-section-title{display:block;font-weight:bold;margin-top:10px;font-size:13px}.report-access-history{border:1px solid #d9e0e6;border-radius:8px;padding:10px;margin-top:12px;background:#f8fbfe}.report-access-row{border-top:1px solid #e6edf3;padding-top:6px;margin-top:6px}.pin-change-history{border:1px solid #d9e0e6;border-radius:8px;padding:10px;margin-top:12px;background:#fffdf6}.pin-change-row{border-top:1px solid #e6edf3;padding-top:7px;margin-top:7px}.pin-change-badge{display:inline-block;padding:2px 7px;border-radius:999px;background:#e7f3ff;border:1px solid #b7d7ef;font-size:10px;font-weight:bold;margin-right:5px}@media print{button{display:none}}</style></head><body><h1>Item Report</h1>${buildMiniReportHtml(pin, { print: true, accessHistoryHtml, changeHistoryHtml })}</body></html>`;
       const win = window.open("", "_blank");
       if (!win) {
         alert("Popup blocked. Please allow popups to print the report.");
@@ -9332,7 +9368,7 @@ ${rows.map(pin => `
   ${pin.cleared_by ? `<div><strong>Cleared by:</strong> ${escapeHtml(pin.cleared_by)}</div>` : ""}
   ${formatTimeToClear(pin) ? `<div><strong>Time to clear:</strong> ${escapeHtml(formatTimeToClear(pin))}</div>` : ""}
   ${pin.clear_comment ? `<div><strong>Clear comments:</strong> ${escapeHtml(pin.clear_comment)}</div>` : ""}
-  ${pin.description ? `<div style="margin-top:6px;">${escapeHtml(pin.description)}</div>` : ""}
+  ${pin.description && compactDisplayText(pin.description) ? `<div class="compact-pin-description">${escapeHtml(compactDisplayText(pin.description))}</div>` : ""}
   <div class="meta" style="margin-top:8px;">
     ${pin.created_at ? `Created: ${new Date(pin.created_at).toLocaleString()}<br>` : ""}
     ${pin.cleared_at ? `Cleared: ${new Date(pin.cleared_at).toLocaleString()}` : "Cleared"}
