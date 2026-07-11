@@ -2491,7 +2491,7 @@
             <option value="all">All statuses</option>
             <option value="active">Active / outstanding</option>
             <option value="cleared">Cleared / completed</option>
-            <option value="cancelled">Cancelled calls</option>
+            <option value="cancelled">Cancelled</option>
             <option value="reported">Report-only items</option>
           </select>
         </label>
@@ -2607,9 +2607,10 @@
       </div>
       <div class="admin-menu-section" style="margin-top:10px;">
         <h3>User permissions</h3>
-        <div class="panel-note" style="padding-top:0;">Choose exactly what this sign-in code can do. Use Read-only for users who should only view information.</div>
+        <div class="panel-note" style="padding-top:0;">Choose exactly what this sign-in code can do. Use Read-only for view-only access, or Read-only + Clear when the user may complete existing pins but cannot add, edit, or reassign them.</div>
         <div class="permission-presets">
           <button type="button" class="action-btn secondary" onclick="applyPermissionPreset('readonly')">Read-only preset</button>
+          <button type="button" class="action-btn secondary" onclick="applyPermissionPreset('readonly-clear')">Read-only + Clear preset</button>
           <button type="button" class="action-btn secondary" onclick="applyPermissionPreset('operations')">Operations preset</button>
           <button type="button" class="action-btn secondary" onclick="applyPermissionPreset('full')">Full access preset</button>
         </div>
@@ -2618,7 +2619,7 @@
           <label class="permission-option"><input type="checkbox" id="permViewCleared"><span>View cleared pins/log<small>See completed history and cleared reports.</small></span></label>
           <label class="permission-option"><input type="checkbox" id="permAddPins"><span>Add new pins<small>Create new service requests.</small></span></label>
           <label class="permission-option"><input type="checkbox" id="permEditPins"><span>Edit/reassign active pins<small>Change details, department, or location.</small></span></label>
-          <label class="permission-option"><input type="checkbox" id="permClearPins"><span>Clear active pins<small>Complete work requests and add clear notes/photos.</small></span></label>
+          <label class="permission-option"><input type="checkbox" id="permClearPins"><span>Clear active pins<small>Complete existing requests and add clear notes/photos. Does not allow adding or editing pins.</small></span></label>
           <label class="permission-option"><input type="checkbox" id="permPrintReports"><span>Print reports<small>Print or save active and cleared reports.</small></span></label>
           <label class="permission-option"><input type="checkbox" id="permViewAdmin"><span>Open Admin menu<small>Still requires the secure Supabase admin login.</small></span></label>
           <label class="permission-option"><input type="checkbox" id="permOwnPinsOutsidePrimary"><span>Additional departments: own profile pins only<small>For departments beyond the profile’s primary department, only show pins created by this profile.</small></span></label>
@@ -2987,7 +2988,7 @@
         <select id="editPinStatusInput" onchange="onEditPinStatusChange()">
           <option value="active">Active / outstanding</option>
           <option value="cleared">Cleared / completed</option>
-          <option value="cancelled">Cancelled call</option>
+          <option value="cancelled">Cancelled</option>
           <option value="reported">Report only</option>
         </select>
       </label>
@@ -3066,7 +3067,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.11-R";
+    const APP_VERSION = "2026.07.11-T";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const SIGN_IN_ACCESS_TABLE = "app_sign_in_access";
@@ -4186,6 +4187,7 @@
 
     function applyPermissionPreset(name) {
       if(name === "readonly") setPermissionEditorValues({viewActive:true,viewCleared:true,addPins:false,editPins:false,clearPins:false,printReports:true,viewAdmin:false,ownPinsOutsidePrimary:false});
+      else if(name === "readonly-clear") setPermissionEditorValues({viewActive:true,viewCleared:true,addPins:false,editPins:false,clearPins:true,printReports:true,viewAdmin:false,ownPinsOutsidePrimary:false});
       else if(name === "operations") setPermissionEditorValues({viewActive:true,viewCleared:true,addPins:true,editPins:true,clearPins:true,printReports:true,viewAdmin:false,ownPinsOutsidePrimary:false});
       else setPermissionEditorValues(DEFAULT_USER_PERMISSIONS);
     }
@@ -5926,21 +5928,23 @@
 
     function getAllowedDepartmentViewOptions() {
       const visibleDepartments = getDepartmentsAvailableForDepartmentView();
-      if (currentUserCanViewAllDepartments()) {
-        return [
-          { key: "all", name: "All Departments" },
-          ...visibleDepartments.map(dept => ({ key: dept.key, name: dept.name }))
-        ];
-      }
-      return visibleDepartments.map(dept => ({ key: dept.key, name: dept.name }));
+      // A multi-department profile may view all of its permitted departments together,
+      // or switch to any one permitted department. "All" never expands access beyond
+      // the departments already allowed by the sign-in profile.
+      const canUseCombinedView = currentUserCanViewAllDepartments() || visibleDepartments.length > 1;
+      return [
+        ...(canUseCombinedView ? [{ key: "all", name: "View All Departments" }] : []),
+        ...visibleDepartments.map(dept => ({ key: dept.key, name: dept.name }))
+      ];
     }
 
     function isValidDepartmentView(value) {
       const key = normalizeAccessDepartmentKey(value || "");
-      if (currentUserCanViewAllDepartments()) {
-        return key === "all" || getDepartmentsAvailableForDepartmentView().some(dept => dept.key === key);
+      const visibleDepartments = getDepartmentsAvailableForDepartmentView();
+      if (key === "all") {
+        return currentUserCanViewAllDepartments() || visibleDepartments.length > 1;
       }
-      return userCanAccessDepartmentKey(key);
+      return visibleDepartments.some(dept => dept.key === key);
     }
 
     function buildDepartmentViewOptions() {
@@ -5977,6 +5981,7 @@
       updateCurrentViewDisplay();
       closeDepartmentViewPrompt();
       buildDepartmentViewOptions();
+      buildLegend();
       applyFilters();
     }
 
@@ -6075,12 +6080,12 @@
 
       const viewDepartments = getDepartmentsAvailableForDepartmentView();
       if (categoryFilter) {
-        const canViewAll = currentUserCanViewAllDepartments();
-        categoryFilter.innerHTML = (canViewAll ? '<option value="all">All departments</option>' : '') + viewDepartments.map(dept => `<option value="${escapeHtml(dept.key)}">${escapeHtml(dept.name)}</option>`).join("");
+        const canUseCombinedView = currentUserCanViewAllDepartments() || viewDepartments.length > 1;
+        categoryFilter.innerHTML = (canUseCombinedView ? '<option value="all">View All Departments</option>' : '') + viewDepartments.map(dept => `<option value="${escapeHtml(dept.key)}">${escapeHtml(dept.name)}</option>`).join("");
         const storedView = selectedDepartmentView || localStorage.getItem(DEPARTMENT_VIEW_STORAGE_KEY) || currentFilterKey;
         if (isValidDepartmentView(storedView)) categoryFilter.value = normalizeAccessDepartmentKey(storedView);
         else if (isValidDepartmentView(currentFilterKey)) categoryFilter.value = normalizeAccessDepartmentKey(currentFilterKey);
-        else categoryFilter.value = canViewAll ? "all" : ((viewDepartments[0] && viewDepartments[0].key) || "");
+        else categoryFilter.value = canUseCombinedView ? "all" : ((viewDepartments[0] && viewDepartments[0].key) || "");
       }
 
       if (manageDepartmentSelect) {
@@ -6172,7 +6177,19 @@
     }
 
     function buildLegend() {
-      legendBody.innerHTML = departments.map(dept => (
+      if (!legendBody) return;
+      const allowedDepartments = getDepartmentsAvailableForDepartmentView();
+      const selected = isValidDepartmentView(selectedDepartmentView) ? selectedDepartmentView : "all";
+      const legendDepartments = selected === "all"
+        ? allowedDepartments
+        : allowedDepartments.filter(dept => dept.key === selected);
+
+      if (!legendDepartments.length) {
+        legendBody.innerHTML = '<div class="panel-note" style="grid-column:1/-1;">No department legend is available for this sign-in profile.</div>';
+        return;
+      }
+
+      legendBody.innerHTML = legendDepartments.map(dept => (
         '<div class="legend-item">' +
           '<span class="legend-dot" style="background:' + escapeHtml(dept.color) + '"></span>' +
           '<span>' + escapeHtml(dept.name) + '</span>' +
@@ -6303,7 +6320,7 @@
         : "";
 
       const cancelButton = canClearOrCancel
-        ? (pin.id ? '<button class="action-btn secondary" style="background:#8a4b08;" onclick="cancelPinFromReport(' + pin.id + ')">Cancel call</button>' : "")
+        ? (pin.id ? '<button class="action-btn secondary" style="background:#8a4b08;" onclick="cancelPinFromReport(' + pin.id + ')">Cancel</button>' : "")
         : "";
 
       const printButton = pin.id
@@ -7106,7 +7123,7 @@
       const confirmed = window.confirm("Mark this call as cancelled? It will be removed from outstanding items but kept in All Logs.");
       if (!confirmed) return;
 
-      setStatus("Cancelling call...");
+      setStatus("Cancelling...");
       const { data, error } = await supabaseClient
         .from(SUPABASE_TABLE)
         .update({
@@ -7638,6 +7655,7 @@
     function toggleLegendPanel(forceOpen) {
       const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : !legendPanel.classList.contains('open');
       if (shouldOpen) {
+        buildLegend();
         legendPanel.classList.add('open');
       } else {
         legendPanel.classList.remove('open');
