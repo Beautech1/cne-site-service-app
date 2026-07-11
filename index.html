@@ -2876,7 +2876,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.11-J";
+    const APP_VERSION = "2026.07.11-K";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const SIGN_IN_ACCESS_TABLE = "app_sign_in_access";
@@ -6972,20 +6972,44 @@
     }
 
     function toggleActiveLogPanel(forceOpen) {
+      if (!activeLogPanel) {
+        console.error('Active Log panel element was not found.');
+        alert('The Active Log panel could not be opened. Please report app version ' + APP_VERSION + '.');
+        return;
+      }
       const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : !activeLogPanel.classList.contains('open');
       if (shouldOpen) {
-        renderActiveLog();
         activeLogPanel.classList.add('open');
+        try {
+          renderActiveLog();
+        } catch (error) {
+          console.error('Active Log render failed:', error);
+          if (activeLogBody) {
+            activeLogBody.innerHTML = '<div class="empty-log"><b>Active Log could not load.</b><br>' + escapeHtml(error && error.message ? error.message : String(error)) + '<br><small>App version: ' + escapeHtml(APP_VERSION) + '</small></div>';
+          }
+        }
       } else {
         activeLogPanel.classList.remove('open');
       }
     }
 
     function toggleLogPanel(forceOpen) {
+      if (!logPanel) {
+        console.error('Cleared Log panel element was not found.');
+        alert('The Cleared Log panel could not be opened. Please report app version ' + APP_VERSION + '.');
+        return;
+      }
       const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : !logPanel.classList.contains('open');
       if (shouldOpen) {
-        renderClearedLog();
         logPanel.classList.add('open');
+        try {
+          renderClearedLog();
+        } catch (error) {
+          console.error('Cleared Log render failed:', error);
+          if (logBody) {
+            logBody.innerHTML = '<div class="empty-log"><b>Cleared Log could not load.</b><br>' + escapeHtml(error && error.message ? error.message : String(error)) + '<br><small>App version: ' + escapeHtml(APP_VERSION) + '</small></div>';
+          }
+        }
       } else {
         logPanel.classList.remove('open');
       }
@@ -8888,7 +8912,10 @@ ${rows.map(pin => `
     if (versionBadge) versionBadge.textContent = `Version ${APP_VERSION}`;
 
     window.copyAppVersion = copyAppVersion;
+    window.toggleActiveLogPanel = toggleActiveLogPanel;
     window.toggleLogPanel = toggleLogPanel;
+    window.renderActiveLog = renderActiveLog;
+    window.renderClearedLog = renderClearedLog;
     window.toggleDeleteHistoryPanel = toggleDeleteHistoryPanel;
     window.populateDeleteHistorySelect = populateDeleteHistorySelect;
     window.loadDeleteHistoryDetails = loadDeleteHistoryDetails;
