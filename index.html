@@ -2240,6 +2240,40 @@
 
 
 
+    .permission-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 7px;
+      margin-top: 6px;
+    }
+    .permission-option {
+      display: flex !important;
+      align-items: flex-start;
+      gap: 8px !important;
+      padding: 8px;
+      border: 1px solid #d7e0ea;
+      border-radius: 8px;
+      background: #f8fbfe;
+      font-weight: 700 !important;
+      cursor: pointer;
+    }
+    .permission-option input { width: 17px; height: 17px; margin: 1px 0 0; flex: none; }
+    .permission-option small { display:block; margin-top:2px; color:#607084; font-weight:400; line-height:1.25; }
+    .map-access-grid {
+      display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:6px;
+      max-height:180px;
+      overflow:auto;
+      padding:7px;
+      border:1px solid #d7e0ea;
+      border-radius:8px;
+      background:#fff;
+    }
+    .map-access-grid label { display:flex !important; align-items:center; gap:7px !important; font-weight:600 !important; padding:5px; border-radius:6px; background:#f8fbfe; }
+    .permission-presets { display:flex; gap:7px; flex-wrap:wrap; margin:6px 0; }
+    @media (max-width:520px){ .permission-grid,.map-access-grid{grid-template-columns:1fr;} }
+
     /* Report-link view: allow text recipients to view only the service order without the full controls. */
     body.report-view-only .floating-ui,
     body.report-view-only .leaflet-control-container,
@@ -2557,6 +2591,33 @@
         <label>Allowed departments, one per line
           <textarea id="signInCodeEditorAllowedDepartments" placeholder="Explace Cleaning&#10;Impact Cleaning&#10;Showtech Plumbing"></textarea>
         </label>
+      </div>
+      <div class="admin-menu-section" style="margin-top:10px;">
+        <h3>User permissions</h3>
+        <div class="panel-note" style="padding-top:0;">Choose exactly what this sign-in code can do. Use Read-only for users who should only view information.</div>
+        <div class="permission-presets">
+          <button type="button" class="action-btn secondary" onclick="applyPermissionPreset('readonly')">Read-only preset</button>
+          <button type="button" class="action-btn secondary" onclick="applyPermissionPreset('operations')">Operations preset</button>
+          <button type="button" class="action-btn secondary" onclick="applyPermissionPreset('full')">Full access preset</button>
+        </div>
+        <div class="permission-grid">
+          <label class="permission-option"><input type="checkbox" id="permViewActive"><span>View active pins/log<small>See active work requests and open reports.</small></span></label>
+          <label class="permission-option"><input type="checkbox" id="permViewCleared"><span>View cleared pins/log<small>See completed history and cleared reports.</small></span></label>
+          <label class="permission-option"><input type="checkbox" id="permAddPins"><span>Add new pins<small>Create new service requests.</small></span></label>
+          <label class="permission-option"><input type="checkbox" id="permEditPins"><span>Edit/reassign active pins<small>Change details, department, or location.</small></span></label>
+          <label class="permission-option"><input type="checkbox" id="permClearPins"><span>Clear active pins<small>Complete work requests and add clear notes/photos.</small></span></label>
+          <label class="permission-option"><input type="checkbox" id="permPrintReports"><span>Print reports<small>Print or save active and cleared reports.</small></span></label>
+          <label class="permission-option"><input type="checkbox" id="permViewAdmin"><span>Open Admin menu<small>Still requires the secure Supabase admin login.</small></span></label>
+        </div>
+      </div>
+      <div class="admin-menu-section">
+        <h3>Allowed map views</h3>
+        <div class="panel-note" style="padding-top:0;">Check the maps/buildings this user may open. Leave all checked for unrestricted map access.</div>
+        <div class="permission-presets">
+          <button type="button" class="action-btn secondary" onclick="setAllMapAccess(true)">All maps</button>
+          <button type="button" class="action-btn secondary" onclick="setAllMapAccess(false)">No maps</button>
+        </div>
+        <div id="signInCodeMapAccessGrid" class="map-access-grid"></div>
       </div>
       <div class="export-actions">
         <button class="action-btn" onclick="saveSignInCodeEditor()">Save Sign-In Code</button>
@@ -2990,7 +3051,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.11-M";
+    const APP_VERSION = "2026.07.11-N";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const SIGN_IN_ACCESS_TABLE = "app_sign_in_access";
@@ -3415,6 +3476,75 @@
       return allowed;
     }
 
+    const DEFAULT_USER_PERMISSIONS = Object.freeze({
+      viewActive: true,
+      viewCleared: true,
+      addPins: true,
+      editPins: true,
+      clearPins: true,
+      printReports: true,
+      viewAdmin: true
+    });
+
+    function normalizeUserPermissions(value) {
+      const source = value && typeof value === "object" ? value : {};
+      const read = (camel, snake, fallback) => {
+        if (typeof source[camel] === "boolean") return source[camel];
+        if (typeof source[snake] === "boolean") return source[snake];
+        return fallback;
+      };
+      return {
+        viewActive: read("viewActive", "can_view_active", true),
+        viewCleared: read("viewCleared", "can_view_cleared", true),
+        addPins: read("addPins", "can_add_pins", true),
+        editPins: read("editPins", "can_edit_pins", true),
+        clearPins: read("clearPins", "can_clear_pins", true),
+        printReports: read("printReports", "can_print_reports", true),
+        viewAdmin: read("viewAdmin", "can_view_admin", true)
+      };
+    }
+
+    function normalizeAllowedMapIds(value) {
+      if (Array.isArray(value)) return Array.from(new Set(value.map(v => String(v || "").trim()).filter(Boolean)));
+      if (typeof value === "string") return Array.from(new Set(value.split(/[,|\n]/).map(v => v.trim()).filter(Boolean)));
+      return [];
+    }
+
+    function getCurrentPermissions() {
+      const access = getAccessProfile();
+      return normalizeUserPermissions(access && access.permissions ? access.permissions : DEFAULT_USER_PERMISSIONS);
+    }
+
+    function userHasPermission(name) {
+      return getCurrentPermissions()[name] !== false;
+    }
+
+    function getAllowedMapIdsForCurrentUser() {
+      const access = getAccessProfile();
+      return normalizeAllowedMapIds(access && access.allowedMapIds);
+    }
+
+    function userCanAccessMap(mapId) {
+      const allowed = getAllowedMapIdsForCurrentUser();
+      return !allowed.length || allowed.includes(String(mapId || ""));
+    }
+
+    function denyPermission(message) {
+      alert(message || "This sign-in code does not have permission for that action.");
+      return false;
+    }
+
+    function applyCurrentAccessToUi() {
+      const byOnclick = (prefix) => Array.from(document.querySelectorAll('button[onclick]')).filter(btn => String(btn.getAttribute('onclick') || '').includes(prefix));
+      byOnclick('toggleActiveLogPanel').forEach(btn => btn.style.display = userHasPermission('viewActive') ? '' : 'none');
+      byOnclick('toggleLogPanel').forEach(btn => btn.style.display = userHasPermission('viewCleared') ? '' : 'none');
+      byOnclick('toggleAdminPanel').forEach(btn => btn.style.display = userHasPermission('viewAdmin') ? '' : 'none');
+      byOnclick('printActiveLogs').forEach(btn => btn.style.display = userHasPermission('printReports') ? '' : 'none');
+      byOnclick('printClearedLogs').forEach(btn => btn.style.display = userHasPermission('printReports') ? '' : 'none');
+      document.querySelectorAll('.clear-btn').forEach(btn => btn.style.display = userHasPermission('clearPins') ? '' : 'none');
+      populateMapSelector();
+    }
+
     function normalizeSignInCodes(value) {
       const source = value && typeof value === "object" ? value : DEFAULT_SIGN_IN_CODES;
       const normalized = {};
@@ -3431,7 +3561,9 @@
           role: access.role || (access.canViewAll ? "cne" : (allowedDepartments.length ? "multi_department" : "department")),
           department,
           canViewAll: !!access.canViewAll || normalizeAccessDepartmentKey(department) === "all",
-          allowedDepartments
+          allowedDepartments,
+          permissions: normalizeUserPermissions(access.permissions || access),
+          allowedMapIds: normalizeAllowedMapIds(access.allowedMapIds || access.allowed_map_ids || access.maps)
         };
       });
       return Object.keys(normalized).length ? normalized : { ...DEFAULT_SIGN_IN_CODES };
@@ -3474,7 +3606,9 @@
         role: access.role || (access.canViewAll ? "cne" : (allowedDepartments.length ? "multi_department" : "department")),
         department,
         canViewAll: !!access.canViewAll || normalizeAccessDepartmentKey(access.department || "all") === "all",
-        allowedDepartments: allowedDepartments.map(normalizeAccessDepartmentKey)
+        allowedDepartments: allowedDepartments.map(normalizeAccessDepartmentKey),
+        permissions: normalizeUserPermissions(access.permissions || access),
+        allowedMapIds: normalizeAllowedMapIds(access.allowedMapIds || access.allowed_map_ids || access.maps)
       };
     }
 
@@ -3497,6 +3631,8 @@
               department: refreshed.department || normalizeAccessDepartmentKey(saved.department || ""),
               canViewAll: !!refreshed.canViewAll,
               allowedDepartments: Array.isArray(refreshed.allowedDepartments) ? refreshed.allowedDepartments.map(normalizeAccessDepartmentKey).filter(Boolean) : [],
+              permissions: normalizeUserPermissions(refreshed.permissions || saved.permissions),
+              allowedMapIds: normalizeAllowedMapIds(refreshed.allowedMapIds || saved.allowedMapIds),
               approved_at: saved.approved_at || null
             };
           }
@@ -3519,6 +3655,8 @@
           department: normalizeAccessDepartmentKey(saved.department || ""),
           canViewAll: !!saved.canViewAll,
           allowedDepartments: (savedAllowed.length ? savedAllowed : builtInAllowed),
+          permissions: normalizeUserPermissions(saved.permissions),
+          allowedMapIds: normalizeAllowedMapIds(saved.allowedMapIds),
           approved_at: saved.approved_at || null
         };
       } catch (error) {
@@ -3578,10 +3716,13 @@
           department: access.department,
           canViewAll: !!access.canViewAll,
           allowedDepartments: Array.isArray(access.allowedDepartments) ? access.allowedDepartments.map(normalizeAccessDepartmentKey).filter(Boolean) : [],
+          permissions: normalizeUserPermissions(access.permissions),
+          allowedMapIds: normalizeAllowedMapIds(access.allowedMapIds),
           approved_at: new Date().toISOString()
         }));
       } catch (error) {}
       enforceAssignedDepartmentView();
+      setTimeout(applyCurrentAccessToUi, 0);
     }
 
     function isDirectReportLink() {
@@ -3942,6 +4083,44 @@
       return unique.map(name => '<option value="' + escapeAttr(name) + '"' + (name === selected ? ' selected' : '') + '>' + escapeHtml(name) + '</option>').join('');
     }
 
+    const PERMISSION_FIELD_IDS = {
+      viewActive: "permViewActive", viewCleared: "permViewCleared", addPins: "permAddPins",
+      editPins: "permEditPins", clearPins: "permClearPins", printReports: "permPrintReports", viewAdmin: "permViewAdmin"
+    };
+
+    function setPermissionEditorValues(permissions) {
+      const normalized = normalizeUserPermissions(permissions);
+      Object.entries(PERMISSION_FIELD_IDS).forEach(([key,id]) => { const el=document.getElementById(id); if(el) el.checked=!!normalized[key]; });
+    }
+
+    function readPermissionEditorValues() {
+      const result={};
+      Object.entries(PERMISSION_FIELD_IDS).forEach(([key,id]) => { const el=document.getElementById(id); result[key]=!!(el && el.checked); });
+      return result;
+    }
+
+    function applyPermissionPreset(name) {
+      if(name === "readonly") setPermissionEditorValues({viewActive:true,viewCleared:true,addPins:false,editPins:false,clearPins:false,printReports:true,viewAdmin:false});
+      else if(name === "operations") setPermissionEditorValues({viewActive:true,viewCleared:true,addPins:true,editPins:true,clearPins:true,printReports:true,viewAdmin:false});
+      else setPermissionEditorValues(DEFAULT_USER_PERMISSIONS);
+    }
+
+    function populateMapAccessEditor(selectedIds) {
+      const grid=document.getElementById("signInCodeMapAccessGrid");
+      if(!grid) return;
+      const selected=normalizeAllowedMapIds(selectedIds);
+      const allSelected=!selected.length;
+      grid.innerHTML=sortMapViewsAscending(mapViews).map(view => '<label><input type="checkbox" class="sign-in-map-access" value="'+escapeAttr(view.id)+'" '+((allSelected||selected.includes(view.id))?'checked':'')+'><span>'+escapeHtml(view.name)+'</span></label>').join('') || '<div class="panel-note">No maps configured.</div>';
+    }
+
+    function setAllMapAccess(checked) { document.querySelectorAll('.sign-in-map-access').forEach(el => el.checked=!!checked); }
+
+    function readAllowedMapIdsEditor() {
+      const boxes=Array.from(document.querySelectorAll('.sign-in-map-access'));
+      const checked=boxes.filter(el=>el.checked).map(el=>el.value);
+      return checked.length === boxes.length ? [] : checked;
+    }
+
     function populateSignInCodeEditor(selectedCode) {
       const select = document.getElementById("signInCodeEditorSelect");
       if (!select) return;
@@ -3975,6 +4154,8 @@
       deptInput.innerHTML = getDepartmentNameOptionsHtml(currentDept);
       deptInput.value = currentDept || (deptInput.options[0] ? deptInput.options[0].value : "");
       allowedInput.value = Array.isArray(allowedDepartments) ? allowedDepartments.join("\n") : "";
+      setPermissionEditorValues(access.permissions || normalized.permissions || DEFAULT_USER_PERMISSIONS);
+      populateMapAccessEditor(access.allowedMapIds || access.allowed_map_ids || normalized.allowedMapIds || []);
       refreshSignInCodeAccessFields();
     }
 
@@ -3999,6 +4180,8 @@
       if (accessTypeInput) accessTypeInput.value = "department";
       if (deptInput) deptInput.innerHTML = getDepartmentNameOptionsHtml("");
       if (allowedInput) allowedInput.value = "";
+      applyPermissionPreset("readonly");
+      populateMapAccessEditor([]);
       refreshSignInCodeAccessFields();
       if (codeInput) codeInput.focus();
     }
@@ -4035,6 +4218,19 @@
           return;
         }
         next = { label, role: "department", department, canViewAll: false };
+      }
+      next.permissions = readPermissionEditorValues();
+      next.allowedMapIds = readAllowedMapIdsEditor();
+      if (!next.permissions.viewActive && !next.permissions.viewCleared) {
+        alert("Select at least one viewing permission: active pins/log or cleared pins/log.");
+        return;
+      }
+      if (!next.allowedMapIds.length) {
+        const mapBoxes = Array.from(document.querySelectorAll('.sign-in-map-access'));
+        if (mapBoxes.length && !mapBoxes.every(el => el.checked)) {
+          alert("Select at least one allowed map view.");
+          return;
+        }
       }
       if (oldCode && oldCode !== code && SIGN_IN_CODES[oldCode]) delete SIGN_IN_CODES[oldCode];
       SIGN_IN_CODES[code] = next;
@@ -4450,9 +4646,9 @@
 
     function populateMapSelector() {
       if (!mapSelector) return;
-      const sortedMapViews = sortMapViewsAscending(mapViews);
+      const sortedMapViews = sortMapViewsAscending(mapViews).filter(view => userCanAccessMap(view.id));
       mapSelector.innerHTML = sortedMapViews.map(view => `<option value="${escapeHtml(view.id)}">${escapeHtml(view.name)}</option>`).join("");
-      if (!mapViews.some(view => view.id === currentMapId)) currentMapId = (sortedMapViews[0] && sortedMapViews[0].id) || "outdoor_site";
+      if (!sortedMapViews.some(view => view.id === currentMapId)) currentMapId = (sortedMapViews[0] && sortedMapViews[0].id) || "outdoor_site";
       try { localStorage.setItem(CURRENT_MAP_STORAGE_KEY, currentMapId); } catch (error) {}
       mapSelector.value = currentMapId;
       populateManageMapSelect();
@@ -4460,6 +4656,7 @@
     }
 
     function switchMapView(mapId) {
+      if (!userCanAccessMap(mapId)) return denyPermission("This sign-in code does not have access to that map/building.");
       currentMapId = getMapView(mapId).id;
       try { localStorage.setItem(CURRENT_MAP_STORAGE_KEY, currentMapId); } catch (error) {}
       if (mapSelector) mapSelector.value = currentMapId;
@@ -5134,6 +5331,7 @@
     }
 
     async function openEditPinModal(pinId) {
+      if (!userHasPermission("editPins")) return denyPermission("This user has read-only access and cannot edit or reassign pins.");
       const pin = allPins.find(item => item.id === pinId);
       if (!pin) return;
 
@@ -5179,6 +5377,7 @@
     }
 
     async function submitEditPinForm() {
+      if (!userHasPermission("editPins")) return denyPermission("This user cannot edit or reassign pins.");
       if (!supabaseClient || !pendingEditPinId) return;
       const pin = allPins.find(item => item.id === pendingEditPinId);
       if (!pin) return;
@@ -6662,10 +6861,12 @@
     }
 
     async function clearPin(pinId) {
+      if (!userHasPermission("clearPins")) return denyPermission("This user has read-only access and cannot clear pins.");
       openClearModal(pinId);
     }
 
     async function submitClearPinForm() {
+      if (!userHasPermission("clearPins")) return denyPermission("This user cannot clear pins.");
       if (!supabaseClient || !pendingClearPinId) return;
 
       const clearingPinId = pendingClearPinId;
@@ -7105,6 +7306,7 @@
     }
 
     async function toggleAdminPanel(forceOpen) {
+      if (!userHasPermission("viewAdmin")) return denyPermission("This sign-in code does not include Admin-menu access.");
       const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : !adminPanel.classList.contains('open');
       if (shouldOpen) {
         if (!(await requireAdminAuth())) return;
@@ -7115,6 +7317,7 @@
     }
 
     function toggleActiveLogPanel(forceOpen) {
+      if (!userHasPermission("viewActive")) return denyPermission("This sign-in code cannot view the Active Log.");
       if (!activeLogPanel) {
         console.error('Active Log panel element was not found.');
         alert('The Active Log panel could not be opened. Please report app version ' + APP_VERSION + '.');
@@ -7137,6 +7340,7 @@
     }
 
     function toggleLogPanel(forceOpen) {
+      if (!userHasPermission("viewCleared")) return denyPermission("This sign-in code cannot view the Cleared Log.");
       if (!logPanel) {
         console.error('Cleared Log panel element was not found.');
         alert('The Cleared Log panel could not be opened. Please report app version ' + APP_VERSION + '.');
@@ -7340,6 +7544,7 @@ function resetPinForm() {
     }
 
     function openPinModalForPending() {
+      if (!userHasPermission("addPins")) return denyPermission("This user has read-only access and cannot add new pins.");
       if (!pendingLatLng) {
         pinLocationNote.textContent = isFloorPlanMap() ? "Click the floor plan first to choose a location, then click Add Pin." : "Click the map first to choose a pin location, then click Add Pin.";
       } else if (pendingLatLng.location_type === "floorplan") {
@@ -7368,6 +7573,7 @@ function resetPinForm() {
     }
 
     async function submitPinForm() {
+      if (!userHasPermission("addPins")) return denyPermission("This user cannot add new pins.");
       if (!pendingLatLng) {
         alert(isFloorPlanMap() ? "Click the floor plan first to choose a pin location." : "Click the map first to choose a pin location.");
         return;
@@ -9055,6 +9261,8 @@ ${rows.map(pin => `
     if (versionBadge) versionBadge.textContent = `Version ${APP_VERSION}`;
 
     window.copyAppVersion = copyAppVersion;
+    window.applyPermissionPreset = applyPermissionPreset;
+    window.setAllMapAccess = setAllMapAccess;
     window.toggleActiveLogPanel = toggleActiveLogPanel;
     window.toggleLogPanel = toggleLogPanel;
     window.renderActiveLog = renderActiveLog;
