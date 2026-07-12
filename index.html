@@ -2403,11 +2403,99 @@
       padding-bottom: 14px;
     }
 
+
+    /* Compact optional scheduling dates. Kept side-by-side to reduce popup height. */
+    .optional-date-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px;
+      padding: 6px 0 8px;
+      border-bottom: 1px solid #e6edf3;
+    }
+    .optional-date-grid label {
+      min-width: 0;
+      padding: 0 !important;
+      border-bottom: 0 !important;
+      gap: 3px !important;
+      font-size: 10px !important;
+      font-weight: 700 !important;
+      color: #55606e !important;
+    }
+    .optional-date-grid input[type="date"] {
+      width: 100%;
+      min-width: 0;
+      box-sizing: border-box;
+      padding: 5px 6px !important;
+      font-size: 11px !important;
+      margin: 0 !important;
+    }
+    .optional-date-note {
+      grid-column: 1 / -1;
+      margin-top: -1px;
+      font-size: 9px;
+      line-height: 1.2;
+      color: #7a8796;
+      font-weight: normal;
+    }
+    .service-date-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 12px;
+      margin-top: 5px;
+      font-size: 11px;
+      color: #334155;
+    }
+    @media (max-width: 360px) {
+      .optional-date-grid { gap: 4px; }
+      .optional-date-grid input[type="date"] { font-size: 10px !important; padding: 5px 3px !important; }
+    }
+
+
+    /* Y.3 mobile-safe GPS button */
+    .native-gps-control {
+      margin-right: 12px !important;
+      margin-bottom: 70px !important;
+      border: 0 !important;
+      box-shadow: none !important;
+      background: transparent !important;
+    }
+    .native-gps-button {
+      width: 42px;
+      height: 42px;
+      border: 1px solid rgba(0,0,0,0.22);
+      border-radius: 50%;
+      background: #fff;
+      color: #005a9c;
+      font-size: 22px;
+      font-weight: 900;
+      line-height: 1;
+      box-shadow: 0 2px 9px rgba(0,0,0,0.28);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transform: rotate(-45deg);
+    }
+    .native-gps-button.gps-loading {
+      transform: none;
+      animation: gpsPulse 0.9s ease-in-out infinite alternate;
+    }
+    .native-gps-button.gps-error { color: #c62828; }
+    .native-gps-button.gps-active { color: #1677ff; }
+    @keyframes gpsPulse { from { opacity: .45; } to { opacity: 1; } }
+    @media (max-width: 520px) {
+      .native-gps-control {
+        margin-right: 8px !important;
+        margin-bottom: 58px !important;
+      }
+      .native-gps-button { width: 40px; height: 40px; }
+    }
+
   </style>
 </head>
 <body>
 
-  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.11-I</button>
+  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.11-Y</button>
   <div class="floating-ui" id="floatingUi">
     <button class="mobile-ui-toggle" id="mobileUiToggle" type="button" onclick="toggleMobileUi()">
       <span class="mobile-ui-toggle-main">
@@ -2517,6 +2605,12 @@
         <label>Map / building
           <select id="clearedLogMapFilter" onchange="renderClearedLog()"></select>
         </label>
+        <label>Cleared date order
+          <select id="clearedLogSortFilter" onchange="renderClearedLog()">
+            <option value="asc">Date ascending (oldest first)</option>
+            <option value="desc">Date descending (newest first)</option>
+          </select>
+        </label>
         <label class="log-filter-search">Search
           <input id="clearedLogSearchFilter" type="search" placeholder="Title, details, user..." oninput="renderClearedLog()">
         </label>
@@ -2544,6 +2638,12 @@
         </label>
         <label>Map / building
           <select id="activeLogMapFilter" onchange="renderActiveLog()"></select>
+        </label>
+        <label>Created date order
+          <select id="activeLogSortFilter" onchange="renderActiveLog()">
+            <option value="asc">Date ascending (oldest first)</option>
+            <option value="desc">Date descending (newest first)</option>
+          </select>
         </label>
         <label class="log-filter-search">Search
           <input id="activeLogSearchFilter" type="search" placeholder="Title, details, user..." oninput="renderActiveLog()">
@@ -2581,6 +2681,14 @@
       <div class="settings-row">
         <label>Map / Building
           <select id="allLogsMapFilter" onchange="renderAllLogs()"></select>
+        </label>
+      </div>
+      <div class="settings-row">
+        <label>Date order
+          <select id="allLogsSortFilter" onchange="renderAllLogs()">
+            <option value="asc">Date ascending (oldest first)</option>
+            <option value="desc">Date descending (newest first)</option>
+          </select>
         </label>
       </div>
       <div class="export-actions">
@@ -2933,6 +3041,15 @@
       <label>Location and service details <span style="color:#b71c1c;">*</span>
         <textarea id="pinDescriptionInput" placeholder="Required. Example: west washroom, beside sink. Add any issue details here." required></textarea>
       </label>
+      <div class="optional-date-grid">
+        <label>Install date (optional)
+          <input type="date" id="pinInstallDateInput">
+        </label>
+        <label>Removal date (optional)
+          <input type="date" id="pinRemovalDateInput">
+        </label>
+        <div class="optional-date-note">Leave blank when dates are not required.</div>
+      </div>
       <label>Photo / file upload
         <input type="file" id="pinPhotoFileInput" accept="image/*" multiple>
         <small style="color:#607084; font-weight:normal; line-height:1.25;">Phone camera: take one photo, then choose again to add another. Laptop: select multiple photos at once.</small>
@@ -3057,6 +3174,15 @@
       <label>Location and service details
         <textarea id="editPinDescriptionInput" placeholder="Example: west washroom, beside sink. Add any issue details here."></textarea>
       </label>
+      <div class="optional-date-grid">
+        <label>Install date (optional)
+          <input type="date" id="editPinInstallDateInput">
+        </label>
+        <label>Removal date (optional)
+          <input type="date" id="editPinRemovalDateInput">
+        </label>
+        <div class="optional-date-note">Leave blank when dates are not required.</div>
+      </div>
       <label>Reported By <span style="color:#b71c1c;">*</span>
         <input type="text" id="editPinReportedByInput" list="editPinReportedByList" placeholder="Select or type name...">
         <datalist id="editPinReportedByList"></datalist>
@@ -3129,7 +3255,7 @@
       <button class="floor-zoom-btn reset" type="button" onclick="resetFloorPlanZoom()">Reset</button>
     </div>
     <div id="floorPlanStage">
-      <img id="floorPlanImage" src="./floor-plan-food-building.png" alt="Building floor plan">
+      <img id="floorPlanImage" src="floor-plan-food-building.png" alt="Building floor plan">
       <div id="floorPlanPinLayer"></div>
       <div id="floorPlanPendingDot" class="floor-pending-dot" style="display:none;"></div>
       <div id="floorPlanEmptyNote" class="floor-plan-empty-note">Building floor plan view. Replace <b>floor-plan-food-building.png</b> with your real floor plan image, keeping the same file name, or edit the map list in the HTML.</div>
@@ -3255,6 +3381,7 @@
     const allLogsStatusFilter = document.getElementById("allLogsStatusFilter");
     const allLogsDepartmentFilter = document.getElementById("allLogsDepartmentFilter");
     const allLogsMapFilter = document.getElementById("allLogsMapFilter");
+    const allLogsSortFilter = document.getElementById("allLogsSortFilter");
     const signInLogPanel = document.getElementById("signInLogPanel");
     const signInLogBody = document.getElementById("signInLogBody");
     const logPanel = document.getElementById("logPanel");
@@ -3275,6 +3402,8 @@
     const pinDescriptionInput = document.getElementById("pinDescriptionInput");
     const pinCategoryInput = document.getElementById("pinCategoryInput");
     const pinReportedByInput = document.getElementById("pinReportedByInput");
+    const pinInstallDateInput = document.getElementById("pinInstallDateInput");
+    const pinRemovalDateInput = document.getElementById("pinRemovalDateInput");
     const pinPhotoFileInput = document.getElementById("pinPhotoFileInput");
     const pinNotifySmsNowInput = document.getElementById("pinNotifySmsNowInput");
     const pinCustomSmsEnabled = document.getElementById("pinCustomSmsEnabled");
@@ -3314,6 +3443,8 @@
     const editCustomSmsInput = document.getElementById("editCustomSmsInput");
     const editCustomSmsMessageInput = document.getElementById("editCustomSmsMessageInput");
     const editPinDescriptionInput = document.getElementById("editPinDescriptionInput");
+    const editPinInstallDateInput = document.getElementById("editPinInstallDateInput");
+    const editPinRemovalDateInput = document.getElementById("editPinRemovalDateInput");
     const editPinReportedByInput = document.getElementById("editPinReportedByInput");
     const editPinStatusInput = document.getElementById("editPinStatusInput");
     const editClearedFields = document.getElementById("editClearedFields");
@@ -5711,6 +5842,8 @@
       populateEditSmsGroupCheckboxes();
       if (editNotifySmsNowInput) editNotifySmsNowInput.checked = shouldDefaultSmsOpen();
       if (editPinDescriptionInput) editPinDescriptionInput.value = pin.description || "";
+      if (editPinInstallDateInput) editPinInstallDateInput.value = pin.install_date ? String(pin.install_date).slice(0, 10) : "";
+      if (editPinRemovalDateInput) editPinRemovalDateInput.value = pin.removal_date ? String(pin.removal_date).slice(0, 10) : "";
       populateEditProfileDropdowns(pin.reported_by || "", pin.cleared_by || "");
       if (editPinClearCommentInput) editPinClearCommentInput.value = pin.clear_comment || "";
       if (editPinStatusInput) editPinStatusInput.value = getPinStatus(pin);
@@ -5750,6 +5883,14 @@
       const status = editPinStatusInput.value;
       const clearedBy = editPinClearedByInput.value.trim();
       const clearComment = editPinClearCommentInput ? editPinClearCommentInput.value.trim() : "";
+      const installDate = editPinInstallDateInput && editPinInstallDateInput.value ? editPinInstallDateInput.value : null;
+      const removalDate = editPinRemovalDateInput && editPinRemovalDateInput.value ? editPinRemovalDateInput.value : null;
+
+      if (installDate && removalDate && removalDate < installDate) {
+        alert("Removal date cannot be before the install date.");
+        editPinRemovalDateInput.focus();
+        return;
+      }
 
       if (!reportedBy) {
         alert("Reported By is required.");
@@ -5806,6 +5947,8 @@
         cleared_at: nextClearedAt,
         cleared_by: status === "cleared" ? clearedBy : null,
         clear_comment: status === "cleared" ? clearComment : null,
+        install_date: installDate,
+        removal_date: removalDate,
         ...(status === "cleared" ? {
           cleared_device_id: getDeviceProfile().device_id,
           cleared_device_label: getDefaultDeviceLabel(),
@@ -6419,17 +6562,139 @@
 
     const userPinsLayer = L.layerGroup().addTo(map);
 
-    L.control.locate({
-      position: "topright",
-      keepCurrentZoomLevel: true,
-      flyTo: true,
-      locateOptions: {
-        enableHighAccuracy: true
-      },
-      strings: {
-        title: "Show my location"
+    // Mobile-safe GPS control. This does not depend on the optional
+    // Leaflet LocateControl CDN being available, so a blocked script cannot
+    // stop the rest of the app from loading.
+    let gpsLocationMarker = null;
+    let gpsAccuracyCircle = null;
+    let gpsRequestInProgress = false;
+
+    function setGpsButtonState(state, message) {
+      const button = document.getElementById("nativeGpsButton");
+      if (!button) return;
+      button.classList.toggle("gps-loading", state === "loading");
+      button.classList.toggle("gps-error", state === "error");
+      button.classList.toggle("gps-active", state === "active");
+      button.setAttribute("aria-label", message || "Show my location");
+      button.title = message || "Show my location";
+      button.innerHTML = state === "loading" ? "…" : "➤";
+    }
+
+    function explainGpsError(error) {
+      const code = Number(error && error.code);
+      if (!window.isSecureContext && location.hostname !== "localhost" && location.hostname !== "127.0.0.1") {
+        return "GPS requires the app to be opened from an HTTPS web address. It will not work from an insecure HTTP page.";
       }
-    }).addTo(map);
+      if (code === 1) {
+        return "Location permission is blocked. Open your browser site settings, allow Location for this app, then press the GPS arrow again.";
+      }
+      if (code === 2) {
+        return "Your phone could not determine its location. Turn on Location Services and try again outdoors or near a window.";
+      }
+      if (code === 3) {
+        return "The location request timed out. Check that Location Services are on, then try again.";
+      }
+      return "Your location could not be found. Check browser and phone location permissions, then try again.";
+    }
+
+    function showGpsError(error) {
+      gpsRequestInProgress = false;
+      const message = explainGpsError(error);
+      setGpsButtonState("error", message);
+      if (typeof setStatus === "function") setStatus(message);
+      else {
+        const status = document.getElementById("statusBar");
+        if (status) status.textContent = message;
+      }
+      alert(message);
+    }
+
+    function showGpsPosition(position) {
+      gpsRequestInProgress = false;
+      const coords = position && position.coords ? position.coords : null;
+      if (!coords || !Number.isFinite(coords.latitude) || !Number.isFinite(coords.longitude)) {
+        showGpsError({ code: 2 });
+        return;
+      }
+      const latlng = L.latLng(coords.latitude, coords.longitude);
+      const accuracy = Math.max(0, Number(coords.accuracy) || 0);
+
+      if (!gpsLocationMarker) {
+        gpsLocationMarker = L.circleMarker(latlng, {
+          radius: 8,
+          color: "#ffffff",
+          weight: 3,
+          fillColor: "#1677ff",
+          fillOpacity: 1,
+          pane: "markerPane"
+        }).addTo(map);
+      } else {
+        gpsLocationMarker.setLatLng(latlng);
+      }
+
+      if (!gpsAccuracyCircle) {
+        gpsAccuracyCircle = L.circle(latlng, {
+          radius: accuracy,
+          color: "#1677ff",
+          weight: 1,
+          fillColor: "#1677ff",
+          fillOpacity: 0.12,
+          interactive: false
+        }).addTo(map);
+      } else {
+        gpsAccuracyCircle.setLatLng(latlng).setRadius(accuracy);
+      }
+
+      map.flyTo(latlng, Math.max(map.getZoom(), 18), { animate: true, duration: 0.8 });
+      gpsLocationMarker.bindPopup("Your location" + (accuracy ? "<br><small>Accuracy: about " + Math.round(accuracy) + " m</small>" : "")).openPopup();
+      setGpsButtonState("active", "Location found. Press again to refresh.");
+      const successMessage = "Location found" + (accuracy ? " (about " + Math.round(accuracy) + " m accuracy)." : ".");
+      if (typeof setStatus === "function") setStatus(successMessage);
+      else {
+        const status = document.getElementById("statusBar");
+        if (status) status.textContent = successMessage;
+      }
+    }
+
+    function requestCurrentLocation() {
+      if (gpsRequestInProgress) return;
+      if (!navigator.geolocation) {
+        showGpsError({ code: 0 });
+        return;
+      }
+      if (!window.isSecureContext && location.hostname !== "localhost" && location.hostname !== "127.0.0.1") {
+        showGpsError({ code: 0 });
+        return;
+      }
+      gpsRequestInProgress = true;
+      setGpsButtonState("loading", "Finding your location…");
+      navigator.geolocation.getCurrentPosition(showGpsPosition, showGpsError, {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 5000
+      });
+    }
+
+    const NativeGpsControl = L.Control.extend({
+      options: { position: "bottomright" },
+      onAdd: function() {
+        const container = L.DomUtil.create("div", "leaflet-bar native-gps-control");
+        const button = L.DomUtil.create("button", "native-gps-button", container);
+        button.type = "button";
+        button.id = "nativeGpsButton";
+        button.innerHTML = "➤";
+        button.title = "Show my location";
+        button.setAttribute("aria-label", "Show my location");
+        L.DomEvent.disableClickPropagation(container);
+        L.DomEvent.disableScrollPropagation(container);
+        L.DomEvent.on(button, "click", function(event) {
+          L.DomEvent.stop(event);
+          requestCurrentLocation();
+        });
+        return container;
+      }
+    });
+    new NativeGpsControl().addTo(map);
 
     const cneBounds = L.latLngBounds(
       [43.6280, -79.4245],
@@ -6476,6 +6741,25 @@
       return '<span class="photo-section-title">' + escapeHtml(label) + ' (' + escapeHtml(countText) + ')</span>' + imagesHtml;
     }
 
+    function formatOptionalServiceDate(value) {
+      if (!value) return "";
+      const text = String(value).slice(0, 10);
+      const parts = text.split("-");
+      if (parts.length !== 3) return escapeHtml(text);
+      const date = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+      return Number.isNaN(date.getTime()) ? escapeHtml(text) : escapeHtml(date.toLocaleDateString());
+    }
+
+    function buildOptionalServiceDatesHtml(pin, wrapperClass = "service-date-row") {
+      const install = formatOptionalServiceDate(pin && pin.install_date);
+      const removal = formatOptionalServiceDate(pin && pin.removal_date);
+      if (!install && !removal) return "";
+      return '<div class="' + wrapperClass + '">' +
+        (install ? '<span><b>Install:</b> ' + install + '</span>' : '') +
+        (removal ? '<span><b>Removal:</b> ' + removal + '</span>' : '') +
+      '</div>';
+    }
+
     function buildPopupHtml(pin) {
       const categoryLabel = formatDepartmentLabel(pin.category);
       const photoHtml = buildPhotoGalleryHtml(getPinPhotos(pin), "Reported photos");
@@ -6515,6 +6799,7 @@
         "<br><small><b>Status:</b> " + escapeHtml(formatPinStatus(pin)) + "</small>" +
         "<br><small><b>Assigned to:</b> " + escapeHtml(categoryLabel) + "</small>" +
         "<br><small><b>Location:</b> " + escapeHtml(getMapView(getPinMapId(pin)).name) + "</small>" +
+        buildOptionalServiceDatesHtml(pin) +
         getPinOriginSummaryHtml(pin, "small") +
         (closedByValue ? "<br><small><b>" + escapeHtml(getClosedByLabel(pin)) + ":</b> " + escapeHtml(closedByValue) + "</small>" : "") +
         (isCleared && formatTimeToClear(pin) ? "<br><small><b>Time to clear:</b> " + escapeHtml(formatTimeToClear(pin)) + "</small>" : "") +
@@ -6733,9 +7018,16 @@
       const dept = document.getElementById(prefix + 'DepartmentFilter')?.value || 'all';
       const mapId = document.getElementById(prefix + 'MapFilter')?.value || 'all';
       const term = (document.getElementById(prefix + 'SearchFilter')?.value || '').trim().toLowerCase();
-      return rows.filter(pin => dept === 'all' || String(pin.category || 'general') === dept)
+      const sortOrder = document.getElementById(prefix + 'SortFilter')?.value || 'asc';
+      const filtered = rows.filter(pin => dept === 'all' || String(pin.category || 'general') === dept)
         .filter(pin => mapId === 'all' || String(getPinMapId(pin)) === mapId)
         .filter(pin => !term || operationalLogSearchText(pin).includes(term));
+      return filtered.slice().sort((a, b) => {
+        const aDate = prefix === 'clearedLog' ? (a.cleared_at || a.created_at) : a.created_at;
+        const bDate = prefix === 'clearedLog' ? (b.cleared_at || b.created_at) : b.created_at;
+        const diff = new Date(aDate || 0).getTime() - new Date(bDate || 0).getTime();
+        return sortOrder === 'desc' ? -diff : diff;
+      });
     }
 
     function buildLogItemHtml(pin, options = {}) {
@@ -6762,6 +7054,7 @@
             '<span><b>Assigned to:</b> ' + escapeHtml(formatDepartmentLabel(pin.category)) + '</span>' +
             '<span><b>Location:</b> ' + escapeHtml(getMapView(getPinMapId(pin)).name) + '</span>' +
           '</div>' +
+          buildOptionalServiceDatesHtml(pin) +
           getPinOriginSummaryHtml(pin) +
           (closedByValue ? '<div><small><b>' + escapeHtml(getClosedByLabel(pin)) + ':</b> ' + escapeHtml(closedByValue) + '</small></div>' : '') +
           (closedFromValue ? '<div><small><b>' + escapeHtml(getClosedFromLabel(pin)) + ':</b> ' + escapeHtml(closedFromValue) + '</small></div>' : '') +
@@ -7156,7 +7449,7 @@
 
       const { data, error } = await supabaseClient
         .from(SUPABASE_TABLE)
-        .select("id, title, description, lat, lng, photo_url, photo_urls, clear_photo_urls, map_snapshot_url, category, is_cleared, created_at, cleared_at, reported_by, original_reported_by, created_by_user_name, created_by_department, cleared_by, clear_comment, status, map_id, location_type, x_percent, y_percent, created_device_id, created_device_label, created_user_agent, cleared_device_id, cleared_device_label, cleared_user_agent, last_action, last_action_by, last_action_device_id, last_action_device_label, last_action_user_agent")
+        .select("id, title, description, lat, lng, photo_url, photo_urls, clear_photo_urls, map_snapshot_url, category, is_cleared, created_at, cleared_at, install_date, removal_date, reported_by, original_reported_by, created_by_user_name, created_by_department, cleared_by, clear_comment, status, map_id, location_type, x_percent, y_percent, created_device_id, created_device_label, created_user_agent, cleared_device_id, cleared_device_label, cleared_user_agent, last_action, last_action_by, last_action_device_id, last_action_device_label, last_action_user_agent")
         .order("created_at", { ascending: true });
 
       if (error) {
@@ -7180,7 +7473,7 @@
       handleInitialUrlAction();
     }
 
-    async function savePin(latlng, title, description, photoUrls, category, reportedBy, statusValue = "active") {
+    async function savePin(latlng, title, description, photoUrls, category, reportedBy, statusValue = "active", installDate = null, removalDate = null) {
       if (!supabaseClient) {
         alert("Supabase is not configured yet. Add your URL and anon key first.");
         return;
@@ -7211,7 +7504,9 @@
         y_percent: latlng.y_percent ?? null,
         is_cleared: false,
         status: statusValue || "active",
-        cleared_at: null
+        cleared_at: null,
+        install_date: installDate || null,
+        removal_date: removalDate || null
       };
 
       const { data, error } = await supabaseClient
@@ -7402,7 +7697,7 @@
         .eq("id", clearingPinId)
         .eq("status", "active")
         .eq("is_cleared", false)
-        .select("id, title, description, lat, lng, photo_url, photo_urls, clear_photo_urls, map_snapshot_url, category, is_cleared, created_at, cleared_at, reported_by, original_reported_by, created_by_user_name, created_by_department, cleared_by, clear_comment, status, map_id, location_type, x_percent, y_percent, created_device_id, created_device_label, created_user_agent, cleared_device_id, cleared_device_label, cleared_user_agent, last_action, last_action_by, last_action_device_id, last_action_device_label, last_action_user_agent")
+        .select("id, title, description, lat, lng, photo_url, photo_urls, clear_photo_urls, map_snapshot_url, category, is_cleared, created_at, cleared_at, install_date, removal_date, reported_by, original_reported_by, created_by_user_name, created_by_department, cleared_by, clear_comment, status, map_id, location_type, x_percent, y_percent, created_device_id, created_device_label, created_user_agent, cleared_device_id, cleared_device_label, cleared_user_agent, last_action, last_action_by, last_action_device_id, last_action_device_label, last_action_user_agent")
         .maybeSingle();
 
       if (error) {
@@ -7418,7 +7713,7 @@
       if (!data) {
         const { data: currentRow } = await supabaseClient
           .from(SUPABASE_TABLE)
-          .select("id, title, description, lat, lng, photo_url, photo_urls, clear_photo_urls, map_snapshot_url, category, is_cleared, created_at, cleared_at, reported_by, original_reported_by, created_by_user_name, created_by_department, cleared_by, clear_comment, status, map_id, location_type, x_percent, y_percent, created_device_id, created_device_label, created_user_agent, cleared_device_id, cleared_device_label, cleared_user_agent, last_action, last_action_by, last_action_device_id, last_action_device_label, last_action_user_agent")
+          .select("id, title, description, lat, lng, photo_url, photo_urls, clear_photo_urls, map_snapshot_url, category, is_cleared, created_at, cleared_at, install_date, removal_date, reported_by, original_reported_by, created_by_user_name, created_by_department, cleared_by, clear_comment, status, map_id, location_type, x_percent, y_percent, created_device_id, created_device_label, created_user_agent, cleared_device_id, cleared_device_label, cleared_user_agent, last_action, last_action_by, last_action_device_id, last_action_device_label, last_action_user_agent")
           .eq("id", clearingPinId)
           .maybeSingle();
 
@@ -7558,12 +7853,16 @@
       const statusValue = allLogsStatusFilter ? allLogsStatusFilter.value : "all";
       const deptValue = allLogsDepartmentFilter ? allLogsDepartmentFilter.value : "all";
       const mapValue = allLogsMapFilter ? allLogsMapFilter.value : "all";
+      const sortOrder = allLogsSortFilter ? allLogsSortFilter.value : "asc";
       return allPins
         .filter(pin => statusValue === "all" || getPinStatus(pin) === statusValue)
         .filter(pin => deptValue === "all" || (pin.category || "general") === deptValue)
         .filter(pin => mapValue === "all" || getPinMapId(pin) === mapValue)
         .slice()
-        .sort((a, b) => new Date(b.cleared_at || b.created_at || 0) - new Date(a.cleared_at || a.created_at || 0));
+        .sort((a, b) => {
+          const diff = new Date(a.cleared_at || a.created_at || 0).getTime() - new Date(b.cleared_at || b.created_at || 0).getTime();
+          return sortOrder === "desc" ? -diff : diff;
+        });
     }
 
     function getAllLogsFilterTitle() {
@@ -7972,6 +8271,8 @@
 
 function resetPinForm() {
   pinDescriptionInput.value = "";
+  if (pinInstallDateInput) pinInstallDateInput.value = "";
+  if (pinRemovalDateInput) pinRemovalDateInput.value = "";
   const availableDepartments = getDepartmentsAvailableForNewPins();
   if (availableDepartments[0]) {
     pinCategoryInput.disabled = false;
@@ -8072,6 +8373,14 @@ function resetPinForm() {
         return;
       }
 
+      const installDate = pinInstallDateInput && pinInstallDateInput.value ? pinInstallDateInput.value : null;
+      const removalDate = pinRemovalDateInput && pinRemovalDateInput.value ? pinRemovalDateInput.value : null;
+      if (installDate && removalDate && removalDate < installDate) {
+        alert("Removal date cannot be before the install date.");
+        pinRemovalDateInput.focus();
+        return;
+      }
+
       let uploadedPhotoUrls = [];
       const photoFiles = Array.from(pendingPinPhotoFiles || []);
 
@@ -8089,7 +8398,9 @@ function resetPinForm() {
           uploadedPhotoUrls,
           pinCategoryInput.value,
           reportedBy,
-          requestStatus
+          requestStatus,
+          installDate,
+          removalDate
         );
 
         if (savedPin) {
@@ -8517,6 +8828,8 @@ function resetPinForm() {
           '<div style="border:1px solid #d9e0e6; border-radius:8px; padding:10px; background:#f8fbfe; text-align:left; margin-bottom:12px;">' +
             '<div><strong>Department:</strong> ' + escapeHtml(dept) + '</div>' +
             '<div><strong>Map / Building:</strong> ' + escapeHtml(mapName) + '</div>' +
+            (pin.install_date ? '<div><strong>Install date:</strong> ' + formatOptionalServiceDate(pin.install_date) + '</div>' : '') +
+            (pin.removal_date ? '<div><strong>Removal date:</strong> ' + formatOptionalServiceDate(pin.removal_date) + '</div>' : '') +
             '<div><strong>Item ID:</strong> ' + escapeHtml(String(pin.id || "")) + '</div>' +
           '</div>' +
           '<button class="action-btn" style="justify-content:center; min-width:190px;" onclick="viewServiceOrderAndShowReport(' + Number(pin.id) + ')">View Service Order</button>' +
@@ -8788,7 +9101,7 @@ function resetPinForm() {
       if (!pin && supabaseClient && pinId) {
         const { data, error } = await supabaseClient
           .from(SUPABASE_TABLE)
-          .select("id, title, description, lat, lng, photo_url, photo_urls, clear_photo_urls, map_snapshot_url, category, is_cleared, created_at, cleared_at, reported_by, original_reported_by, created_by_user_name, created_by_department, cleared_by, clear_comment, status, map_id, location_type, x_percent, y_percent, created_device_id, created_device_label, created_user_agent, cleared_device_id, cleared_device_label, cleared_user_agent, last_action, last_action_by, last_action_device_id, last_action_device_label, last_action_user_agent")
+          .select("id, title, description, lat, lng, photo_url, photo_urls, clear_photo_urls, map_snapshot_url, category, is_cleared, created_at, cleared_at, install_date, removal_date, reported_by, original_reported_by, created_by_user_name, created_by_department, cleared_by, clear_comment, status, map_id, location_type, x_percent, y_percent, created_device_id, created_device_label, created_user_agent, cleared_device_id, cleared_device_label, cleared_user_agent, last_action, last_action_by, last_action_device_id, last_action_device_label, last_action_user_agent")
           .eq("id", pinId)
           .maybeSingle();
 
@@ -9381,6 +9694,8 @@ function closeSmsFallbackModal() {
         "lng",
         "created_at",
         "cleared_at",
+        "install_date",
+        "removal_date",
         "photo_url",
         "photo_urls",
         "clear_photo_urls"
@@ -9405,6 +9720,8 @@ function closeSmsFallbackModal() {
           csvEscape(Number(pin.lng).toFixed(6)),
           csvEscape(pin.created_at ? new Date(pin.created_at).toISOString() : ""),
           csvEscape(pin.cleared_at ? new Date(pin.cleared_at).toISOString() : ""),
+          csvEscape(pin.install_date || ""),
+          csvEscape(pin.removal_date || ""),
           csvEscape(pin.photo_url || ""),
           csvEscape(JSON.stringify(getPinPhotos(pin))),
           csvEscape(JSON.stringify(getClearPhotos(pin)))
