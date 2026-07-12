@@ -2524,7 +2524,7 @@
 </head>
 <body>
 
-  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.11-AD</button>
+  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.11-AE</button>
   <div class="floating-ui" id="floatingUi">
     <button class="mobile-ui-toggle" id="mobileUiToggle" type="button" onclick="toggleMobileUi()">
       <span class="mobile-ui-toggle-main">
@@ -3351,7 +3351,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.11-AD";
+    const APP_VERSION = "2026.07.11-AE";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const SIGN_IN_ACCESS_TABLE = "app_sign_in_access";
@@ -6789,6 +6789,8 @@
     let gpsLocationMarker = null;
     let gpsAccuracyCircle = null;
     let gpsRequestInProgress = false;
+    let gpsTrackingActive = false;
+    let gpsHasFix = false;
 
     function setGpsButtonState(state, message) {
       const button = document.getElementById("nativeGpsButton");
@@ -6830,7 +6832,7 @@
       alert(message);
     }
 
-    function showGpsPosition(position) {
+    function showGpsPosition(position, firstFix) {
       gpsRequestInProgress = false;
       const coords = position && position.coords ? position.coords : null;
       if (!coords || !Number.isFinite(coords.latitude) || !Number.isFinite(coords.longitude)) {
@@ -6866,10 +6868,15 @@
         gpsAccuracyCircle.setLatLng(latlng).setRadius(accuracy);
       }
 
-      map.flyTo(latlng, Math.max(map.getZoom(), 18), { animate: true, duration: 0.8 });
-      gpsLocationMarker.bindPopup("Your location" + (accuracy ? "<br><small>Accuracy: about " + Math.round(accuracy) + " m</small>" : "")).openPopup();
-      setGpsButtonState("active", "Location found. Press again to refresh.");
-      const successMessage = "Location found" + (accuracy ? " (about " + Math.round(accuracy) + " m accuracy)." : ".");
+      if (firstFix) {
+        map.flyTo(latlng, Math.max(map.getZoom(), 18), { animate: true, duration: 0.8 });
+      } else if (gpsTrackingActive) {
+        map.panTo(latlng, { animate: true, duration: 0.35 });
+      }
+
+      gpsLocationMarker.bindPopup("Your live location" + (accuracy ? "<br><small>Accuracy: about " + Math.round(accuracy) + " m</small>" : ""));
+      setGpsButtonState("active", "Live GPS tracking is on. Tap again to stop.");
+      const successMessage = "Live GPS tracking on" + (accuracy ? " (about " + Math.round(accuracy) + " m accuracy)." : ".");
       if (typeof setStatus === "function") setStatus(successMessage);
       else {
         const status = document.getElementById("statusBar");
@@ -6880,18 +6887,29 @@
     let gpsWatchId = null;
     let gpsFallbackTimer = null;
 
-    function stopGpsWatch() {
+    function stopGpsWatch(updateUi) {
       if (gpsWatchId !== null && navigator.geolocation) {
         navigator.geolocation.clearWatch(gpsWatchId);
       }
       gpsWatchId = null;
       if (gpsFallbackTimer) clearTimeout(gpsFallbackTimer);
       gpsFallbackTimer = null;
+      gpsRequestInProgress = false;
+      gpsTrackingActive = false;
+      gpsHasFix = false;
+      if (updateUi) {
+        setGpsButtonState("idle", "Show my live location");
+        if (typeof setStatus === "function") setStatus("Live GPS tracking stopped.");
+      }
     }
 
     function requestCurrentLocation() {
-      // This function is called directly by the GPS-arrow tap so mobile browsers
-      // can show the native Allow/Block permission prompt.
+      // The GPS arrow is an on/off control. A direct tap starts the browser's
+      // native permission request and keeps watchPosition running as the user moves.
+      if (gpsTrackingActive || gpsWatchId !== null) {
+        stopGpsWatch(true);
+        return;
+      }
       if (gpsRequestInProgress) return;
       if (!navigator.geolocation) {
         showGpsError({ code: 0 });
@@ -6902,46 +6920,55 @@
         return;
       }
 
-      stopGpsWatch();
+      stopGpsWatch(false);
       gpsRequestInProgress = true;
-      setGpsButtonState("loading", "Approve location access. The map will move automatically when your position is received.");
+      gpsTrackingActive = true;
+      gpsHasFix = false;
+      setGpsButtonState("loading", "Approve location access. Live tracking will begin automatically.");
       if (typeof setStatus === "function") {
-        setStatus("Requesting phone location… Tap Allow when prompted. The map will centre automatically.");
+        setStatus("Requesting phone location… Tap Allow when prompted. Live tracking will remain on as you move.");
       }
 
-      let receivedPosition = false;
       const acceptPosition = function(position) {
-        if (receivedPosition) return;
-        receivedPosition = true;
-        stopGpsWatch();
-        showGpsPosition(position);
+        const firstFix = !gpsHasFix;
+        gpsHasFix = true;
+        if (gpsFallbackTimer) {
+          clearTimeout(gpsFallbackTimer);
+          gpsFallbackTimer = null;
+        }
+        showGpsPosition(position, firstFix);
       };
 
       const watchError = function(error) {
-        if (receivedPosition) return;
         if (Number(error && error.code) === 1) {
-          stopGpsWatch();
+          stopGpsWatch(false);
           showGpsError(error);
+          return;
         }
-        // Timeout/unavailable errors are handled by the lower-accuracy fallback below.
+        if (!gpsHasFix && Number(error && error.code) !== 3) {
+          setGpsButtonState("loading", "Still trying to find your live location…");
+        }
       };
 
-      // watchPosition remains active after the user approves permission. This avoids
-      // the common mobile issue where a one-time request ends before the first GPS fix.
       gpsWatchId = navigator.geolocation.watchPosition(acceptPosition, watchError, {
         enableHighAccuracy: true,
-        maximumAge: 0,
+        maximumAge: 1000,
         timeout: 30000
       });
 
-      // After 8 seconds, also request a Wi-Fi/cell based result. Whichever valid
-      // result arrives first centres the map and closes both requests.
+      // Indoors, a Wi-Fi/cell fix can arrive before a satellite-quality fix.
+      // Use it as the initial location but keep the live high-accuracy watcher active.
       gpsFallbackTimer = setTimeout(function() {
-        if (receivedPosition) return;
-        navigator.geolocation.getCurrentPosition(acceptPosition, function(error) {
-          if (receivedPosition) return;
-          stopGpsWatch();
-          showGpsError(error);
+        if (gpsHasFix || !gpsTrackingActive) return;
+        navigator.geolocation.getCurrentPosition(function(position) {
+          if (!gpsTrackingActive || gpsHasFix) return;
+          acceptPosition(position);
+        }, function(error) {
+          if (!gpsTrackingActive || gpsHasFix) return;
+          if (Number(error && error.code) === 1) {
+            stopGpsWatch(false);
+            showGpsError(error);
+          }
         }, {
           enableHighAccuracy: false,
           timeout: 20000,
