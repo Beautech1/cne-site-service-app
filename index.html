@@ -2,6 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <title>cne service app</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 
@@ -3379,11 +3382,16 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.11-AE";
+    const APP_VERSION = "2026.07.11-AF";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const SIGN_IN_ACCESS_TABLE = "app_sign_in_access";
     const DEVICE_SIGNOUT_TABLE = "app_device_signout_requests";
+
+    function isMissingExpiresAtSchemaError(error) {
+      const message = String((error && error.message) || error || "").toLowerCase();
+      return message.includes("expires_at") && (message.includes("schema cache") || message.includes("column"));
+    }
     const APP_LINK = window.location.href.split("#")[0].split("?")[0];
 
     const DEPARTMENT_STORAGE_KEY = "cne_map_departments_v1";
@@ -4319,13 +4327,20 @@
     async function fetchDeviceSignOutRows(limit = 500) {
       if (!supabaseClient) return { rows: [], error: new Error("Supabase is not connected.") };
       try {
-        const { data, error } = await supabaseClient
+        let result = await supabaseClient
           .from(DEVICE_SIGNOUT_TABLE)
           .select("id, device_id, reason, requested_by_device_id, requested_by_label, requested_by_user_agent, created_at, expires_at")
           .order("created_at", { ascending: false })
           .limit(limit);
-        if (error) return { rows: [], error };
-        return { rows: Array.isArray(data) ? data : [], error: null };
+        if (result.error && isMissingExpiresAtSchemaError(result.error)) {
+          result = await supabaseClient
+            .from(DEVICE_SIGNOUT_TABLE)
+            .select("id, device_id, reason, requested_by_device_id, requested_by_label, requested_by_user_agent, created_at")
+            .order("created_at", { ascending: false })
+            .limit(limit);
+        }
+        if (result.error) return { rows: [], error: result.error };
+        return { rows: Array.isArray(result.data) ? result.data : [], error: null };
       } catch (error) {
         return { rows: [], error };
       }
@@ -4962,13 +4977,21 @@
       if (!deviceId) return false;
 
       try {
-        const { data, error } = await supabaseClient
+        let result = await supabaseClient
           .from(DEVICE_SIGNOUT_TABLE)
           .select("id, created_at, expires_at, reason")
           .eq("device_id", deviceId)
           .order("created_at", { ascending: false })
           .limit(1);
-
+        if (result.error && isMissingExpiresAtSchemaError(result.error)) {
+          result = await supabaseClient
+            .from(DEVICE_SIGNOUT_TABLE)
+            .select("id, created_at, reason")
+            .eq("device_id", deviceId)
+            .order("created_at", { ascending: false })
+            .limit(1);
+        }
+        const { data, error } = result;
         if (error) {
           console.warn("Could not check device force re-sign-in requests. Run the device sign-out SQL if needed.", error);
           return false;
@@ -5162,10 +5185,16 @@
           requested_by_user_agent: navigator.userAgent || '',
           expires_at: parsedExpiry.toISOString()
         };
-        const { error } = await supabaseClient.from(DEVICE_SIGNOUT_TABLE).insert(payload);
+        let result = await supabaseClient.from(DEVICE_SIGNOUT_TABLE).insert(payload);
+        if (result.error && isMissingExpiresAtSchemaError(result.error)) {
+          const fallbackPayload = { ...payload };
+          delete fallbackPayload.expires_at;
+          result = await supabaseClient.from(DEVICE_SIGNOUT_TABLE).insert(fallbackPayload);
+        }
+        const error = result.error;
         if (error) {
           console.warn('Could not save force re-sign-in request.', error);
-          alert('Could not save the force re-sign-in request: ' + (error.message || String(error)) + '\n\nRun the new device logging repair SQL.');
+          alert('Could not save the force re-sign-in request: ' + (error.message || String(error)) + '\n\nRun the device logging repair SQL.');
           return;
         }
         alert('Force re-sign-in request saved for ' + displayLabel + '.');
@@ -5194,7 +5223,11 @@
         .update({ expires_at: parsed.toISOString() })
         .eq('id', id);
       if (error) {
-        alert('Could not update the kick expiry: ' + (error.message || String(error)));
+        if (isMissingExpiresAtSchemaError(error)) {
+          alert('The kick was saved, but custom expiry dates require the expires_at database column. Run the included device logging repair SQL.');
+        } else {
+          alert('Could not update the kick expiry: ' + (error.message || String(error)));
+        }
         return;
       }
       alert('Kick expiry updated to ' + parsed.toLocaleDateString() + '.');
@@ -6305,6 +6338,17 @@
       } catch (error) {
         console.warn("Central settings load failed:", error);
       }
+    }
+
+    async function refreshCentralSettingsAndUi() {
+      if (!supabaseClient || document.body.classList.contains("report-view-only")) return;
+      await loadCentralSettingsFromSupabase();
+      populateDepartmentDropdowns();
+      populateProfileDropdowns();
+      ensureDepartmentViewSelected();
+      enforceAssignedDepartmentView();
+      applyFilters();
+      updateCurrentViewDisplay();
     }
 
 
@@ -10236,11 +10280,17 @@ ${rows.map(pin => `
       await recordSiteVisit();
       subscribeRealtime();
       startDeviceSignOutWatcher();
+      window.setInterval(refreshCentralSettingsAndUi, 60000);
+      window.addEventListener("focus", refreshCentralSettingsAndUi);
+      document.addEventListener("visibilitychange", () => {
+        if (!document.hidden) refreshCentralSettingsAndUi();
+      });
     }
 
     initializeApp();
 
     window.loadPins = loadPins;
+    window.refreshCentralSettingsAndUi = refreshCentralSettingsAndUi;
     window.toggleMobileUi = toggleMobileUi;
     window.closeMobileUiAfterAction = closeMobileUiAfterAction;
     window.forceDeviceReSignIn = forceDeviceReSignIn;
