@@ -2677,7 +2677,7 @@
 </head>
 <body>
 
-  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.12-BH</button>
+  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.12-BJ</button>
   <div class="floating-ui" id="floatingUi">
     <button class="mobile-ui-toggle" id="mobileUiToggle" type="button" onclick="toggleMobileUi()">
       <span class="mobile-ui-toggle-main">
@@ -3318,12 +3318,15 @@
       <label>Title
         <select id="pinTitleInput"></select>
       </label>
+      <label>Location and service details <span style="color:#b71c1c;">*</span>
+        <textarea id="pinDescriptionInput" placeholder="Required. Example: west washroom, beside sink. Add any issue details here." required></textarea>
+      </label>
       <div class="marker-direction-grid">
-        <label>Marker
+        <label>Marker (optional)
           <select id="pinMarkerStyleInput"><option value="dot">Standard dot</option><option value="info">Info / notes</option></select>
-          <small style="color:#607084;font-weight:normal;">Optional info indicator.</small>
+          <small style="color:#607084;font-weight:normal;">Optional marker type.</small>
         </label>
-        <label>Direction arrow
+        <label>Direction arrow (optional)
           <select id="pinDirectionInput">
             <option value="">No arrow</option>
             <option value="0">North / Up</option><option value="45">Northeast</option><option value="90">East / Right</option><option value="135">Southeast</option><option value="180">South / Down</option><option value="225">Southwest</option><option value="270">West / Left</option><option value="315">Northwest</option>
@@ -3331,9 +3334,6 @@
           <small style="color:#607084;font-weight:normal;">Shows the facing direction.</small>
         </label>
       </div>
-      <label>Location and service details <span style="color:#b71c1c;">*</span>
-        <textarea id="pinDescriptionInput" placeholder="Required. Example: west washroom, beside sink. Add any issue details here." required></textarea>
-      </label>
       <div class="optional-date-grid">
         <label>Install date (optional)
           <input type="date" id="pinInstallDateInput">
@@ -3433,11 +3433,15 @@
       <label>Title
         <select id="editPinTitleInput"></select>
       </label>
+      <label>Location and service details
+        <textarea id="editPinDescriptionInput" placeholder="Example: west washroom, beside sink. Add any issue details here."></textarea>
+      </label>
       <div class="marker-direction-grid">
-        <label>Marker
+        <label>Marker (optional)
           <select id="editPinMarkerStyleInput"><option value="dot">Standard dot</option><option value="info">Info / notes</option></select>
+          <small style="color:#607084;font-weight:normal;">Optional marker type.</small>
         </label>
-        <label>Direction arrow
+        <label>Direction arrow (optional)
           <select id="editPinDirectionInput">
             <option value="">No arrow</option>
             <option value="0">North / Up</option><option value="45">Northeast</option><option value="90">East / Right</option><option value="135">Southeast</option><option value="180">South / Down</option><option value="225">Southwest</option><option value="270">West / Left</option><option value="315">Northwest</option>
@@ -3475,9 +3479,6 @@
           <button class="action-btn secondary desktop-text-tool-row desktop-copy-button" type="button" onclick="openCopyTextForEditPin()">Open/Copy Text Message Now</button>
         </div>
       </div>
-      <label>Location and service details
-        <textarea id="editPinDescriptionInput" placeholder="Example: west washroom, beside sink. Add any issue details here."></textarea>
-      </label>
       <div class="optional-date-grid">
         <label>Install date (optional)
           <input type="date" id="editPinInstallDateInput">
@@ -3576,7 +3577,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.12-BH";
+    const APP_VERSION = "2026.07.12-BJ";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const DEPARTMENT_SHARE_CONFIG_KEY = "department_share_links";
@@ -8653,6 +8654,120 @@
       return `<img src="${canvas.toDataURL("image/png",1)}" alt="${escapeAttr(view.name||"Floor plan")}" style="display:block;max-width:100%;max-height:72vh;width:auto;height:auto">`;
     }
 
+    async function buildPrintableOutdoorOverlayImage(pins) {
+      const sourceUrl = "./site-plan.png";
+      const imageSrc = await fetchImageAsDataUrl(sourceUrl) || sourceUrl;
+      const img = await loadImageForCanvas(imageSrc || sourceUrl);
+      const sw = Math.max(1, img.naturalWidth || img.width || 1600), sh = Math.max(1, img.naturalHeight || img.height || 900);
+      const ow = 2400, oh = 1500;
+      const pts = pins.map(pin => {
+        const pos = calculateOutdoorImagePosition(pin);
+        return { pin, x: pos.u * sw, y: pos.v * sh };
+      }).filter(p => Number.isFinite(p.x) && Number.isFinite(p.y));
+      let cx = 0, cy = 0, cw = sw, ch = sh;
+      if (pts.length) {
+        let minX = Math.min(...pts.map(p => p.x)), maxX = Math.max(...pts.map(p => p.x)), minY = Math.min(...pts.map(p => p.y)), maxY = Math.max(...pts.map(p => p.y));
+        let spanW = Math.max(maxX - minX, sw * (pts.length === 1 ? 0.30 : 0.18));
+        let spanH = Math.max(maxY - minY, sh * (pts.length === 1 ? 0.30 : 0.18));
+        spanW += Math.max(sw * 0.06, spanW * 0.14);
+        spanH += Math.max(sh * 0.06, spanH * 0.14);
+        const a = ow / oh;
+        if (spanW / spanH < a) spanW = spanH * a; else spanH = spanW / a;
+        spanW = Math.min(sw, spanW);
+        spanH = Math.min(sh, spanH);
+        const mx = (minX + maxX) / 2, my = (minY + maxY) / 2;
+        cx = Math.max(0, Math.min(sw - spanW, mx - spanW / 2));
+        cy = Math.max(0, Math.min(sh - spanH, my - spanH / 2));
+        cw = spanW;
+        ch = spanH;
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = ow;
+      canvas.height = oh;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, ow, oh);
+      ctx.drawImage(img, cx, cy, cw, ch, 0, 0, ow, oh);
+      pts.forEach(({ pin, x: sx, y: sy }) => {
+        const x = ((sx - cx) / cw) * ow, y = ((sy - cy) / ch) * oh;
+        const color = getDepartmentColor(pin.category) || "#d32f2f";
+        const id = `#${String(pin.id || "")}`;
+        const dir = getPinDirection(pin);
+        if (dir !== null) {
+          ctx.save();
+          ctx.translate(x, y);
+          ctx.rotate(dir * Math.PI / 180);
+          ctx.strokeStyle = "#fff";
+          ctx.lineWidth = 10;
+          ctx.lineCap = "round";
+          ctx.beginPath();
+          ctx.moveTo(0, -11);
+          ctx.lineTo(0, -62);
+          ctx.stroke();
+          ctx.fillStyle = "#fff";
+          ctx.beginPath();
+          ctx.moveTo(0, -78);
+          ctx.lineTo(-16, -53);
+          ctx.lineTo(16, -53);
+          ctx.closePath();
+          ctx.fill();
+          ctx.strokeStyle = "#111";
+          ctx.lineWidth = 5;
+          ctx.beginPath();
+          ctx.moveTo(0, -11);
+          ctx.lineTo(0, -62);
+          ctx.stroke();
+          ctx.fillStyle = "#111";
+          ctx.beginPath();
+          ctx.moveTo(0, -76);
+          ctx.lineTo(-12, -55);
+          ctx.lineTo(12, -55);
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+        }
+        ctx.save();
+        ctx.fillStyle = color;
+        ctx.strokeStyle = "#fff";
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.arc(x, y, 20, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        if (pin.marker_style === "info") {
+          ctx.fillStyle = "#005a9c";
+          ctx.strokeStyle = "#fff";
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.arc(x + 17, y + 17, 12, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+          ctx.fillStyle = "#fff";
+          ctx.font = "900 16px Arial";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText("i", x + 17, y + 18);
+        }
+        ctx.font = "900 24px Arial";
+        ctx.lineWidth = 5;
+        ctx.strokeStyle = "#fff";
+        ctx.fillStyle = "#111";
+        ctx.textBaseline = "middle";
+        let lx = x + 30, ly = y, align = "left";
+        if (dir !== null) {
+          const r = dir * Math.PI / 180, ox = -Math.sin(r), oy = Math.cos(r), d = 58;
+          lx = x + ox * d;
+          ly = y + oy * d;
+          align = Math.abs(ox) > 0.42 ? (ox >= 0 ? "left" : "right") : "center";
+        }
+        ctx.textAlign = align;
+        ctx.strokeText(id, lx, ly);
+        ctx.fillText(id, lx, ly);
+        ctx.restore();
+      });
+      return `<img src="${canvas.toDataURL("image/png", 1)}" alt="Outdoor site overlay" style="display:block;max-width:100%;max-height:72vh;width:auto;height:auto">`;
+    }
+
     function buildPrintablePinDetails(pins) {
       if (!pins.length) return "";
       return pins.map(pin => {
@@ -8775,78 +8890,15 @@
         openMapPrintPreview(title, floorplanImageHtml, pins, true);
         return;
       }
-      if (typeof html2canvas !== "function") { hidePrintProgress(); return alert("The map print library did not load. Check your internet connection and refresh the app."); }
-      let printMap = null, printHost = null;
       try {
-        showPrintProgress("Preparing outdoor GPS map print preview…");
-        printHost = document.createElement("div");
-        printHost.style.cssText = "position:fixed;left:-12000px;top:0;width:2400px;height:1500px;background:#fff;z-index:1;overflow:hidden;";
-        document.body.appendChild(printHost);
-        const renderer = L.svg({ padding: 0.5 });
-        printMap = L.map(printHost, { zoomControl:false, attributionControl:true, preferCanvas:false, renderer, fadeAnimation:false, zoomAnimation:false, markerZoomAnimation:false });
-        const tileLayer = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom:20, crossOrigin:"anonymous", attribution:"&copy; OpenStreetMap contributors", updateWhenIdle:false, keepBuffer:4 }).addTo(printMap);
-        const siteOverlay = L.imageOverlay.rotated("./site-plan.png", p1, p2, p3, {
-          opacity: 0.68,
-          interactive: false,
-          crossOrigin: "anonymous"
-        }).addTo(printMap);
-        const validPins = pins.filter(pin => Number.isFinite(Number(pin.lat)) && Number.isFinite(Number(pin.lng)));
-        const style = document.createElement("style");
-        style.textContent = ".print-pin-marker{display:flex;align-items:center;gap:8px;transform:translate(10px,-10px)}.print-pin-dot{width:24px;height:24px;border-radius:50%;border:4px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.45);flex:none}.print-pin-info{position:absolute;left:19px;top:19px;width:18px;height:18px;border-radius:50%;background:#005a9c;color:#fff;border:2px solid #fff;font:900 11px/14px Arial;align-items:center;justify-content:center;box-sizing:border-box}.print-pin-id{display:inline-flex;align-items:center;white-space:nowrap;background:rgba(255,255,255,.96);border:2px solid #1f2933;border-radius:4px;box-shadow:0 1px 4px rgba(0,0,0,.35);color:#111;font:900 22px Arial;padding:3px 8px;line-height:1}.leaflet-div-icon.print-pin-icon{background:transparent;border:none!important}";
-        printHost.appendChild(style);
-        validPins.forEach(pin => {
-          const color = getDepartmentColor(pin.category) || "#d32f2f";
-          const reportId = `#${String(pin.id || "")}`;
-          const direction = getPinDirection(pin);
-          const arrowHtml = direction === null ? "" : `<span style="position:absolute;left:9px;top:-20px;width:6px;height:30px;transform-origin:50% 27px;transform:rotate(${direction}deg)"><span style="position:absolute;left:1px;top:10px;width:4px;height:20px;background:#111;box-shadow:0 0 0 2px #fff;border-radius:999px"></span><span style="position:absolute;left:-5px;top:0;width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-bottom:13px solid #111;filter:drop-shadow(0 0 1px #fff)"></span></span>`;
-          const infoHtml=pin.marker_style==="info"?'<span class="print-pin-info" style="display:flex">i</span>':''; const markerHtml = `<div class="print-pin-marker" style="position:relative">${arrowHtml}<span class="print-pin-dot" style="background:${escapeAttr(color)}"></span>${infoHtml}<span class="print-pin-id">${escapeHtml(reportId)}</span></div>`;
-          L.marker([Number(pin.lat), Number(pin.lng)], {
-            icon: L.divIcon({
-              className: "print-pin-icon",
-              html: markerHtml,
-              iconSize: [180, 32],
-              iconAnchor: [12, 12]
-            })
-          }).addTo(printMap);
-        });
-        printMap.invalidateSize(true);
-        await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
-        await new Promise(resolve=>setTimeout(resolve,120));
-        if (validPins.length > 1) {
-          const bounds = L.latLngBounds(validPins.map(pin => [Number(pin.lat), Number(pin.lng)]));
-          const padding = L.point(70, 70);
-          let targetZoom = printMap.getBoundsZoom(bounds, false, padding);
-          if (!Number.isFinite(targetZoom)) targetZoom = 18;
-          targetZoom = Math.min(20, Math.max(15, targetZoom + 1));
-          printMap.setView(bounds.getCenter(), targetZoom, { animate:false });
-          await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
-          const visibleBounds = printMap.getBounds();
-          if (!visibleBounds.contains(bounds)) {
-            targetZoom = Math.max(13, targetZoom - 1);
-            printMap.setView(bounds.getCenter(), targetZoom, { animate:false });
-          }
-        }
-        else if(validPins.length===1) printMap.setView([Number(validPins[0].lat),Number(validPins[0].lng)],20,{animate:false});
-        else printMap.setView(map.getCenter(),Math.min(20,Math.max(17,map.getZoom())),{animate:false});
-        showPrintProgress("Loading outdoor map tiles… Please wait.");
-        await waitForLeafletTiles(tileLayer);
-        showPrintProgress("Loading overlay image and visible pins…");
-        await waitForOverlayImage(siteOverlay);
-        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        showPrintProgress("Rendering high-resolution map preview…");
-        const canvas = await html2canvas(printHost, { useCORS:true, allowTaint:false, backgroundColor:"#ffffff", scale:2, width:2400, height:1500, windowWidth:2400, windowHeight:1500, logging:false, imageTimeout:30000, removeContainer:false });
-        if (!canvas.width || !canvas.height) throw new Error("Empty map capture");
+        showPrintProgress("Preparing outdoor GPS print preview…");
+        const outdoorImageHtml = await buildPrintableOutdoorOverlayImage(pins);
         hidePrintProgress();
-        openMapPrintPreview(title, `<img src="${canvas.toDataURL("image/png",1)}" alt="${escapeAttr(title)}">`, pins, true);
+        openMapPrintPreview(title, outdoorImageHtml, pins, true);
       } catch (error) {
         console.error("Map print failed", error);
         hidePrintProgress();
-        alert("The outdoor GPS map could not be fully captured. Make sure the map tiles are visible, then try Print Selected Map again.");
-      } finally {
-        hidePrintProgress();
-        if (printMap) printMap.remove();
-        if (printHost && printHost.parentNode) printHost.parentNode.removeChild(printHost);
+        alert("The outdoor GPS print preview could not be created. Check that the site-plan image file is beside this HTML file, then try again.");
       }
     }
 
