@@ -2495,7 +2495,7 @@
 </head>
 <body>
 
-  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.11-Y</button>
+  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.11-Z</button>
   <div class="floating-ui" id="floatingUi">
     <button class="mobile-ui-toggle" id="mobileUiToggle" type="button" onclick="toggleMobileUi()">
       <span class="mobile-ui-toggle-main">
@@ -3255,7 +3255,7 @@
       <button class="floor-zoom-btn reset" type="button" onclick="resetFloorPlanZoom()">Reset</button>
     </div>
     <div id="floorPlanStage">
-      <img id="floorPlanImage" src="floor-plan-food-building.png" alt="Building floor plan">
+      <img id="floorPlanImage" src="./floor-plan-food-building.png" alt="Building floor plan">
       <div id="floorPlanPinLayer"></div>
       <div id="floorPlanPendingDot" class="floor-pending-dot" style="display:none;"></div>
       <div id="floorPlanEmptyNote" class="floor-plan-empty-note">Building floor plan view. Replace <b>floor-plan-food-building.png</b> with your real floor plan image, keeping the same file name, or edit the map list in the HTML.</div>
@@ -3313,6 +3313,7 @@
       "CARPENTRY2026": { label: "Carpentry", role: "department", department: "Carpentry", canViewAll: false }
     };
     let SIGN_IN_CODES = { ...DEFAULT_SIGN_IN_CODES };
+    let signInCodesLoadConfirmed = false;
     const ADMIN_EMAIL = "beaufelipe@gmail.com";
     const ADMIN_USERS_TABLE = "app_admin_users";
     let cachedAdminUser = null;
@@ -3842,8 +3843,11 @@
 
         if (data && data.settings_value) {
           SIGN_IN_CODES = normalizeSignInCodes(data.settings_value);
+          signInCodesLoadConfirmed = true;
         } else {
           await saveSettingToSupabase("sign_in_codes", DEFAULT_SIGN_IN_CODES);
+          SIGN_IN_CODES = normalizeSignInCodes(DEFAULT_SIGN_IN_CODES);
+          signInCodesLoadConfirmed = true;
         }
       } catch (error) {
         console.warn("Sign-in code load failed:", error);
@@ -3897,7 +3901,25 @@
               approved_at: saved.approved_at || null
             };
           }
-          // The code was deleted, disabled, or expired. Do not keep stale browser access.
+          // Do not erase a valid saved browser session merely because the Supabase
+          // sign-in-code request failed or timed out during this refresh. Only remove
+          // the session after a successful, authoritative code-table load confirms
+          // that the code was deleted, disabled, or expired.
+          if (!signInCodesLoadConfirmed) {
+            return {
+              approved: true,
+              version: saved.version,
+              code: saved.code || "",
+              label: saved.label || "User",
+              role: saved.role || "department",
+              department: normalizeAccessDepartmentKey(saved.department || ""),
+              canViewAll: !!saved.canViewAll,
+              allowedDepartments: Array.isArray(saved.allowedDepartments) ? saved.allowedDepartments.map(normalizeAccessDepartmentKey).filter(Boolean) : [],
+              permissions: normalizeUserPermissions(saved.permissions),
+              allowedMapIds: normalizeAllowedMapIds(saved.allowedMapIds),
+              approved_at: saved.approved_at || null
+            };
+          }
           resetSiteAccessApproval();
           return null;
         }
