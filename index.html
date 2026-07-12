@@ -2617,12 +2617,19 @@
     .share-link-list { display:grid; gap:8px; margin-top:10px; }
     .share-link-card { border:1px solid #d9e0e6; border-radius:9px; padding:9px; background:#f8fbfe; font-size:12px; }
     .share-link-card-actions { display:flex; gap:6px; flex-wrap:wrap; margin-top:7px; }
+    .department-share-map-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; max-height:180px; overflow:auto; padding:7px; border:1px solid #d7e0ea; border-radius:8px; background:#fff; }
+    .department-share-map-grid label { display:flex !important; align-items:center; gap:7px !important; font-weight:600 !important; padding:5px; border-radius:6px; background:#f8fbfe; }
+    .department-share-message { min-height:120px !important; font-size:12px !important; line-height:1.35; }
+    .app-update-banner { position:fixed; left:50%; bottom:48px; transform:translateX(-50%); z-index:6000; display:none; align-items:center; gap:10px; width:min(620px,calc(100vw - 24px)); box-sizing:border-box; padding:10px 12px; border-radius:10px; background:#fff3cd; border:1px solid #e0b100; color:#493d00; box-shadow:0 4px 16px rgba(0,0,0,.25); font-size:12px; font-weight:700; }
+    .app-update-banner.show { display:flex; }
+    .app-update-banner button { margin-left:auto; border:0; border-radius:6px; padding:7px 10px; background:#005a9c; color:#fff; font-weight:800; cursor:pointer; }
+    @media (max-width:520px){ .department-share-map-grid{grid-template-columns:1fr;} .app-update-banner{bottom:42px; align-items:flex-start; flex-wrap:wrap;} .app-update-banner button{margin-left:0;} }
 
   </style>
 </head>
 <body>
 
-  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.11-AK</button>
+  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.11-AM</button>
   <div class="floating-ui" id="floatingUi">
     <button class="mobile-ui-toggle" id="mobileUiToggle" type="button" onclick="toggleMobileUi()">
       <span class="mobile-ui-toggle-main">
@@ -2849,7 +2856,7 @@
 
   <div class="panel" id="signedInDevicesPanel">
     <div class="panel-header">
-      <span>Signed-In Devices / Kick Out <small style="font-weight:normal; opacity:.9;">BUILD 2026-07-10G</small></span>
+      <span>Signed-In Devices / Kick Out <small style="font-weight:normal; opacity:.9;">BUILD 2026-07-11AM</small></span>
       <button class="panel-close-btn" onclick="toggleSignedInDevicesPanel(false)">&times;</button>
     </div>
     <div class="panel-body">
@@ -2857,6 +2864,7 @@
       <div class="export-actions">
         <button class="action-btn secondary" onclick="registerCurrentDeviceAndRefresh()">Register / Refresh This Device</button>
         <button class="action-btn secondary" onclick="toggleSignInLogPanel(true)">View Full Sign-In History</button>
+        <button class="action-btn clear-btn" onclick="forceAllUsersRefresh()">Kick All Users &amp; Force Refresh</button>
       </div>
       <div id="signedInDevicesBody" style="margin-top:10px;">
         <div class="empty-log">No signed-in devices loaded yet.</div>
@@ -3034,9 +3042,18 @@
       <div class="settings-row"><label>Link name / recipient (optional)<input id="departmentShareLabel" type="text" placeholder="Example: Allshelter supervisor"></label></div>
       <div class="settings-row"><label>Department<select id="departmentShareDepartment"></select></label></div>
       <div class="settings-row"><label>Visible records<select id="departmentShareScope"><option value="active">Active pins only</option><option value="active_cleared">Active and cleared pins</option></select></label></div>
+      <div class="admin-menu-section">
+        <h3>Allowed map views</h3>
+        <div class="export-actions" style="margin-top:0;margin-bottom:7px;"><button class="action-btn secondary" type="button" onclick="setAllDepartmentShareMaps(true)">Select All</button><button class="action-btn secondary" type="button" onclick="setAllDepartmentShareMaps(false)">Clear All</button></div>
+        <div id="departmentShareMapGrid" class="department-share-map-grid"></div>
+        <small style="color:#55606e;">The recipient will only see the checked outdoor map or building floor plans.</small>
+      </div>
       <div class="settings-row"><label>Expiry date (optional)<input id="departmentShareExpires" type="date"><small style="font-weight:normal;color:#55606e;">Leave blank for no expiry. You can disable the link at any time.</small></label></div>
+      <div class="settings-row full-row"><label>Custom email/text message<textarea id="departmentShareMessage" class="department-share-message" placeholder="Write the message that will be used for Email and Text. Use {link}, {department}, and {maps} where needed."></textarea><small style="font-weight:normal;color:#55606e;">You can edit this before or after creating the link. Available placeholders: {link}, {department}, {maps}.</small></label></div>
+      <input id="departmentShareEditingToken" type="hidden" value="">
       <div class="export-actions">
-        <button class="action-btn" onclick="createDepartmentShareLink()">Create Secure Link</button>
+        <button id="departmentShareSaveButton" class="action-btn" onclick="createDepartmentShareLink()">Create Secure Link</button>
+        <button class="action-btn secondary" onclick="resetDepartmentShareEditor()">New / Reset</button>
         <button class="action-btn secondary" onclick="renderDepartmentShareLinks()">Refresh Links</button>
       </div>
       <div id="departmentShareLinksBody" class="share-link-list"><div class="empty-log">No links loaded.</div></div>
@@ -3458,6 +3475,7 @@
   </div>
 
 
+  <div id="appUpdateBanner" class="app-update-banner"><span id="appUpdateText">A newer version of the CNE Service App is available.</span><button type="button" onclick="reloadForAppUpdate()">Refresh Now</button></div>
   <div id="map"></div>
   <div id="floorPlanView">
     <div id="floorZoomToolbar" class="floor-zoom-toolbar" aria-label="Floor plan zoom controls">
@@ -3483,7 +3501,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.11-AK";
+    const APP_VERSION = "2026.07.11-AM";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const DEPARTMENT_SHARE_CONFIG_KEY = "department_share_links";
@@ -4104,7 +4122,7 @@
             viewActive: true, viewCleared: includeCleared, addPins: false, editPins: false,
             clearPins: false, printReports: true, viewAdmin: false, ownPinsOutsidePrimary: false
           }),
-          allowedMapIds: []
+          allowedMapIds: normalizeAllowedMapIds(activeDepartmentShare.allowedMapIds)
         };
       }
       try {
@@ -4650,10 +4668,10 @@
     async function renderSignedInDevicesList() {
       const body = document.getElementById('signedInDevicesBody');
       if (!body) return;
-      body.innerHTML = '<div class="panel-note">Loading signed-in browsers/devices… <b>BUILD 2026-07-10G</b></div>';
+      body.innerHTML = '<div class="panel-note">Loading signed-in browsers/devices… <b>BUILD 2026-07-11AM</b></div>';
       const visibleTimeout = window.setTimeout(() => {
         if (body && /Loading signed-in browsers\/devices/.test(body.textContent || '')) {
-          body.innerHTML = '<div class="log-item" style="border-color:#d32f2f;background:#fff5f5;"><div class="log-title" style="color:#b71c1c;">Device list timed out — BUILD 2026-07-10G</div><div><small>The page loaded the new build, but the Supabase request did not complete.</small></div></div>';
+          body.innerHTML = '<div class="log-item" style="border-color:#d32f2f;background:#fff5f5;"><div class="log-title" style="color:#b71c1c;">Device list timed out — BUILD 2026-07-11AM</div><div><small>The page loaded the new build, but the Supabase request did not complete.</small></div></div>';
         }
       }, 12000);
 
@@ -5227,6 +5245,8 @@
         label: String(item && item.label || "").trim(),
         department: String(item && item.department || "").trim(),
         scope: item && item.scope === "active_cleared" ? "active_cleared" : "active",
+        allowedMapIds: normalizeAllowedMapIds(item && (item.allowedMapIds || item.allowed_map_ids || item.maps)),
+        message: String(item && item.message || "").trim(),
         expiresAt: normalizeProfileExpiryDate(item && (item.expiresAt || item.expires_at)),
         enabled: !(item && item.enabled === false),
         createdAt: String(item && (item.createdAt || item.created_at) || "")
@@ -5294,21 +5314,93 @@
       select.innerHTML = departments.filter(d => d && d.enabled !== false).map(d => '<option value="'+escapeAttr(d.key)+'">'+escapeHtml(d.name)+'</option>').join("");
     }
 
+    function populateDepartmentShareMapGrid(selectedIds) {
+      const grid = document.getElementById("departmentShareMapGrid");
+      if (!grid) return;
+      const selected = new Set(normalizeAllowedMapIds(selectedIds));
+      grid.innerHTML = sortMapViewsAscending(mapViews).map(view =>
+        '<label><input type="checkbox" class="department-share-map-check" value="'+escapeAttr(view.id)+'" '+(selected.has(String(view.id))?'checked':'')+'> <span>'+escapeHtml(view.name)+'</span></label>'
+      ).join("");
+    }
+
+    function getSelectedDepartmentShareMapIds() {
+      return Array.from(document.querySelectorAll(".department-share-map-check:checked")).map(input => String(input.value || "").trim()).filter(Boolean);
+    }
+
+    function setAllDepartmentShareMaps(checked) {
+      document.querySelectorAll(".department-share-map-check").forEach(input => { input.checked = !!checked; });
+    }
+
+    function getDepartmentShareDefaultMessage(item, url) {
+      const dept = formatDepartmentLabel(resolveDepartmentKeyAgainstSettings(item && item.department || ""));
+      const ids = normalizeAllowedMapIds(item && item.allowedMapIds);
+      const names = ids.length ? ids.map(id => { const view = getMapView(id); return view && view.name ? view.name : id; }).join(", ") : "All available maps";
+      return "You can view the current {department} service pins using this secure read-only link. No sign-in code is required.\n\n{link}\n\nAllowed maps: {maps}\n\nYou will not be able to add, edit, reassign, or clear pins."
+        .replaceAll("{department}", dept || "department")
+        .replaceAll("{link}", url || "")
+        .replaceAll("{maps}", names);
+    }
+
+    function formatDepartmentShareMessage(item) {
+      const url = buildDepartmentShareUrl(item.token);
+      const dept = formatDepartmentLabel(resolveDepartmentKeyAgainstSettings(item.department));
+      const ids = normalizeAllowedMapIds(item.allowedMapIds);
+      const maps = ids.length ? ids.map(id => { const view = getMapView(id); return view && view.name ? view.name : id; }).join(", ") : "All available maps";
+      const template = String(item.message || "").trim() || getDepartmentShareDefaultMessage(item, url);
+      return template.replaceAll("{link}", url).replaceAll("{department}", dept).replaceAll("{maps}", maps);
+    }
+
+    function resetDepartmentShareEditor() {
+      const ids = sortMapViewsAscending(mapViews).map(view => view.id);
+      const fields = { departmentShareLabel:"", departmentShareExpires:"", departmentShareEditingToken:"" };
+      Object.entries(fields).forEach(([id,value]) => { const el=document.getElementById(id); if(el) el.value=value; });
+      const scope=document.getElementById("departmentShareScope"); if(scope) scope.value="active";
+      populateDepartmentShareDepartmentSelect();
+      populateDepartmentShareMapGrid(ids);
+      const department = String((document.getElementById("departmentShareDepartment")||{}).value||"");
+      const message=document.getElementById("departmentShareMessage");
+      if(message) message.value=getDepartmentShareDefaultMessage({department,allowedMapIds:ids}, "{link}");
+      const button=document.getElementById("departmentShareSaveButton"); if(button) button.textContent="Create Secure Link";
+    }
+
+    function editDepartmentShareLink(token) {
+      const item = departmentShareLinks.find(link => link.token === token);
+      if (!item) return alert("That link could not be found.");
+      const set=(id,value)=>{const el=document.getElementById(id); if(el) el.value=value||"";};
+      set("departmentShareEditingToken", item.token); set("departmentShareLabel", item.label); set("departmentShareDepartment", item.department); set("departmentShareScope", item.scope); set("departmentShareExpires", item.expiresAt);
+      populateDepartmentShareMapGrid(item.allowedMapIds);
+      const message=document.getElementById("departmentShareMessage"); if(message) message.value=item.message || getDepartmentShareDefaultMessage(item, "{link}");
+      const button=document.getElementById("departmentShareSaveButton"); if(button) button.textContent="Save Link Changes";
+      const panel=document.getElementById("departmentSharePanel"); if(panel) panel.scrollTop=0;
+    }
+
     async function createDepartmentShareLink() {
       const department = String((document.getElementById("departmentShareDepartment") || {}).value || "").trim();
       if (!department) return alert("Choose a department.");
+      const allowedMapIds = getSelectedDepartmentShareMapIds();
+      if (!allowedMapIds.length) return alert("Select at least one map view.");
       await loadDepartmentShareLinks();
-      departmentShareLinks.push({
-        token: makeDepartmentShareToken(),
+      const editingToken = String((document.getElementById("departmentShareEditingToken") || {}).value || "").trim();
+      const values = {
         label: String((document.getElementById("departmentShareLabel") || {}).value || "").trim(),
         department,
         scope: String((document.getElementById("departmentShareScope") || {}).value || "active"),
+        allowedMapIds,
+        message: String((document.getElementById("departmentShareMessage") || {}).value || "").trim(),
         expiresAt: String((document.getElementById("departmentShareExpires") || {}).value || ""),
-        enabled: true, createdAt: new Date().toISOString()
-      });
+        enabled: true
+      };
+      if (editingToken) {
+        const item = departmentShareLinks.find(link => link.token === editingToken);
+        if (!item) return alert("The link being edited could not be found. Refresh and try again.");
+        Object.assign(item, values);
+      } else {
+        departmentShareLinks.push({ token: makeDepartmentShareToken(), ...values, createdAt: new Date().toISOString() });
+      }
       await saveSettingToSupabase(DEPARTMENT_SHARE_CONFIG_KEY, departmentShareLinks);
-      renderDepartmentShareLinks();
-      alert("Secure department link created.");
+      await renderDepartmentShareLinks();
+      resetDepartmentShareEditor();
+      alert(editingToken ? "Department link updated." : "Secure department link created.");
     }
 
     async function setDepartmentShareEnabled(token, enabled) {
@@ -5335,15 +5427,16 @@
 
     function emailDepartmentShareLink(token) {
       const item = departmentShareLinks.find(link => link.token === token);
-      const dept = item ? formatDepartmentLabel(resolveDepartmentKeyAgainstSettings(item.department)) : "department";
-      const body = "You can view the current " + dept + " service pins using this secure read-only link. No sign-in code is required.\n\n" + buildDepartmentShareUrl(token) + "\n\nYou will not be able to add, edit, reassign, or clear pins.";
+      if (!item) return alert("That link could not be found.");
+      const dept = formatDepartmentLabel(resolveDepartmentKeyAgainstSettings(item.department));
+      const body = formatDepartmentShareMessage(item);
       location.href = "mailto:?subject=" + encodeURIComponent("CNE Service App — " + dept + " view") + "&body=" + encodeURIComponent(body);
     }
 
     function textDepartmentShareLink(token) {
       const item = departmentShareLinks.find(link => link.token === token);
-      const dept = item ? formatDepartmentLabel(resolveDepartmentKeyAgainstSettings(item.department)) : "department";
-      const body = "CNE Service App — " + dept + " read-only view (no sign-in required): " + buildDepartmentShareUrl(token);
+      if (!item) return alert("That link could not be found.");
+      const body = formatDepartmentShareMessage(item);
       const sep = /iPad|iPhone|iPod/.test(navigator.userAgent) ? "&" : "?";
       location.href = "sms:" + sep + "body=" + encodeURIComponent(body);
     }
@@ -5356,9 +5449,11 @@
       body.innerHTML = departmentShareLinks.slice().reverse().map(item => {
         const dept = formatDepartmentLabel(resolveDepartmentKeyAgainstSettings(item.department));
         const status = !item.enabled ? "Disabled" : (isDepartmentShareExpired(item) ? "Expired" : "Active");
+        const mapNames = normalizeAllowedMapIds(item.allowedMapIds).map(id => { const view = getMapView(id); return view && view.name ? view.name : id; });
         return '<div class="share-link-card"><b>'+escapeHtml(item.label || dept)+'</b><br><span>'+escapeHtml(dept)+' · '+escapeHtml(item.scope === "active_cleared" ? "Active + cleared" : "Active only")+' · '+escapeHtml(status)+'</span>' +
+          '<br><small>Maps: '+escapeHtml(mapNames.length ? mapNames.join(", ") : "All available maps")+'</small>' +
           (item.expiresAt ? '<br><small>Expires: '+escapeHtml(item.expiresAt)+'</small>' : '') +
-          '<div class="share-link-card-actions"><button class="action-btn secondary" onclick="copyDepartmentShareLink(\''+escapeAttr(item.token)+'\')">Copy</button><button class="action-btn" onclick="emailDepartmentShareLink(\''+escapeAttr(item.token)+'\')">Email</button><button class="action-btn" onclick="textDepartmentShareLink(\''+escapeAttr(item.token)+'\')">Text</button><button class="action-btn secondary" onclick="setDepartmentShareEnabled(\''+escapeAttr(item.token)+'\','+(!item.enabled)+')">'+(item.enabled?'Disable':'Enable')+'</button><button class="action-btn secondary" style="background:#b71c1c" onclick="deleteDepartmentShareLink(\''+escapeAttr(item.token)+'\')">Delete</button></div></div>';
+          '<div class="share-link-card-actions"><button class="action-btn secondary" onclick="editDepartmentShareLink(\''+escapeAttr(item.token)+'\')">Edit</button><button class="action-btn secondary" onclick="copyDepartmentShareLink(\''+escapeAttr(item.token)+'\')">Copy</button><button class="action-btn" onclick="emailDepartmentShareLink(\''+escapeAttr(item.token)+'\')">Email</button><button class="action-btn" onclick="textDepartmentShareLink(\''+escapeAttr(item.token)+'\')">Text</button><button class="action-btn secondary" onclick="setDepartmentShareEnabled(\''+escapeAttr(item.token)+'\','+(!item.enabled)+')">'+(item.enabled?'Disable':'Enable')+'</button><button class="action-btn secondary" style="background:#b71c1c" onclick="deleteDepartmentShareLink(\''+escapeAttr(item.token)+'\')">Delete</button></div></div>';
       }).join("");
     }
 
@@ -5369,6 +5464,7 @@
       if (shouldOpen) {
         closeAccessAdminPanels("departmentSharePanel");
         populateDepartmentShareDepartmentSelect();
+        resetDepartmentShareEditor();
         panel.classList.add("open");
         await renderDepartmentShareLinks();
       } else panel.classList.remove("open");
@@ -5489,8 +5585,8 @@
       try {
         const { data, error } = await supabaseClient
           .from(DEVICE_SIGNOUT_TABLE)
-          .select("id, created_at, expires_at, reason")
-          .eq("device_id", deviceId)
+          .select("id, device_id, created_at, expires_at, reason")
+          .or(`device_id.eq.${deviceId},device_id.eq.*`)
           .order("created_at", { ascending: false })
           .limit(1);
 
@@ -5509,9 +5605,14 @@
         if (expiryAt > Date.now() && forceAt > approvedAt) {
           resetSiteAccessApproval();
           if (showNotice) {
-            alert("This device was signed out by an admin. Please enter the sign-in code again.");
+            const globalRefresh = latest.device_id === "*" || latest.reason === "admin_force_refresh_all";
+            alert(globalRefresh
+              ? "The app was updated by an administrator. This page will refresh now; please sign in again to load the latest version."
+              : "This device was signed out by an admin. Please enter the sign-in code again.");
           }
-          window.location.reload();
+          const refreshUrl = new URL(window.location.href);
+          refreshUrl.searchParams.set("_forced_refresh", Date.now());
+          window.location.replace(refreshUrl.toString());
           return true;
         }
       } catch (error) {
@@ -5700,6 +5801,48 @@
       } catch (error) {
         console.warn('Force re-sign-in failed.', error);
         alert('Force re-sign-in failed. Check the console/Supabase setup.');
+      }
+    }
+
+    async function forceAllUsersRefresh() {
+      if (!(await requireAdminAuth())) return;
+      if (!supabaseClient) {
+        alert('Supabase is not connected.');
+        return;
+      }
+      const confirmed = window.confirm(
+        'Kick every signed-in user out and force all open copies of the app to refresh?\n\n' +
+        'Users will be signed out during the next automatic check (normally within 20 seconds), when they return to the tab, or when they refresh. They must enter their sign-in code again.'
+      );
+      if (!confirmed) return;
+      const defaultExpiry = new Date(Date.now() + (30 * 24 * 60 * 60 * 1000)).toISOString().slice(0, 10);
+      const expiryInput = window.prompt('Enter the global force-refresh expiry date:', defaultExpiry);
+      if (expiryInput === null) return;
+      const parsedExpiry = new Date(String(expiryInput).trim() + 'T23:59:59');
+      if (!String(expiryInput).trim() || Number.isNaN(parsedExpiry.getTime())) {
+        alert('Please enter a valid expiry date.');
+        return;
+      }
+      try {
+        const profile = getDeviceProfile();
+        const payload = {
+          device_id: '*',
+          reason: 'admin_force_refresh_all',
+          requested_by_device_id: profile.device_id || '',
+          requested_by_label: getDefaultDeviceLabel() || profile.user_name || 'Administrator',
+          requested_by_user_agent: navigator.userAgent || '',
+          expires_at: parsedExpiry.toISOString()
+        };
+        const { error } = await supabaseClient.from(DEVICE_SIGNOUT_TABLE).insert(payload);
+        if (error) {
+          alert('Could not create the global force-refresh request: ' + (error.message || String(error)));
+          return;
+        }
+        alert('All signed-in users have been queued for sign-out and forced refresh. Open users should be redirected within about 20 seconds.');
+        renderSignedInDevicesList();
+      } catch (error) {
+        console.warn('Global force refresh failed.', error);
+        alert('Global force refresh failed. Check the Supabase device sign-out table and policies.');
       }
     }
 
@@ -10784,13 +10927,53 @@ ${rows.map(pin => `
       startDeviceSignOutWatcher();
     }
 
+    function parseComparableAppVersion(value) {
+      const match = String(value || "").match(/(\d{4}\.\d{2}\.\d{2})-([A-Z]+)(?:\.(\d+))?/i);
+      if (!match) return null;
+      const letters = match[2].toUpperCase().split("").reduce((n,ch)=>n*26+(ch.charCodeAt(0)-64),0);
+      return [match[1].replaceAll(".", ""), letters, Number(match[3] || 0)];
+    }
+
+    function isRemoteVersionNewer(remote, current) {
+      const a=parseComparableAppVersion(remote), b=parseComparableAppVersion(current);
+      if(!a||!b) return false;
+      for(let i=0;i<a.length;i++){ if(a[i]>b[i]) return true; if(a[i]<b[i]) return false; }
+      return false;
+    }
+
+    async function checkForAppUpdate() {
+      if (location.protocol === "file:") return;
+      try {
+        const url = new URL(location.href);
+        url.searchParams.set("_app_update_check", Date.now());
+        const response = await fetch(url.toString(), { cache:"no-store", headers:{"Cache-Control":"no-cache"} });
+        if (!response.ok) return;
+        const html = await response.text();
+        const match = html.match(/const APP_VERSION\s*=\s*["']([^"']+)["']/);
+        const remoteVersion = match && match[1];
+        if (remoteVersion && isRemoteVersionNewer(remoteVersion, APP_VERSION)) {
+          const banner=document.getElementById("appUpdateBanner");
+          const text=document.getElementById("appUpdateText");
+          if(text) text.textContent="A newer app version ("+remoteVersion+") is available. Refresh before continuing.";
+          if(banner) banner.classList.add("show");
+        }
+      } catch (error) { console.warn("App update check failed", error); }
+    }
+
+    function reloadForAppUpdate() {
+      const url=new URL(location.href); url.searchParams.set("_refresh",Date.now()); location.replace(url.toString());
+    }
+
     initializeApp();
+    setTimeout(checkForAppUpdate, 4000);
+    setInterval(checkForAppUpdate, 5 * 60 * 1000);
 
     window.loadPins = loadPins;
     window.toggleMobileUi = toggleMobileUi;
     window.closeMobileUiAfterAction = closeMobileUiAfterAction;
     window.forceDeviceReSignIn = forceDeviceReSignIn;
     window.forceDeviceReSignInFromButton = forceDeviceReSignInFromButton;
+    window.forceAllUsersRefresh = forceAllUsersRefresh;
     window.toggleSignedInDevicesPanel = toggleSignedInDevicesPanel;
     window.renderSignedInDevicesList = renderSignedInDevicesList;
     window.registerCurrentDeviceAndRefresh = registerCurrentDeviceAndRefresh;
@@ -10804,6 +10987,10 @@ ${rows.map(pin => `
     window.textDepartmentShareLink = textDepartmentShareLink;
     window.setDepartmentShareEnabled = setDepartmentShareEnabled;
     window.deleteDepartmentShareLink = deleteDepartmentShareLink;
+    window.editDepartmentShareLink = editDepartmentShareLink;
+    window.resetDepartmentShareEditor = resetDepartmentShareEditor;
+    window.setAllDepartmentShareMaps = setAllDepartmentShareMaps;
+    window.reloadForAppUpdate = reloadForAppUpdate;
     window.adminSignOut = adminSignOut;
     window.requireAdminAuth = requireAdminAuth;
     window.toggleAllLogsPanel = toggleAllLogsPanel;
