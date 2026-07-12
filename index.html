@@ -3131,18 +3131,18 @@
       <label>Location and service details <span style="color:#b71c1c;">*</span>
         <textarea id="pinDescriptionInput" placeholder="Required. Example: west washroom, beside sink. Add any issue details here." required></textarea>
       </label>
-      <div class="optional-schedule-row">
-        <label>Install date
-          <input type="date" id="pinInstallDateInput">
-        </label>
-        <label>Removal date
-          <input type="date" id="pinRemovalDateInput">
-        </label>
-      </div>
-      <label>Photo / file upload
+      <label>Photo / file upload (optional)
         <input type="file" id="pinPhotoFileInput" accept="image/*" multiple>
         <small style="color:#607084; font-weight:normal; line-height:1.25;">Phone camera: take one photo, then choose again to add another. Laptop: select multiple photos at once.</small>
       </label>
+      <div class="optional-schedule-row">
+        <label>Install date (optional)
+          <input type="date" id="pinInstallDateInput">
+        </label>
+        <label>Removal date (optional)
+          <input type="date" id="pinRemovalDateInput">
+        </label>
+      </div>
       <div class="sms-groups-visible-card" id="pinSmsGroupsVisible">
         <div class="sms-group-card-header">
           <div>
@@ -3263,11 +3263,16 @@
       <label>Location and service details
         <textarea id="editPinDescriptionInput" placeholder="Example: west washroom, beside sink. Add any issue details here."></textarea>
       </label>
+      <label>Add more photos (optional)
+        <input type="file" id="editReportedPhotoFileInput" accept="image/*" capture="environment" multiple>
+      </label>
+      <div id="editReportedPhotoPreview" class="photo-preview-grid" style="display:none;"></div>
+      <div class="panel-note" style="padding-top:0;">Existing photos stay saved. New photos are added to the request.</div>
       <div class="optional-schedule-row">
-        <label>Install date
+        <label>Install date (optional)
           <input type="date" id="editPinInstallDateInput">
         </label>
-        <label>Removal date
+        <label>Removal date (optional)
           <input type="date" id="editPinRemovalDateInput">
         </label>
       </div>
@@ -3296,11 +3301,6 @@
         </label>
         <div id="editClearPhotoPreview" class="photo-preview-grid" style="display:none;"></div>
       </div>
-      <label>Add more reported photos, optional
-        <input type="file" id="editReportedPhotoFileInput" accept="image/*" capture="environment" multiple>
-      </label>
-      <div id="editReportedPhotoPreview" class="photo-preview-grid" style="display:none;"></div>
-      <div class="panel-note">Existing photos stay saved. New photos are added to the request.</div>
     </div>
     <div class="modal-actions">
       <button class="action-btn secondary" onclick="closeEditPinModal()">Cancel</button>
@@ -3379,7 +3379,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.11-AD";
+    const APP_VERSION = "2026.07.11-AE";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const SIGN_IN_ACCESS_TABLE = "app_sign_in_access";
