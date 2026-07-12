@@ -2,9 +2,6 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-  <meta http-equiv="Pragma" content="no-cache" />
-  <meta http-equiv="Expires" content="0" />
   <title>cne service app</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 
@@ -791,80 +788,6 @@
       resize: vertical;
     }
 
-    .optional-date-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-    }
-
-    .optional-date-grid label {
-      min-width: 0;
-    }
-
-    .leaflet-bottom.leaflet-left,
-    .leaflet-bottom.leaflet-right {
-      bottom: calc(18px + env(safe-area-inset-bottom, 0px));
-      z-index: 1200;
-    }
-
-    .leaflet-bottom.leaflet-left {
-      left: 8px;
-    }
-
-    .leaflet-bottom.leaflet-right {
-      right: 8px;
-    }
-
-    .leaflet-control-locate,
-    .leaflet-control-locate a {
-      display: block !important;
-      visibility: visible !important;
-      opacity: 1 !important;
-    }
-
-    .leaflet-control-locate a {
-      width: 38px !important;
-      height: 38px !important;
-      line-height: 38px !important;
-      font-size: 20px !important;
-      border-radius: 7px !important;
-      background: #ffffff !important;
-      color: #005a9c !important;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.28) !important;
-    }
-
-    .cne-direct-gps-button {
-      width: 42px !important;
-      height: 42px !important;
-      line-height: 42px !important;
-      font-size: 24px !important;
-      font-weight: 900 !important;
-      text-align: center !important;
-      border-radius: 8px !important;
-      background: #ffffff !important;
-      color: #005a9c !important;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.28) !important;
-      text-decoration: none !important;
-    }
-
-    @media (max-width: 520px) {
-      .optional-date-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .leaflet-bottom.leaflet-left,
-      .leaflet-bottom.leaflet-right {
-        bottom: calc(72px + env(safe-area-inset-bottom, 0px));
-      }
-
-      .leaflet-control-locate a {
-        width: 44px !important;
-        height: 44px !important;
-        line-height: 44px !important;
-        font-size: 23px !important;
-      }
-    }
-
     .modal-actions {
       display: flex;
       justify-content: flex-end;
@@ -975,68 +898,6 @@
       margin-top: 5px;
       white-space: pre-line;
       line-height: 1.28;
-    }
-
-    .compact-schedule-line {
-      display: inline-flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 4px 10px;
-      margin-top: 5px;
-      padding: 4px 7px;
-      border-radius: 6px;
-      background: #f4f7fa;
-      border: 1px solid #d9e0e6;
-      color: #4b5563;
-      font-size: 11px;
-      line-height: 1.2;
-    }
-
-    .compact-schedule-label {
-      font-weight: 800;
-      color: #334155;
-    }
-
-    .compact-schedule-item {
-      white-space: nowrap;
-    }
-
-    .optional-schedule-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 6px;
-      padding: 6px 7px;
-      border: 1px solid #d9e0e6;
-      border-radius: 7px;
-      background: #f8fbfe;
-    }
-
-    .optional-schedule-row label {
-      font-size: 10px !important;
-      font-weight: 700 !important;
-      color: #55606e !important;
-      gap: 3px !important;
-    }
-
-    .optional-schedule-row input[type="date"] {
-      min-width: 0;
-      width: 100%;
-      box-sizing: border-box;
-      padding: 5px 6px !important;
-      font-size: 12px !important;
-      min-height: 30px;
-    }
-
-    @media (max-width: 360px) {
-      .optional-schedule-row {
-        gap: 4px;
-        padding: 5px;
-      }
-
-      .optional-schedule-row input[type="date"] {
-        font-size: 11px !important;
-        padding: 4px !important;
-      }
     }
 
 
@@ -2602,7 +2463,8 @@
   </style>
 </head>
 <body>
-<button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.11-AH</button>
+
+  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.11-I</button>
   <div class="floating-ui" id="floatingUi">
     <button class="mobile-ui-toggle" id="mobileUiToggle" type="button" onclick="toggleMobileUi()">
       <span class="mobile-ui-toggle-main">
@@ -2715,16 +2577,6 @@
         <label class="log-filter-search">Search
           <input id="clearedLogSearchFilter" type="search" placeholder="Title, details, user..." oninput="renderClearedLog()">
         </label>
-        <label>Date order
-          <select id="clearedLogSortFilter" onchange="renderClearedLog()">
-            <option value="created_desc">Created date — newest first</option>
-            <option value="created_asc">Created date — oldest first</option>
-            <option value="install_asc">Install date — earliest first</option>
-            <option value="install_desc">Install date — latest first</option>
-            <option value="removal_asc">Removal date — earliest first</option>
-            <option value="removal_desc">Removal date — latest first</option>
-          </select>
-        </label>
       </div>
       <div id="logBody">
         <div class="empty-log">No cleared pins yet.</div>
@@ -2752,16 +2604,6 @@
         </label>
         <label class="log-filter-search">Search
           <input id="activeLogSearchFilter" type="search" placeholder="Title, details, user..." oninput="renderActiveLog()">
-        </label>
-        <label>Date order
-          <select id="activeLogSortFilter" onchange="renderActiveLog()">
-            <option value="created_desc">Created date — newest first</option>
-            <option value="created_asc">Created date — oldest first</option>
-            <option value="install_asc">Install date — earliest first</option>
-            <option value="install_desc">Install date — latest first</option>
-            <option value="removal_asc">Removal date — earliest first</option>
-            <option value="removal_desc">Removal date — latest first</option>
-          </select>
         </label>
       </div>
       <div id="activeLogBody">
@@ -3148,18 +2990,10 @@
       <label>Location and service details <span style="color:#b71c1c;">*</span>
         <textarea id="pinDescriptionInput" placeholder="Required. Example: west washroom, beside sink. Add any issue details here." required></textarea>
       </label>
-      <label>Photo / file upload (optional)
+      <label>Photo / file upload
         <input type="file" id="pinPhotoFileInput" accept="image/*" multiple>
         <small style="color:#607084; font-weight:normal; line-height:1.25;">Phone camera: take one photo, then choose again to add another. Laptop: select multiple photos at once.</small>
       </label>
-      <div class="optional-schedule-row">
-        <label>Install date (optional)
-          <input type="date" id="pinInstallDateInput">
-        </label>
-        <label>Removal date (optional)
-          <input type="date" id="pinRemovalDateInput">
-        </label>
-      </div>
       <div class="sms-groups-visible-card" id="pinSmsGroupsVisible">
         <div class="sms-group-card-header">
           <div>
@@ -3280,19 +3114,6 @@
       <label>Location and service details
         <textarea id="editPinDescriptionInput" placeholder="Example: west washroom, beside sink. Add any issue details here."></textarea>
       </label>
-      <label>Add more photos (optional)
-        <input type="file" id="editReportedPhotoFileInput" accept="image/*" capture="environment" multiple>
-      </label>
-      <div id="editReportedPhotoPreview" class="photo-preview-grid" style="display:none;"></div>
-      <div class="panel-note" style="padding-top:0;">Existing photos stay saved. New photos are added to the request.</div>
-      <div class="optional-schedule-row">
-        <label>Install date (optional)
-          <input type="date" id="editPinInstallDateInput">
-        </label>
-        <label>Removal date (optional)
-          <input type="date" id="editPinRemovalDateInput">
-        </label>
-      </div>
       <label>Reported By <span style="color:#b71c1c;">*</span>
         <input type="text" id="editPinReportedByInput" list="editPinReportedByList" placeholder="Select or type name...">
         <datalist id="editPinReportedByList"></datalist>
@@ -3318,6 +3139,11 @@
         </label>
         <div id="editClearPhotoPreview" class="photo-preview-grid" style="display:none;"></div>
       </div>
+      <label>Add more reported photos, optional
+        <input type="file" id="editReportedPhotoFileInput" accept="image/*" capture="environment" multiple>
+      </label>
+      <div id="editReportedPhotoPreview" class="photo-preview-grid" style="display:none;"></div>
+      <div class="panel-note">Existing photos stay saved. New photos are added to the request.</div>
     </div>
     <div class="modal-actions">
       <button class="action-btn secondary" onclick="closeEditPinModal()">Cancel</button>
@@ -3396,7 +3222,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.11-AH";
+    const APP_VERSION = "2026.07.11-Y";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const SIGN_IN_ACCESS_TABLE = "app_sign_in_access";
@@ -3404,7 +3230,6 @@
     const APP_LINK = window.location.href.split("#")[0].split("?")[0];
 
     const DEPARTMENT_STORAGE_KEY = "cne_map_departments_v1";
-    const APP_CACHE_VERSION_KEY = "cne_service_app_cache_version";
     const PROFILES_STORAGE_KEY = "cne_map_profiles_v1";
     const MAP_VIEWS_STORAGE_KEY = "cne_map_views_v1";
     const CURRENT_MAP_STORAGE_KEY = "cne_current_map_view_v1";
@@ -3439,7 +3264,6 @@
       "CARPENTRY2026": { label: "Carpentry", role: "department", department: "Carpentry", canViewAll: false }
     };
     let SIGN_IN_CODES = { ...DEFAULT_SIGN_IN_CODES };
-    let signInCodesRemoteLoadSucceeded = false;
     const ADMIN_EMAIL = "beaufelipe@gmail.com";
     const ADMIN_USERS_TABLE = "app_admin_users";
     let cachedAdminUser = null;
@@ -3451,19 +3275,8 @@
     // This prevents deleted or hidden departments from being automatically re-created in dropdowns.
     const DEFAULT_DEPARTMENTS = [];
 
-    try {
-      const previousBuild = localStorage.getItem(APP_CACHE_VERSION_KEY) || "";
-      if (previousBuild !== APP_VERSION) {
-        localStorage.removeItem(DEPARTMENT_STORAGE_KEY);
-        localStorage.setItem(APP_CACHE_VERSION_KEY, APP_VERSION);
-      }
-    } catch (error) {}
-
     let mapViews = loadMapViewsFromStorage();
-    // Supabase is authoritative for departments. Do not paint an old per-device list first.
-    // A local copy is retained only as an emergency offline fallback after a successful central load.
-    let departments = [];
-    let centralDepartmentsLoaded = false;
+    let departments = loadDepartmentsFromStorage();
     // No built-in Reported By / Cleared By profile names.
     // Names should come only from Supabase / Admin Menu > Manage Profiles.
     const DEFAULT_PROFILES = {};
@@ -3480,7 +3293,6 @@
 
     let supabaseClient = null;
     let realtimeChannel = null;
-    let settingsRealtimeChannel = null;
     let allPins = [];
     let pendingLatLng = null;
     let pendingMovePinId = null;
@@ -3544,8 +3356,6 @@
     const departmentViewGroupDeleteSelect = document.getElementById("departmentViewGroupDeleteSelect");
     const pinTitleInput = document.getElementById("pinTitleInput");
     const pinDescriptionInput = document.getElementById("pinDescriptionInput");
-    const pinInstallDateInput = document.getElementById("pinInstallDateInput");
-    const pinRemovalDateInput = document.getElementById("pinRemovalDateInput");
     const pinCategoryInput = document.getElementById("pinCategoryInput");
     const pinReportedByInput = document.getElementById("pinReportedByInput");
     const pinPhotoFileInput = document.getElementById("pinPhotoFileInput");
@@ -3587,8 +3397,6 @@
     const editCustomSmsInput = document.getElementById("editCustomSmsInput");
     const editCustomSmsMessageInput = document.getElementById("editCustomSmsMessageInput");
     const editPinDescriptionInput = document.getElementById("editPinDescriptionInput");
-    const editPinInstallDateInput = document.getElementById("editPinInstallDateInput");
-    const editPinRemovalDateInput = document.getElementById("editPinRemovalDateInput");
     const editPinReportedByInput = document.getElementById("editPinReportedByInput");
     const editPinStatusInput = document.getElementById("editPinStatusInput");
     const editClearedFields = document.getElementById("editClearedFields");
@@ -3971,8 +3779,7 @@
     }
 
     async function loadSignInCodesFromSupabase() {
-      signInCodesRemoteLoadSucceeded = false;
-      if (!supabaseClient) return false;
+      if (!supabaseClient) return;
       try {
         const { data, error } = await supabaseClient
           .from(SETTINGS_TABLE)
@@ -3982,22 +3789,16 @@
 
         if (error) {
           console.warn("Could not load sign-in codes from Supabase:", error);
-          return false;
+          return;
         }
 
         if (data && data.settings_value) {
           SIGN_IN_CODES = normalizeSignInCodes(data.settings_value);
-          signInCodesRemoteLoadSucceeded = true;
-          return true;
+        } else {
+          await saveSettingToSupabase("sign_in_codes", DEFAULT_SIGN_IN_CODES);
         }
-
-        await saveSettingToSupabase("sign_in_codes", DEFAULT_SIGN_IN_CODES);
-        SIGN_IN_CODES = normalizeSignInCodes(DEFAULT_SIGN_IN_CODES);
-        signInCodesRemoteLoadSucceeded = true;
-        return true;
       } catch (error) {
         console.warn("Sign-in code load failed:", error);
-        return false;
       }
     }
 
@@ -4048,30 +3849,7 @@
               approved_at: saved.approved_at || null
             };
           }
-          // Do not erase a valid saved browser session merely because the
-          // Supabase settings list did not load yet. A temporary network delay
-          // should not force the user to enter the code again.
-          if (!signInCodesRemoteLoadSucceeded) {
-            const savedAllowed = Array.isArray(saved.allowedDepartments)
-              ? saved.allowedDepartments.map(normalizeAccessDepartmentKey).filter(Boolean)
-              : [];
-            return {
-              approved: true,
-              version: saved.version,
-              code: saved.code || "",
-              label: saved.label || "User",
-              role: saved.role || "department",
-              department: normalizeAccessDepartmentKey(saved.department || ""),
-              canViewAll: !!saved.canViewAll,
-              allowedDepartments: savedAllowed,
-              permissions: normalizeUserPermissions(saved.permissions),
-              allowedMapIds: normalizeAllowedMapIds(saved.allowedMapIds),
-              approved_at: saved.approved_at || null
-            };
-          }
-
-          // The current Supabase list loaded successfully and the code is
-          // genuinely unavailable, disabled, or expired.
+          // The code was deleted, disabled, or expired. Do not keep stale browser access.
           resetSiteAccessApproval();
           return null;
         }
@@ -4188,8 +3966,6 @@
           allowedDepartments: Array.isArray(access.allowedDepartments) ? access.allowedDepartments.map(normalizeAccessDepartmentKey).filter(Boolean) : [],
           permissions: normalizeUserPermissions(access.permissions),
           allowedMapIds: normalizeAllowedMapIds(access.allowedMapIds),
-          enabled: access.enabled !== false,
-          expiresAt: normalizeProfileExpiryDate(access.expiresAt),
           approved_at: new Date().toISOString()
         }));
       } catch (error) {}
@@ -4211,18 +3987,6 @@
 
     function hasSavedSiteAccess() {
       return !!getAccessProfile();
-    }
-
-    function browserCanPersistSiteAccess() {
-      try {
-        const key = "__cne_storage_test__";
-        localStorage.setItem(key, "1");
-        const ok = localStorage.getItem(key) === "1";
-        localStorage.removeItem(key);
-        return ok;
-      } catch (error) {
-        return false;
-      }
     }
 
     function resetSiteAccessApproval() {
@@ -4272,9 +4036,6 @@
       if (!forcePrompt && hasSavedSiteAccess()) {
         enforceAssignedDepartmentView();
         return true;
-      }
-      if (!browserCanPersistSiteAccess()) {
-        alert("This browser is not allowing the app to save its sign-in. Turn off Private/Incognito mode or allow site storage/cookies for this page.");
       }
       const entered = window.prompt("Enter your CNE Service App sign-in code:");
       const access = lookupSignInCode(entered);
@@ -6033,8 +5794,6 @@
       populateEditSmsGroupCheckboxes();
       if (editNotifySmsNowInput) editNotifySmsNowInput.checked = shouldDefaultSmsOpen();
       if (editPinDescriptionInput) editPinDescriptionInput.value = pin.description || "";
-      if (editPinInstallDateInput) editPinInstallDateInput.value = normalizeOptionalDate(pin.install_date) || "";
-      if (editPinRemovalDateInput) editPinRemovalDateInput.value = normalizeOptionalDate(pin.removal_date) || "";
       populateEditProfileDropdowns(pin.reported_by || "", pin.cleared_by || "");
       if (editPinClearCommentInput) editPinClearCommentInput.value = pin.clear_comment || "";
       if (editPinStatusInput) editPinStatusInput.value = getPinStatus(pin);
@@ -6069,8 +5828,6 @@
       const category = editPinCategoryInput.value || "general";
       const title = editPinTitleInput.value || "General request";
       const description = editPinDescriptionInput.value.trim();
-      const installDate = normalizeOptionalDate(editPinInstallDateInput && editPinInstallDateInput.value);
-      const removalDate = normalizeOptionalDate(editPinRemovalDateInput && editPinRemovalDateInput.value);
       const reportedBy = editPinReportedByInput.value.trim();
       rememberUserNameFromInput(editPinReportedByInput);
       const status = editPinStatusInput.value;
@@ -6080,11 +5837,6 @@
       if (!reportedBy) {
         alert("Reported By is required.");
         editPinReportedByInput.focus();
-        return;
-      }
-      if (installDate && removalDate && removalDate < installDate) {
-        alert("Removal date cannot be earlier than the install date.");
-        if (editPinRemovalDateInput) editPinRemovalDateInput.focus();
         return;
       }
       if (status === "cleared" && !clearedBy) {
@@ -6127,8 +5879,6 @@
       const updatePayload = {
         title,
         description,
-        install_date: installDate,
-        removal_date: removalDate,
         category,
         reported_by: reportedBy,
         photo_urls: nextReportedPhotos,
@@ -6286,12 +6036,8 @@
 
         if (error) {
           console.warn("Could not load central settings:", error);
-          if (!centralDepartmentsLoaded) {
-            const offlineDepartments = loadDepartmentsFromStorage();
-            departments = offlineDepartments;
-          }
-          setStatus("Could not reach shared Supabase settings. Department names may be unavailable until the connection returns.");
-          return false;
+          setStatus("Using local settings. Run the Supabase settings SQL to centralize maps/departments/profiles.");
+          return;
         }
 
         const departmentRow = (data || []).find(row => row.config_key === "departments");
@@ -6325,14 +6071,9 @@
 
         if (departmentRow && departmentRow.settings_value) {
           departments = normalizeDepartments(departmentRow.settings_value);
-          centralDepartmentsLoaded = true;
           localStorage.setItem(DEPARTMENT_STORAGE_KEY, JSON.stringify(departments));
         } else {
-          // Never upload a stale phone/browser list as the shared department list.
-          departments = [];
-          centralDepartmentsLoaded = false;
-          localStorage.removeItem(DEPARTMENT_STORAGE_KEY);
-          setStatus("No shared department list was found in Supabase. Save departments once from the Admin menu.");
+          await saveSettingToSupabase("departments", departments);
         }
 
         if (profileRow && profileRow.settings_value) {
@@ -6341,7 +6082,6 @@
         } else {
           await saveSettingToSupabase("profiles", profiles);
         }
-        return true;
       } catch (error) {
         console.warn("Central settings load failed:", error);
       }
@@ -6820,34 +6560,6 @@
         .trim();
     }
 
-    function normalizeOptionalDate(value) {
-      const clean = String(value || "").trim();
-      return /^\d{4}-\d{2}-\d{2}$/.test(clean) ? clean : null;
-    }
-
-    function formatOptionalDate(value) {
-      const clean = normalizeOptionalDate(value);
-      if (!clean) return "";
-      const date = new Date(clean + "T12:00:00");
-      return Number.isNaN(date.getTime()) ? clean : date.toLocaleDateString();
-    }
-
-    function getPinScheduleHtml(pin) {
-      const install = formatOptionalDate(pin && pin.install_date);
-      const removal = formatOptionalDate(pin && pin.removal_date);
-      if (!install && !removal) return "";
-
-      const items = [];
-      if (install) {
-        items.push('<span class="compact-schedule-item"><span class="compact-schedule-label">Install:</span> ' + escapeHtml(install) + '</span>');
-      }
-      if (removal) {
-        items.push('<span class="compact-schedule-item"><span class="compact-schedule-label">Remove:</span> ' + escapeHtml(removal) + '</span>');
-      }
-
-      return '<div class="compact-schedule-line">' + items.join("") + '</div>';
-    }
-
     function buildLegend() {
       if (!legendBody) return;
 
@@ -6913,13 +6625,8 @@
 
     const map = L.map("map", {
       minZoom: 13,
-      maxZoom: 22,
-      zoomControl: false
+      maxZoom: 22
     }).setView([43.6326, -79.4148], 17);
-
-    L.control.zoom({
-      position: "bottomleft"
-    }).addTo(map);
 
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 22,
@@ -6937,84 +6644,17 @@
 
     const userPinsLayer = L.layerGroup().addTo(map);
 
-    function locateCurrentUser() {
-      if (!window.isSecureContext) {
-        alert("Phone location requires a secure HTTPS connection. Open the published https://beautech1.github.io site directly in Safari or Chrome.");
-        return;
+    L.control.locate({
+      position: "topright",
+      keepCurrentZoomLevel: true,
+      flyTo: true,
+      locateOptions: {
+        enableHighAccuracy: true
+      },
+      strings: {
+        title: "Show my location"
       }
-      if (!navigator.geolocation) {
-        alert("This browser does not provide GPS location services.");
-        return;
-      }
-
-      setStatus("Finding your phone location...");
-      navigator.geolocation.getCurrentPosition(
-        function(position) {
-          const latlng = L.latLng(position.coords.latitude, position.coords.longitude);
-          const accuracy = Math.round(position.coords.accuracy || 0);
-          if (!window.cneUserLocationMarker) {
-            window.cneUserLocationMarker = L.circleMarker(latlng, {
-              radius: 8,
-              weight: 3,
-              color: "#005a9c",
-              fillColor: "#ffffff",
-              fillOpacity: 1
-            }).addTo(map);
-          } else {
-            window.cneUserLocationMarker.setLatLng(latlng);
-          }
-          if (!window.cneUserAccuracyCircle) {
-            window.cneUserAccuracyCircle = L.circle(latlng, {
-              radius: Math.max(accuracy, 5),
-              weight: 1,
-              color: "#005a9c",
-              fillOpacity: 0.08
-            }).addTo(map);
-          } else {
-            window.cneUserAccuracyCircle.setLatLng(latlng).setRadius(Math.max(accuracy, 5));
-          }
-          map.flyTo(latlng, Math.max(map.getZoom(), 18), { duration: 0.7 });
-          setStatus(`Phone location found${accuracy ? ` (about ${accuracy} m accuracy)` : ""}.`);
-        },
-        function(error) {
-          console.warn("GPS location error:", error);
-          let message = "The phone could not provide a location.";
-          if (error && error.code === 1) message = "Location permission is blocked for this website. Allow Location for beautech1.github.io in your browser settings, then try again.";
-          else if (error && error.code === 2) message = "Your phone could not determine its location. Turn on Location Services/GPS and try outside or near a window.";
-          else if (error && error.code === 3) message = "The location request timed out. Make sure GPS is on and try again.";
-          setStatus("Could not access phone location.");
-          alert(message);
-        },
-        { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
-      );
-    }
-
-    const DirectGpsControl = L.Control.extend({
-      options: { position: "bottomright" },
-      onAdd: function() {
-        const container = L.DomUtil.create("div", "leaflet-bar leaflet-control");
-        const button = L.DomUtil.create("a", "cne-direct-gps-button", container);
-        button.href = "#";
-        button.title = "GPS — show my current phone location";
-        button.setAttribute("aria-label", "GPS — show my current phone location");
-        button.innerHTML = "GPS";
-        button.style.width = "48px";
-        button.style.height = "42px";
-        button.style.lineHeight = "42px";
-        button.style.fontSize = "12px";
-        button.style.fontWeight = "900";
-        button.style.textAlign = "center";
-        button.style.color = "#005a9c";
-        button.style.background = "#ffffff";
-        L.DomEvent.disableClickPropagation(container);
-        L.DomEvent.on(button, "click", function(event) {
-          L.DomEvent.preventDefault(event);
-          locateCurrentUser();
-        });
-        return container;
-      }
-    });
-    new DirectGpsControl().addTo(map);
+    }).addTo(map);
 
     const cneBounds = L.latLngBounds(
       [43.6280, -79.4245],
@@ -7293,7 +6933,7 @@
         pin.title, pin.description, formatDepartmentLabel(pin.category),
         getMapView(getPinMapId(pin)).name, pin.original_reported_by, pin.reported_by,
         pin.created_by_user_name, pin.created_by_department, pin.created_device_label,
-        pin.cleared_by, pin.clear_comment, pin.install_date, pin.removal_date
+        pin.cleared_by, pin.clear_comment
       ].filter(Boolean).join(' ').toLowerCase();
     }
 
@@ -7318,28 +6958,9 @@
       const dept = document.getElementById(prefix + 'DepartmentFilter')?.value || 'all';
       const mapId = document.getElementById(prefix + 'MapFilter')?.value || 'all';
       const term = (document.getElementById(prefix + 'SearchFilter')?.value || '').trim().toLowerCase();
-      const sort = document.getElementById(prefix + 'SortFilter')?.value || 'created_desc';
-      const filtered = rows.filter(pin => dept === 'all' || String(pin.category || 'general') === dept)
+      return rows.filter(pin => dept === 'all' || String(pin.category || 'general') === dept)
         .filter(pin => mapId === 'all' || String(getPinMapId(pin)) === mapId)
         .filter(pin => !term || operationalLogSearchText(pin).includes(term));
-
-      const getTime = (pin, field) => {
-        const value = pin && pin[field];
-        if (!value) return null;
-        const parsed = field === 'created_at' ? new Date(value) : new Date(String(value) + 'T12:00:00');
-        const time = parsed.getTime();
-        return Number.isNaN(time) ? null : time;
-      };
-      const [field, direction] = sort.split('_');
-      const dbField = field === 'install' ? 'install_date' : field === 'removal' ? 'removal_date' : 'created_at';
-      return filtered.slice().sort((a, b) => {
-        const aTime = getTime(a, dbField);
-        const bTime = getTime(b, dbField);
-        if (aTime === null && bTime === null) return 0;
-        if (aTime === null) return 1;
-        if (bTime === null) return -1;
-        return direction === 'asc' ? aTime - bTime : bTime - aTime;
-      });
     }
 
     function buildLogItemHtml(pin, options = {}) {
@@ -7367,7 +6988,6 @@
             '<span><b>Location:</b> ' + escapeHtml(getMapView(getPinMapId(pin)).name) + '</span>' +
           '</div>' +
           getPinOriginSummaryHtml(pin) +
-          getPinScheduleHtml(pin) +
           (closedByValue ? '<div><small><b>' + escapeHtml(getClosedByLabel(pin)) + ':</b> ' + escapeHtml(closedByValue) + '</small></div>' : '') +
           (closedFromValue ? '<div><small><b>' + escapeHtml(getClosedFromLabel(pin)) + ':</b> ' + escapeHtml(closedFromValue) + '</small></div>' : '') +
           (isCleared && formatTimeToClear(pin) ? '<div><small><b>Time to clear:</b> ' + escapeHtml(formatTimeToClear(pin)) + '</small></div>' : '') +
@@ -7785,7 +7405,7 @@
       handleInitialUrlAction();
     }
 
-    async function savePin(latlng, title, description, photoUrls, category, reportedBy, statusValue = "active", installDate = null, removalDate = null) {
+    async function savePin(latlng, title, description, photoUrls, category, reportedBy, statusValue = "active") {
       if (!supabaseClient) {
         alert("Supabase is not configured yet. Add your URL and anon key first.");
         return;
@@ -7796,8 +7416,6 @@
       const payload = {
         title: title,
         description: description || "",
-        install_date: normalizeOptionalDate(installDate),
-        removal_date: normalizeOptionalDate(removalDate),
         lat: latlng.lat,
         lng: latlng.lng,
         photo_urls: normalizePhotoList(photoUrls),
@@ -8579,8 +8197,6 @@
 
 function resetPinForm() {
   pinDescriptionInput.value = "";
-  if (pinInstallDateInput) pinInstallDateInput.value = "";
-  if (pinRemovalDateInput) pinRemovalDateInput.value = "";
   const availableDepartments = getDepartmentsAvailableForNewPins();
   if (availableDepartments[0]) {
     pinCategoryInput.disabled = false;
@@ -8675,16 +8291,9 @@ function resetPinForm() {
       }
 
       const locationDetails = pinDescriptionInput.value.trim();
-      const installDate = normalizeOptionalDate(pinInstallDateInput && pinInstallDateInput.value);
-      const removalDate = normalizeOptionalDate(pinRemovalDateInput && pinRemovalDateInput.value);
       if (!locationDetails) {
         alert("Location and service details are required.");
         pinDescriptionInput.focus();
-        return;
-      }
-      if (installDate && removalDate && removalDate < installDate) {
-        alert("Removal date cannot be earlier than the install date.");
-        if (pinRemovalDateInput) pinRemovalDateInput.focus();
         return;
       }
 
@@ -8705,9 +8314,7 @@ function resetPinForm() {
           uploadedPhotoUrls,
           pinCategoryInput.value,
           reportedBy,
-          requestStatus,
-          installDate,
-          removalDate
+          requestStatus
         );
 
         if (savedPin) {
@@ -9234,8 +8841,6 @@ function resetPinForm() {
         ["category", "Department"],
         ["title", "Title"],
         ["description", "Location and service details"],
-        ["install_date", "Install date"],
-        ["removal_date", "Removal date"],
         ["reported_by", "Reported by"],
         ["status", "Status"],
         ["cleared_by", "Cleared by"],
@@ -9382,7 +8987,6 @@ function resetPinForm() {
             '<div><strong>Original reported by:</strong> ' + escapeHtml(pin.original_reported_by || pin.reported_by || "") + '</div>' +
             (pin.created_by_user_name ? '<div><strong>Created by user:</strong> ' + escapeHtml(pin.created_by_user_name) + '</div>' : '') +
             ((pin.created_by_department || pin.created_device_label) ? '<div><strong>Created by department/company:</strong> ' + escapeHtml(pin.created_by_department || pin.created_device_label) + '</div>' : '') +
-            getPinScheduleHtml(pin) +
             (closedByValue ? '<div><strong>' + escapeHtml(getClosedByLabel(pin)) + ':</strong> ' + escapeHtml(closedByValue) + '</div>' : '') +
             (closedFromValue ? '<div><strong>' + escapeHtml(getClosedFromLabel(pin)) + ':</strong> ' + escapeHtml(closedFromValue) + '</div>' : '') +
             (isCleared && formatTimeToClear(pin) ? '<div><strong>Time to clear:</strong> ' + escapeHtml(formatTimeToClear(pin)) + '</div>' : '') +
@@ -10176,67 +9780,20 @@ ${rows.map(pin => `
       event.target.value = "";
     }
 
-    let pinSyncTimer = null;
-    let pinSyncInProgress = false;
-
-    async function refreshSharedAppData(showMessage = false) {
-      if (!supabaseClient || pinSyncInProgress || document.hidden) return;
-      pinSyncInProgress = true;
-      try {
-        await loadCentralSettingsFromSupabase();
-        populateMapSelector();
-        populateDepartmentDropdowns();
-        populateProfileDropdowns();
-        ensureDepartmentViewSelected();
-        await loadPins(showMessage);
-      } catch (error) {
-        console.warn("Shared app refresh failed:", error);
-      } finally {
-        pinSyncInProgress = false;
-      }
-    }
-
     function subscribeRealtime() {
       if (!supabaseClient) return;
-      if (realtimeChannel) {
-        try { supabaseClient.removeChannel(realtimeChannel); } catch (error) {}
-      }
       realtimeChannel = supabaseClient
-        .channel("public:pins-live-" + getDeviceId())
+        .channel("public:pins-live")
         .on(
           "postgres_changes",
           { event: "*", schema: "public", table: SUPABASE_TABLE },
-          () => refreshSharedAppData(false)
+          () => loadPins(false)
         )
         .subscribe((status) => {
-          if (status === "SUBSCRIBED") setStatus("Live pin sync connected.");
-          if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
-            console.warn("Live pin sync status:", status);
-            window.setTimeout(subscribeRealtime, 5000);
+          if (status === "SUBSCRIBED") {
+            setStatus("Realtime sync connected.");
           }
         });
-
-      if (settingsRealtimeChannel) {
-        try { supabaseClient.removeChannel(settingsRealtimeChannel); } catch (error) {}
-      }
-      settingsRealtimeChannel = supabaseClient
-        .channel("public:app-settings-live-" + getDeviceId())
-        .on(
-          "postgres_changes",
-          { event: "*", schema: "public", table: SETTINGS_TABLE },
-          () => refreshSharedAppData(false)
-        )
-        .subscribe();
-
-      if (!pinSyncTimer) {
-        pinSyncTimer = window.setInterval(() => refreshSharedAppData(false), 15000);
-        document.addEventListener("visibilitychange", () => {
-          if (!document.hidden) refreshSharedAppData(false);
-        });
-        window.addEventListener("focus", () => refreshSharedAppData(false));
-        window.addEventListener("online", () => refreshSharedAppData(true));
-        window.addEventListener("pageshow", () => refreshSharedAppData(false));
-      }
     }
 
     function openPinModalAfterTargetVisible() {
@@ -10331,13 +9888,6 @@ ${rows.map(pin => `
       }, { passive: false });
     }
 
-    function reloadLatestPublishedVersion() {
-      const url = new URL(window.location.href);
-      url.searchParams.set("app_build", APP_VERSION);
-      url.searchParams.set("refresh", Date.now().toString());
-      window.location.replace(url.toString());
-    }
-
     let appInitialized = false;
     let deviceSignOutCheckTimer = null;
 
@@ -10364,7 +9914,6 @@ ${rows.map(pin => `
 
     initializeApp();
 
-    window.reloadLatestPublishedVersion = reloadLatestPublishedVersion;
     window.loadPins = loadPins;
     window.toggleMobileUi = toggleMobileUi;
     window.closeMobileUiAfterAction = closeMobileUiAfterAction;
@@ -10423,7 +9972,6 @@ ${rows.map(pin => `
     window.addNewMapEditor = addNewMapEditor;
     window.deleteMapEditor = deleteMapEditor;
     window.resetMapSettings = resetMapSettings;
-    window.locateCurrentUser = locateCurrentUser;
     window.openDepartmentViewPrompt = openDepartmentViewPrompt;
     window.togglePendingDepartmentView = togglePendingDepartmentView;
     window.applyPendingDepartmentView = applyPendingDepartmentView;
