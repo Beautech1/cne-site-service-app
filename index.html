@@ -2562,6 +2562,29 @@
     }
 
 
+    /* Build AQ: separate pin notes/updates that never modify the main service order. */
+    .pin-notes-section {
+      margin-top: 10px;
+      border: 1px solid #d9e0e6;
+      border-radius: 8px;
+      padding: 9px 10px;
+      background: #f8fbfe;
+      color: #243447;
+      font-size: 12px;
+      line-height: 1.35;
+    }
+    .pin-note-row {
+      border-top: 1px solid #e6edf3;
+      margin-top: 7px;
+      padding-top: 7px;
+    }
+    .pin-note-row:first-of-type { border-top: 0; margin-top: 5px; padding-top: 0; }
+    .pin-note-meta { color:#607084; font-size:10px; margin-bottom:3px; }
+    .pin-note-text { white-space: pre-wrap; word-break: break-word; }
+    .pin-note-photo { display:block; width:auto; max-width:min(100%,260px); max-height:220px; object-fit:contain; border:1px solid #d9e0e6; border-radius:7px; background:#fff; margin-top:6px; }
+    .pin-note-button { background:#3f6f8f !important; }
+    #pinNoteModal .modal-body textarea { min-height:110px; }
+
     /* Build AD: compact Admin share-access tool. */
     .share-access-grid {
       display: grid;
@@ -2629,7 +2652,7 @@
 </head>
 <body>
 
-  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.11-AP</button>
+  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.11-AQ</button>
   <div class="floating-ui" id="floatingUi">
     <button class="mobile-ui-toggle" id="mobileUiToggle" type="button" onclick="toggleMobileUi()">
       <span class="mobile-ui-toggle-main">
@@ -3033,6 +3056,25 @@
   </div>
 
 
+  <div class="modal" id="pinNoteModal">
+    <div class="modal-header">Add Pin Note</div>
+    <div class="modal-body">
+      <div class="panel-note" style="padding:0;">This note is saved separately and does not change the original service order.</div>
+      <input id="pinNotePinId" type="hidden" value="">
+      <label>Your name / company
+        <input id="pinNoteAuthor" type="text" placeholder="Name or company">
+      </label>
+      <label>Note
+        <textarea id="pinNoteText" placeholder="Enter an update, question, arrival note, work status, or other information."></textarea>
+      </label>
+      <label class="photo-upload-button"><span class="photo-upload-icon">＋</span><span>Add optional photo<br><small class="photo-upload-help">One photo can be attached to this note.</small></span><input id="pinNotePhoto" type="file" accept="image/*" capture="environment"></label>
+    </div>
+    <div class="modal-actions">
+      <button class="action-btn secondary" onclick="closePinNoteModal()">Cancel</button>
+      <button class="action-btn" onclick="submitPinNote()">Save Note</button>
+    </div>
+  </div>
+
   <div class="panel" id="departmentSharePanel">
     <div class="panel-header">
       <span>Department View-Only Links</span>
@@ -3044,6 +3086,7 @@
       <div class="settings-row"><label>Department<select id="departmentShareDepartment"></select></label></div>
       <div class="settings-row"><label>Visible records<select id="departmentShareScope"><option value="active">Active pins only</option><option value="active_cleared">Active and cleared pins</option></select></label></div>
       <div class="settings-row full-row"><label class="settings-check"><input id="departmentShareAllowClear" type="checkbox"><span><b>Allow this link to clear active pins</b><br><small>The recipient can mark an active pin as cleared but still cannot add, edit, reassign, cancel, or access Admin.</small></span></label></div>
+      <div class="settings-row full-row"><label class="settings-check"><input id="departmentShareAllowNotes" type="checkbox"><span><b>Allow this link to add notes</b><br><small>The recipient can add a dated note and optional photo without changing the original service order.</small></span></label></div>
       <div class="admin-menu-section">
         <h3>Allowed map views</h3>
         <div class="export-actions" style="margin-top:0;margin-bottom:7px;"><button class="action-btn secondary" type="button" onclick="setAllDepartmentShareMaps(true)">Select All</button><button class="action-btn secondary" type="button" onclick="setAllDepartmentShareMaps(false)">Clear All</button></div>
@@ -3503,7 +3546,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.11-AP";
+    const APP_VERSION = "2026.07.11-AQ";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const DEPARTMENT_SHARE_CONFIG_KEY = "department_share_links";
@@ -3968,6 +4011,7 @@
         addPins: read("addPins", "can_add_pins", true),
         editPins: read("editPins", "can_edit_pins", true),
         clearPins: read("clearPins", "can_clear_pins", true),
+        addNotes: read("addNotes", "can_add_notes", true),
         printReports: read("printReports", "can_print_reports", true),
         viewAdmin: read("viewAdmin", "can_view_admin", true),
         ownPinsOutsidePrimary: read("ownPinsOutsidePrimary", "own_pins_outside_primary", false)
@@ -4122,7 +4166,7 @@
           department: deptKey, canViewAll: false, allowedDepartments: [deptKey],
           permissions: normalizeUserPermissions({
             viewActive: true, viewCleared: includeCleared, addPins: false, editPins: false,
-            clearPins: !!activeDepartmentShare.allowClear, printReports: true, viewAdmin: false, ownPinsOutsidePrimary: false
+            clearPins: !!activeDepartmentShare.allowClear, addNotes: !!activeDepartmentShare.allowNotes, printReports: true, viewAdmin: false, ownPinsOutsidePrimary: false
           }),
           allowedMapIds: normalizeAllowedMapIds(activeDepartmentShare.allowedMapIds)
         };
@@ -5250,6 +5294,7 @@
         allowedMapIds: normalizeAllowedMapIds(item && (item.allowedMapIds || item.allowed_map_ids || item.maps)),
         message: String(item && item.message || "").trim(),
         allowClear: !!(item && (item.allowClear === true || item.allow_clear === true || item.canClear === true)),
+        allowNotes: !!(item && (item.allowNotes === true || item.allow_notes === true || item.canAddNotes === true)),
         expiresAt: normalizeProfileExpiryDate(item && (item.expiresAt || item.expires_at)),
         enabled: !(item && item.enabled === false),
         createdAt: String(item && (item.createdAt || item.created_at) || "")
@@ -5293,7 +5338,8 @@
       if (statusFilter) statusFilter.value = "active";
       const banner = document.createElement("div");
       banner.className = "department-share-banner";
-      banner.textContent = (link.allowClear ? "View + clear access: " : "View only: ") + formatDepartmentLabel(selectedDepartmentView);
+      const shareAbilities = [link.allowClear ? "clear" : "", link.allowNotes ? "add notes" : ""].filter(Boolean);
+      banner.textContent = (shareAbilities.length ? "View + " + shareAbilities.join(" + ") + " access: " : "View only: ") + formatDepartmentLabel(selectedDepartmentView);
       document.body.appendChild(banner);
       return true;
     }
@@ -5338,9 +5384,12 @@
       const dept = formatDepartmentLabel(resolveDepartmentKeyAgainstSettings(item && item.department || ""));
       const ids = normalizeAllowedMapIds(item && item.allowedMapIds);
       const names = ids.length ? ids.map(id => { const view = getMapView(id); return view && view.name ? view.name : id; }).join(", ") : "All available maps";
-      const accessLine = item && item.allowClear
-        ? "You may view and clear active pins. You cannot add, edit, reassign, cancel, or access Admin."
-        : "This is view-only access. You cannot add, edit, reassign, clear, cancel, or access Admin.";
+      const abilities = [];
+      if (item && item.allowClear) abilities.push("clear active pins");
+      if (item && item.allowNotes) abilities.push("add notes");
+      const accessLine = abilities.length
+        ? "You may view pins and " + abilities.join(" and ") + ". You cannot add new pins, edit, reassign, cancel, or access Admin."
+        : "This is view-only access. You cannot add, edit, reassign, clear, cancel, add notes, or access Admin.";
       const template = "You can access the current {department} service pins without a sign-in code.\n\n{link}\n\nAllowed maps: {maps}\n\n" + accessLine;
       return template
         .replaceAll("{department}", dept || "department")
@@ -5363,6 +5412,7 @@
       Object.entries(fields).forEach(([id,value]) => { const el=document.getElementById(id); if(el) el.value=value; });
       const scope=document.getElementById("departmentShareScope"); if(scope) scope.value="active";
       const allowClear=document.getElementById("departmentShareAllowClear"); if(allowClear) allowClear.checked=false;
+      const allowNotes=document.getElementById("departmentShareAllowNotes"); if(allowNotes) allowNotes.checked=false;
       populateDepartmentShareDepartmentSelect();
       populateDepartmentShareMapGrid(ids);
       const department = String((document.getElementById("departmentShareDepartment")||{}).value||"");
@@ -5377,6 +5427,7 @@
       const set=(id,value)=>{const el=document.getElementById(id); if(el) el.value=value||"";};
       set("departmentShareEditingToken", item.token); set("departmentShareLabel", item.label); set("departmentShareDepartment", item.department); set("departmentShareScope", item.scope); set("departmentShareExpires", item.expiresAt);
       const allowClear=document.getElementById("departmentShareAllowClear"); if(allowClear) allowClear.checked=!!item.allowClear;
+      const allowNotes=document.getElementById("departmentShareAllowNotes"); if(allowNotes) allowNotes.checked=!!item.allowNotes;
       populateDepartmentShareMapGrid(item.allowedMapIds);
       const message=document.getElementById("departmentShareMessage"); if(message) message.value=item.message || getDepartmentShareDefaultMessage(item, "{link}");
       const button=document.getElementById("departmentShareSaveButton"); if(button) button.textContent="Save Link Changes";
@@ -5397,6 +5448,7 @@
         allowedMapIds,
         message: String((document.getElementById("departmentShareMessage") || {}).value || "").trim(),
         allowClear: !!((document.getElementById("departmentShareAllowClear") || {}).checked),
+        allowNotes: !!((document.getElementById("departmentShareAllowNotes") || {}).checked),
         expiresAt: String((document.getElementById("departmentShareExpires") || {}).value || ""),
         enabled: true
       };
@@ -7720,10 +7772,14 @@
       const printButton = pin.id
         ? '<button class="action-btn secondary" onclick="printPinPopupReport(' + pin.id + ')">Printable Preview</button>'
         : "";
+      const noteButton = pin.id && userCanAddPinNotes()
+        ? '<button class="action-btn pin-note-button" onclick="openPinNoteModal(' + pin.id + ')">Add note</button>'
+        : "";
 
       const actionRow = pin.id
         ? '<div class="pin-popup-actions">' +
             '<div class="pin-popup-actions-row">' + printButton + editButton + '</div>' +
+            (noteButton ? '<div class="pin-popup-actions-row">' + noteButton + '</div>' : '') +
             (clearButton ? '<div class="pin-popup-actions-row">' + clearButton + '</div>' : '') +
           '</div>'
         : "";
@@ -7749,6 +7805,7 @@
         (isCleared && pin.cleared_at ? "<br>Cleared: " + new Date(pin.cleared_at).toLocaleString() : (isCancelled ? "<br>Cancelled" : "")) +
         "</small>" +
         popupSmsControls +
+        (pin.id ? '<div data-pin-notes="' + escapeHtml(String(pin.id)) + '"><div class="pin-notes-section"><strong>Pin notes / updates</strong><div class="panel-note" style="padding:6px 0 0;">Loading notes...</div></div></div>' : '') +
         actionRow
       );
     }
@@ -7757,6 +7814,7 @@
       const marker = L.marker([pin.lat, pin.lng], { icon: makePinIcon(pin.category) }).addTo(userPinsLayer);
       marker.pinId = pin.id || null;
       marker.bindPopup(buildPopupHtml(pin), { maxWidth: 560, minWidth: 260 });
+      marker.on("popupopen", function(){ queuePinNotesRefresh(pin.id); });
       if (openPopup) marker.openPopup();
     }
 
@@ -7871,6 +7929,7 @@
       }
 
       floorPlanPopup.innerHTML = buildPopupHtml(pin);
+      queuePinNotesRefresh(pin.id);
       floorPlanPopup.style.display = "block";
       floorPlanPopup.scrollTop = 0;
 
@@ -9864,6 +9923,115 @@ function resetPinForm() {
     }
 
 
+    function userCanAddPinNotes() {
+      if (isReportViewOnlyMode() && !activeDepartmentShare) return false;
+      if (activeDepartmentShare) return !!activeDepartmentShare.allowNotes;
+      return userHasPermission("addNotes");
+    }
+
+    function getPinNoteAuthorDefault() {
+      if (activeDepartmentShare) return activeDepartmentShare.label || formatDepartmentLabel(activeDepartmentShare.department) || "Department link user";
+      return getSavedUserName() || getDefaultDeviceLabel() || ((getAccessProfile() || {}).label) || "User";
+    }
+
+    function openPinNoteModal(pinId) {
+      if (!userCanAddPinNotes()) return denyPermission("This access does not allow adding notes.");
+      const pin = allPins.find(item => String(item.id) === String(pinId));
+      if (!pin) return alert("That pin could not be found.");
+      const idEl=document.getElementById("pinNotePinId"); if(idEl) idEl.value=String(pin.id);
+      const author=document.getElementById("pinNoteAuthor"); if(author) author.value=getPinNoteAuthorDefault();
+      const text=document.getElementById("pinNoteText"); if(text) text.value="";
+      const photo=document.getElementById("pinNotePhoto"); if(photo) photo.value="";
+      const modal=document.getElementById("pinNoteModal"); if(modal) modal.classList.add("open");
+      const backdrop=document.getElementById("modalBackdrop"); if(backdrop) backdrop.classList.add("open");
+      setTimeout(()=>{ if(text) text.focus(); },50);
+    }
+
+    function closePinNoteModal() {
+      const modal=document.getElementById("pinNoteModal"); if(modal) modal.classList.remove("open");
+      const openModal=document.querySelector(".modal.open");
+      if(!openModal){ const backdrop=document.getElementById("modalBackdrop"); if(backdrop) backdrop.classList.remove("open"); }
+    }
+
+    async function submitPinNote() {
+      if (!userCanAddPinNotes()) return denyPermission("This access does not allow adding notes.");
+      const pinId=String((document.getElementById("pinNotePinId")||{}).value||"").trim();
+      const pin=allPins.find(item=>String(item.id)===pinId);
+      if(!pin) return alert("That pin could not be found.");
+      const note=String((document.getElementById("pinNoteText")||{}).value||"").trim();
+      if(!note) return alert("Enter a note before saving.");
+      const author=String((document.getElementById("pinNoteAuthor")||{}).value||"").trim() || getPinNoteAuthorDefault();
+      const input=document.getElementById("pinNotePhoto");
+      let photos=[];
+      try {
+        const files=Array.from((input&&input.files)||[]).slice(0,1);
+        if(files.length) photos=await uploadPhotoFiles(files);
+        const profile=getDeviceProfile();
+        const access=getAccessProfile()||{};
+        const payload={
+          pin_id: pin.id,
+          action: "note",
+          changed_by: author,
+          device_id: profile.device_id || null,
+          device_label: activeDepartmentShare ? (activeDepartmentShare.label || "Department share link") : (getDefaultDeviceLabel() || null),
+          user_agent: navigator.userAgent || null,
+          from_department: pin.category || null,
+          to_department: pin.category || null,
+          changes: {
+            note: { label: "Note", from: null, to: note },
+            note_photo_urls: { label: "Note photos", from: [], to: photos },
+            source: { label: "Source", from: null, to: activeDepartmentShare ? "department_share_link" : "signed_in_user" },
+            access_label: { label: "Access profile", from: null, to: access.label || "" }
+          },
+          snapshot_before: {},
+          snapshot_after: { pin_id: pin.id, department: pin.category, note, photo_urls: photos }
+        };
+        const {error}=await supabaseClient.from(PIN_CHANGE_LOG_TABLE).insert(payload);
+        if(error) throw error;
+        closePinNoteModal();
+        await refreshPinNotesForPin(pin.id);
+        setStatus("Note added to pin #"+pin.id+".");
+        alert("Note saved. The original service order was not changed.");
+      } catch(error) {
+        console.error("Could not save pin note", error);
+        alert("The note could not be saved. Check the app_pin_change_log permissions and photo storage setup.");
+      }
+    }
+
+    function getNoteTextFromRow(row) {
+      const c=row&&row.changes&&typeof row.changes==="object"?row.changes:{};
+      return String((c.note&&c.note.to)||"").trim();
+    }
+
+    function getNotePhotosFromRow(row) {
+      const c=row&&row.changes&&typeof row.changes==="object"?row.changes:{};
+      return normalizePhotoList(c.note_photo_urls&&c.note_photo_urls.to);
+    }
+
+    function buildPinNotesHtml(rows, title="Pin notes / updates") {
+      const notes=(rows||[]).filter(row=>String(row.action||"").toLowerCase()==="note");
+      if(!notes.length) return '<div class="pin-notes-section"><strong>'+escapeHtml(title)+'</strong><div class="panel-note" style="padding:6px 0 0;">No notes have been added.</div></div>';
+      const html=notes.map(row=>{
+        const photos=getNotePhotosFromRow(row);
+        const images=photos.map(url=>'<img class="pin-note-photo" src="'+escapeAttr(url)+'" alt="Note photo" onerror="this.style.display=\'none\'">').join("");
+        return '<div class="pin-note-row"><div class="pin-note-meta"><strong>'+escapeHtml(row.changed_by||"Unknown user")+'</strong> &bull; '+escapeHtml(formatDateTime(row.created_at))+'</div><div class="pin-note-text">'+escapeHtml(getNoteTextFromRow(row))+'</div>'+images+'</div>';
+      }).join("");
+      return '<div class="pin-notes-section"><strong>'+escapeHtml(title)+'</strong>'+html+'</div>';
+    }
+
+    async function refreshPinNotesForPin(pinId) {
+      const targets=document.querySelectorAll('[data-pin-notes="'+String(pinId)+'"]');
+      if(!targets.length) return;
+      const rows=await loadPinChangeHistory(pinId);
+      const html=buildPinNotesHtml(rows);
+      targets.forEach(target=>target.innerHTML=html);
+    }
+
+    function queuePinNotesRefresh(pinId) {
+      if(!pinId) return;
+      setTimeout(()=>refreshPinNotesForPin(pinId),25);
+    }
+
     function normalizeAuditValue(value) {
       if (Array.isArray(value)) return value;
       if (value === undefined) return null;
@@ -9947,7 +10115,11 @@ function resetPinForm() {
       if (!rows || !rows.length) {
         return '<div class="pin-change-history"><strong>' + escapeHtml(title) + '</strong><div class="panel-note" style="padding:6px 0 0;">No reassignment or edit history has been recorded yet.</div></div>';
       }
-      const items = rows.map(row => {
+      const changeRows = (rows || []).filter(row => String(row.action || "").toLowerCase() !== "note");
+      if (!changeRows.length) {
+        return '<div class="pin-change-history"><strong>' + escapeHtml(title) + '</strong><div class="panel-note" style="padding:6px 0 0;">No reassignment or edit history has been recorded yet.</div></div>';
+      }
+      const items = changeRows.map(row => {
         const changes = row.changes && typeof row.changes === "object" ? row.changes : {};
         const detailHtml = Object.entries(changes).map(([key, change]) => {
           const label = change && change.label ? change.label : key;
@@ -10008,6 +10180,7 @@ function resetPinForm() {
       const reportActionRow = (!options.print && pin.id && !reportViewOnly)
         ? '<div style="margin-top:12px; display:flex; gap:12px; flex-wrap:wrap; align-items:center; justify-content:flex-start;">' +
             (pinStatusForActions === "active" ? '<button class="action-btn clear-btn" onclick="clearPinFromReport(' + pin.id + ')">Clear Pin</button>' : '') +
+            (userCanAddPinNotes() ? '<button class="action-btn pin-note-button" onclick="openPinNoteModal(' + pin.id + ')">Add Note</button>' : '') +
             '<button class="action-btn secondary" onclick="openEditPinModalFromReport(' + pin.id + ')">' + (pinStatusForActions === "cleared" ? 'Admin Edit Cleared Pin' : 'Edit / Reassign / Cancel Pin') + '</button>' +
           '</div>'
         : '';
@@ -10034,6 +10207,7 @@ function resetPinForm() {
           mapSnapshotHtml +
           (reportedPhotos ? '<div style="margin-top:12px;">' + reportedPhotos + '</div>' : '') +
           (clearPhotos ? '<div style="margin-top:12px;">' + clearPhotos + '</div>' : '') +
+          (options.notesHtml || (pin.id ? '<div data-pin-notes="' + escapeHtml(String(pin.id)) + '"><div class="pin-notes-section"><strong>Pin notes / updates</strong><div class="panel-note" style="padding:6px 0 0;">Loading notes...</div></div></div>' : '')) +
           (options.changeHistoryHtml || (pin.id ? '<div data-pin-change-history="' + escapeHtml(String(pin.id)) + '"><div class="pin-change-history"><strong>Service order change history</strong><div class="panel-note" style="padding:6px 0 0;">Loading change history...</div></div></div>' : '')) +
           reportActionRow +
         '</div>'
@@ -10080,7 +10254,7 @@ function resetPinForm() {
         const timeText = getPinStatus(pin) === "cleared" && pin.cleared_at ? '<br><small>Cleared: ' + escapeHtml(formatDateTime(pin.cleared_at)) + '</small>' : '';
         const logName = getPinStatus(pin) === "cleared" ? 'Cleared History Log / All Pin Logs' : 'All Pin Logs';
         itemReportBody.innerHTML = '<div class="panel-note" style="background:#fff3cd; border:1px solid #ffe08a; border-radius:8px; padding:10px;"><strong>This report is already ' + escapeHtml(statusLower) + '.</strong><br>This item may have been removed from the active map or ' + escapeHtml(statusLower) + byText + '. It will remain available in the ' + logName + '.' + timeText + '</div>' + buildMiniReportHtml(pin);
-        refreshPinChangeHistoryForPin(pin.id);
+        refreshPinChangeHistoryForPin(pin.id); refreshPinNotesForPin(pin.id);
         itemReportModal.classList.add("open");
         modalBackdrop.classList.add("open");
         return;
@@ -10090,7 +10264,7 @@ function resetPinForm() {
         await ensureMapSnapshotForPin(pin);
       }
       itemReportBody.innerHTML = buildMiniReportHtml(pin);
-      refreshPinChangeHistoryForPin(pin.id);
+      refreshPinChangeHistoryForPin(pin.id); refreshPinNotesForPin(pin.id);
       itemReportModal.classList.add("open");
       modalBackdrop.classList.add("open");
     }
@@ -10164,6 +10338,7 @@ function resetPinForm() {
           if (Number.isFinite(lat) && Number.isFinite(lng)) {
             map.setView([lat, lng], Math.max(map.getZoom(), 18));
             L.popup({ maxWidth: 560, minWidth: 260 }).setLatLng([lat, lng]).setContent(buildPopupHtml(pin)).openOn(map);
+            queuePinNotesRefresh(pin.id);
           }
         }
       }, 180);
@@ -10734,7 +10909,7 @@ function closeSmsFallbackModal() {
     }
 
 
-    function exportAllPinDataCsv() {
+    async function exportAllPinDataCsv() {
       const exportPins = Array.isArray(allPins) ? allPins.slice() : [];
       if (!exportPins.length) {
         alert("There are no pin records to export yet.");
@@ -10783,8 +10958,36 @@ function closeSmsFallbackModal() {
         "photo_url",
         "photo_urls",
         "clear_photo_urls",
-        "map_snapshot_url"
+        "map_snapshot_url",
+        "pin_notes_history"
       ];
+
+      let noteRows = [];
+      try {
+        const ids = exportPins.map(pin => pin.id).filter(Boolean);
+        if (ids.length && supabaseClient) {
+          const { data, error } = await supabaseClient.from(PIN_CHANGE_LOG_TABLE)
+            .select("pin_id, action, changed_by, changes, created_at")
+            .in("pin_id", ids)
+            .eq("action", "note")
+            .order("created_at", { ascending: true });
+          if (error) throw error;
+          noteRows = Array.isArray(data) ? data : [];
+        }
+      } catch (error) {
+        console.warn("Could not add notes to all-pin CSV export", error);
+      }
+      const notesByPin = new Map();
+      noteRows.forEach(row => {
+        const key=String(row.pin_id||"");
+        if(!notesByPin.has(key)) notesByPin.set(key,[]);
+        notesByPin.get(key).push({
+          date: row.created_at || "",
+          author: row.changed_by || "",
+          note: getNoteTextFromRow(row),
+          photos: getNotePhotosFromRow(row)
+        });
+      });
 
       const sortedPins = exportPins.sort((a, b) => {
         const aTime = new Date(a.created_at || 0).getTime() || 0;
@@ -10840,7 +11043,8 @@ function closeSmsFallbackModal() {
             csvEscape(pin.photo_url || ""),
             csvEscape(JSON.stringify(getPinPhotos(pin))),
             csvEscape(JSON.stringify(getClearPhotos(pin))),
-            csvEscape(pin.map_snapshot_url || "")
+            csvEscape(pin.map_snapshot_url || ""),
+            csvEscape(JSON.stringify(notesByPin.get(String(pin.id)) || []))
           ].join(",");
         })
       ];
@@ -11294,6 +11498,9 @@ ${rows.map(pin => `
     window.printClearedLogs = printClearedLogs;
     window.exportClearLogCsv = exportClearLogCsv;
     window.exportAllPinDataCsv = exportAllPinDataCsv;
+    window.openPinNoteModal = openPinNoteModal;
+    window.closePinNoteModal = closePinNoteModal;
+    window.submitPinNote = submitPinNote;
 
     window.addEventListener("resize", function() { positionFloorPopup(); updateDesktopTextNotificationNotice(); });
     window.addEventListener("orientationchange", function() {
