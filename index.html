@@ -2645,7 +2645,7 @@
 </head>
 <body>
 
-  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.12-BD</button>
+  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.12-BE</button>
   <div class="floating-ui" id="floatingUi">
     <button class="mobile-ui-toggle" id="mobileUiToggle" type="button" onclick="toggleMobileUi()">
       <span class="mobile-ui-toggle-main">
@@ -3533,7 +3533,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.12-BD";
+    const APP_VERSION = "2026.07.12-BE";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const DEPARTMENT_SHARE_CONFIG_KEY = "department_share_links";
@@ -8593,32 +8593,85 @@
     async function buildPrintableFloorPlanSvg(view, pins) {
       const sourceUrl = view.image || floorPlanImage.src;
       const imageSrc = await fetchImageAsDataUrl(sourceUrl) || sourceUrl;
-      const dims = await loadImageDimensions(imageSrc || sourceUrl);
-      const width = Math.max(1, Number(dims && dims.width) || 1600);
-      const height = Math.max(1, Number(dims && dims.height) || 900);
+      const img = await loadImageForCanvas(imageSrc || sourceUrl);
+      const width = Math.max(1, img.naturalWidth || img.width || 1600);
+      const height = Math.max(1, img.naturalHeight || img.height || 900);
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, width, height);
+      ctx.drawImage(img, 0, 0, width, height);
+
       const markerRadius = Math.max(10, Math.round(Math.min(width, height) * 0.01));
       const strokeWidth = Math.max(3, Math.round(markerRadius * 0.24));
       const labelFont = Math.max(16, Math.round(markerRadius * 1.1));
-      const labelPadX = Math.max(7, Math.round(markerRadius * 0.55));
-      const labelPadY = Math.max(4, Math.round(markerRadius * 0.35));
       const labelOffsetX = markerRadius + 8;
-      const dots = pins.map(pin => {
+
+      pins.forEach(pin => {
         const xPercent = Number(pin.x_percent ?? pin.lng);
         const yPercent = Number(pin.y_percent ?? pin.lat);
-        if (!Number.isFinite(xPercent) || !Number.isFinite(yPercent)) return "";
+        if (!Number.isFinite(xPercent) || !Number.isFinite(yPercent)) return;
         const x = Math.max(0, Math.min(width, (xPercent / 100) * width));
         const y = Math.max(0, Math.min(height, (yPercent / 100) * height));
         const color = getDepartmentColor(pin.category) || "#d32f2f";
         const reportId = `#${String(pin.id || "")}`;
-        const title = pin.title || "Pin";
         const direction = getPinDirection(pin);
-        const arrowLength = markerRadius * 2.6;
-        const arrowSvg = direction === null ? "" : `<g transform="translate(${x} ${y}) rotate(${direction})"><line x1="0" y1="${-markerRadius * .5}" x2="0" y2="${-arrowLength}" stroke="#111" stroke-width="${Math.max(5, strokeWidth)}" stroke-linecap="round" paint-order="stroke"/><polygon points="0,${-arrowLength-markerRadius*.7} ${-markerRadius*.65},${-arrowLength+markerRadius*.35} ${markerRadius*.65},${-arrowLength+markerRadius*.35}" fill="#111" stroke="#fff" stroke-width="${Math.max(3, strokeWidth*.7)}"/></g>`;
-        return `<g>${arrowSvg}<circle cx="${x}" cy="${y}" r="${markerRadius}" fill="${escapeAttr(color)}" stroke="#ffffff" stroke-width="${strokeWidth}" /><text x="${x + labelOffsetX}" y="${y + 1}" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="${labelFont}" font-weight="900" fill="#111111" stroke="#ffffff" stroke-width="${Math.max(3, Math.round(labelFont * 0.22))}" paint-order="stroke fill">${escapeHtml(reportId)}</text><title>${escapeHtml(reportId + ' ' + title)}</title></g>`;
-      }).join("");
-      const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}"><image href="${escapeAttr(imageSrc)}" x="0" y="0" width="${width}" height="${height}" preserveAspectRatio="none"/>${dots}</svg>`;
-      const encoded = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
-      return `<img src="${encoded}" alt="${escapeAttr(view.name || "Floor plan")}" style="display:block;max-width:100%;max-height:72vh;width:auto;height:auto">`;
+        const arrowLength = markerRadius * 2.9;
+
+        if (direction !== null) {
+          ctx.save();
+          ctx.translate(x, y);
+          ctx.rotate((direction * Math.PI) / 180);
+          ctx.strokeStyle = "#ffffff";
+          ctx.lineWidth = Math.max(8, strokeWidth * 1.9);
+          ctx.lineCap = "round";
+          ctx.beginPath();
+          ctx.moveTo(0, -markerRadius * 0.55);
+          ctx.lineTo(0, -arrowLength);
+          ctx.stroke();
+          ctx.fillStyle = "#ffffff";
+          ctx.beginPath();
+          ctx.moveTo(0, -arrowLength - markerRadius * 0.72);
+          ctx.lineTo(-markerRadius * 0.78, -arrowLength + markerRadius * 0.42);
+          ctx.lineTo(markerRadius * 0.78, -arrowLength + markerRadius * 0.42);
+          ctx.closePath();
+          ctx.fill();
+          ctx.strokeStyle = "#111111";
+          ctx.lineWidth = Math.max(4, strokeWidth * 1.1);
+          ctx.beginPath();
+          ctx.moveTo(0, -markerRadius * 0.55);
+          ctx.lineTo(0, -arrowLength);
+          ctx.stroke();
+          ctx.fillStyle = "#111111";
+          ctx.beginPath();
+          ctx.moveTo(0, -arrowLength - markerRadius * 0.72);
+          ctx.lineTo(-markerRadius * 0.62, -arrowLength + markerRadius * 0.34);
+          ctx.lineTo(markerRadius * 0.62, -arrowLength + markerRadius * 0.34);
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+        }
+
+        ctx.save();
+        ctx.fillStyle = color;
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = strokeWidth;
+        ctx.beginPath();
+        ctx.arc(x, y, markerRadius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.font = `900 ${labelFont}px Arial`;
+        ctx.lineWidth = Math.max(3, Math.round(labelFont * 0.22));
+        ctx.strokeStyle = "#ffffff";
+        ctx.fillStyle = "#111111";
+        ctx.strokeText(reportId, x + labelOffsetX, y + 1);
+        ctx.fillText(reportId, x + labelOffsetX, y + 1);
+        ctx.restore();
+      });
+
+      return `<img src="${canvas.toDataURL("image/png", 1)}" alt="${escapeAttr(view.name || "Floor plan")}" style="display:block;max-width:100%;max-height:72vh;width:auto;height:auto">`;
     }
 
     function buildPrintablePinDetails(pins) {
