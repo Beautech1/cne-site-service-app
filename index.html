@@ -2594,7 +2594,7 @@
 </head>
 <body>
 
-  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.11-AI</button>
+  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.11-AJ</button>
   <div class="floating-ui" id="floatingUi">
     <button class="mobile-ui-toggle" id="mobileUiToggle" type="button" onclick="toggleMobileUi()">
       <span class="mobile-ui-toggle-main">
@@ -3435,7 +3435,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.11-AI";
+    const APP_VERSION = "2026.07.11-AJ";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const SIGN_IN_ACCESS_TABLE = "app_sign_in_access";
@@ -4709,6 +4709,13 @@
       const boxes=Array.from(document.querySelectorAll('.sign-in-map-access'));
       const checked=boxes.filter(el=>el.checked).map(el=>el.value);
       return checked.length === boxes.length ? [] : checked;
+    }
+
+    function departmentNamesEquivalent(left, right) {
+      const leftKey = normalizeDepartmentKey(left || "");
+      const rightKey = normalizeDepartmentKey(right || "");
+      if (!leftKey || !rightKey) return false;
+      return leftKey === rightKey;
     }
 
     function getOfficialDepartmentNames() {
