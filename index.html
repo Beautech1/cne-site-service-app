@@ -1402,6 +1402,36 @@
       background: #eef7ff;
     }
 
+    .department-view-btn {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+    }
+
+    .department-view-check {
+      width: 18px;
+      height: 18px;
+      border: 2px solid #8da2b5;
+      border-radius: 4px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: none;
+      background: #fff;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 900;
+    }
+
+    .department-view-btn.selected .department-view-check {
+      background: #005a9c;
+      border-color: #005a9c;
+    }
+
+    .department-view-btn.selected .department-view-check::after {
+      content: "✓";
+    }
+
     @media (max-width: 520px) {
       .department-view-grid {
         grid-template-columns: 1fr;
@@ -3068,11 +3098,12 @@
   <div class="modal" id="departmentViewModal">
     <div class="modal-header">Choose Your Department View</div>
     <div class="modal-body">
-      <div class="panel-note" style="padding-top:0;">Choose your department default view for this device. Department sign-in codes are limited to their assigned department.</div>
+      <div class="panel-note" style="padding-top:0;">Select one or more departments to display. Only departments allowed by this sign-in profile are available.</div>
       <div class="department-view-grid" id="departmentViewOptions"></div>
     </div>
     <div class="modal-actions">
-      <button class="action-btn secondary" onclick="closeDepartmentViewPrompt()">Close</button>
+      <button class="action-btn secondary" onclick="closeDepartmentViewPrompt()">Cancel</button>
+      <button class="action-btn" onclick="applyPendingDepartmentView()">Apply View</button>
     </div>
   </div>
 
@@ -3114,7 +3145,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.11-W";
+    const APP_VERSION = "2026.07.11-X";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const SIGN_IN_ACCESS_TABLE = "app_sign_in_access";
@@ -3179,6 +3210,7 @@
     const activeClearRequests = new Set();
     let pendingEditPinId = null;
     let selectedDepartmentView = localStorage.getItem(DEPARTMENT_VIEW_STORAGE_KEY) || "";
+    let pendingDepartmentViewKeys = new Set();
     let currentMapId = localStorage.getItem(CURRENT_MAP_STORAGE_KEY) || ((mapViews[0] && mapViews[0].id) || DEFAULT_MAP_VIEWS[0].id);
 
     let supabaseClient = null;
@@ -3414,22 +3446,28 @@
     }
 
     function getDepartmentViewName(value) {
-      const view = isValidDepartmentView(value) ? value : "all";
-      if (view === "all") return "All Departments";
-      const dept = departments.find(item => item.key === view);
-      return dept ? dept.name : formatCategoryLabel(view);
+      const keys = parseDepartmentViewKeys(value);
+      if (!keys.length) return "No Departments";
+      const allowedCount = getDepartmentsAvailableForDepartmentView().length;
+      if (String(value || "") === "all" || (allowedCount > 1 && keys.length === allowedCount)) {
+        return "All Departments";
+      }
+      const names = keys.map(key => {
+        const dept = departments.find(item => item.key === key);
+        return dept ? dept.name : formatCategoryLabel(key);
+      });
+      return names.join(", ");
     }
 
     function updateHeaderViewSummary(activeCountOverride) {
       if (!headerViewSummary) return;
       const selected = isValidDepartmentView(selectedDepartmentView) ? selectedDepartmentView : "all";
+      const selectedKeys = parseDepartmentViewKeys(selected);
       const departmentName = getDepartmentViewName(selected);
       let activeCount = activeCountOverride;
       if (!Number.isFinite(Number(activeCount))) {
         const activePins = getActivePinsForAllMaps();
-        activeCount = selected === "all"
-          ? activePins.length
-          : activePins.filter(pin => (pin.category || "general") === selected).length;
+        activeCount = activePins.filter(pin => selectedKeys.includes(normalizeAccessDepartmentKey(pin.category || "general"))).length;
       }
       const activeLabel = Number(activeCount) === 1 ? "active" : "active";
       headerViewSummary.textContent = `${departmentName} • ${Number(activeCount) || 0} ${activeLabel}`;
@@ -5975,9 +6013,6 @@
 
     function getAllowedDepartmentViewOptions() {
       const visibleDepartments = getDepartmentsAvailableForDepartmentView();
-      // A multi-department profile may view all of its permitted departments together,
-      // or switch to any one permitted department. "All" never expands access beyond
-      // the departments already allowed by the sign-in profile.
       const canUseCombinedView = currentUserCanViewAllDepartments() || visibleDepartments.length > 1;
       return [
         ...(canUseCombinedView ? [{ key: "all", name: "View All Departments" }] : []),
@@ -5985,32 +6020,91 @@
       ];
     }
 
-    function isValidDepartmentView(value) {
-      const key = normalizeAccessDepartmentKey(value || "");
-      const visibleDepartments = getDepartmentsAvailableForDepartmentView();
-      if (key === "all") {
-        return currentUserCanViewAllDepartments() || visibleDepartments.length > 1;
+    function parseDepartmentViewKeys(value = selectedDepartmentView) {
+      const normalized = String(value || "").trim();
+      const allowed = getDepartmentsAvailableForDepartmentView().map(dept => dept.key);
+      if (normalized === "all") return [...allowed];
+      if (normalized.startsWith("multi:")) {
+        return normalized.slice(6).split("|")
+          .map(normalizeAccessDepartmentKey)
+          .filter(key => allowed.includes(key));
       }
-      return visibleDepartments.some(dept => dept.key === key);
+      const single = normalizeAccessDepartmentKey(normalized);
+      return allowed.includes(single) ? [single] : [];
+    }
+
+    function encodeDepartmentViewKeys(keys) {
+      const allowed = getDepartmentsAvailableForDepartmentView().map(dept => dept.key);
+      const clean = [...new Set((keys || []).map(normalizeAccessDepartmentKey))]
+        .filter(key => allowed.includes(key));
+      if (!clean.length) return allowed[0] || "";
+      if (clean.length === allowed.length && allowed.length > 1) return "all";
+      if (clean.length === 1) return clean[0];
+      return "multi:" + clean.join("|");
+    }
+
+    function isValidDepartmentView(value) {
+      const allowed = getDepartmentsAvailableForDepartmentView().map(dept => dept.key);
+      if (String(value || "") === "all") return allowed.length > 0;
+      const selected = parseDepartmentViewKeys(value);
+      return selected.length > 0;
+    }
+
+    function isDepartmentInSelectedView(category) {
+      const selected = parseDepartmentViewKeys();
+      return selected.includes(normalizeAccessDepartmentKey(category || "general"));
+    }
+
+    function getSingleSelectedDepartment() {
+      const selected = parseDepartmentViewKeys();
+      return selected.length === 1 ? selected[0] : "";
     }
 
     function buildDepartmentViewOptions() {
       if (!departmentViewOptions) return;
-      const options = getAllowedDepartmentViewOptions();
-      const selectedKey = isValidDepartmentView(selectedDepartmentView) ? selectedDepartmentView : (options[0] ? options[0].key : "");
+      const departmentsAvailable = getDepartmentsAvailableForDepartmentView();
+      const allKeys = departmentsAvailable.map(dept => dept.key);
+      const allSelected = allKeys.length > 0 && allKeys.every(key => pendingDepartmentViewKeys.has(key));
+
+      const options = [
+        ...(allKeys.length > 1 ? [{ key: "all", name: "View All Departments", selected: allSelected }] : []),
+        ...departmentsAvailable.map(dept => ({
+          key: dept.key,
+          name: dept.name,
+          selected: pendingDepartmentViewKeys.has(dept.key)
+        }))
+      ];
+
       departmentViewOptions.innerHTML = options.map(option => (
-        `<button type="button" class="department-view-btn${selectedKey === option.key ? " selected" : ""}" onclick="setDepartmentView('${escapeHtml(option.key)}', true)">${escapeHtml(option.name)}</button>`
+        `<button type="button" class="department-view-btn${option.selected ? " selected" : ""}" onclick="togglePendingDepartmentView('${escapeHtml(option.key)}')">` +
+          `<span class="department-view-check"></span><span>${escapeHtml(option.name)}</span>` +
+        `</button>`
       )).join("");
+    }
+
+    function togglePendingDepartmentView(key) {
+      const allowed = getDepartmentsAvailableForDepartmentView().map(dept => dept.key);
+      if (key === "all") {
+        const allSelected = allowed.length > 0 && allowed.every(item => pendingDepartmentViewKeys.has(item));
+        pendingDepartmentViewKeys = allSelected ? new Set() : new Set(allowed);
+      } else {
+        if (pendingDepartmentViewKeys.has(key)) pendingDepartmentViewKeys.delete(key);
+        else pendingDepartmentViewKeys.add(key);
+      }
+      buildDepartmentViewOptions();
     }
 
     function openDepartmentViewPrompt(firstOpen = false) {
       if (!departmentViewModal || !departmentViewBackdrop) return;
+      pendingDepartmentViewKeys = new Set(parseDepartmentViewKeys());
+      if (!pendingDepartmentViewKeys.size) {
+        const allowed = getDepartmentsAvailableForDepartmentView().map(dept => dept.key);
+        if (allowed[0]) pendingDepartmentViewKeys.add(allowed[0]);
+      }
       buildDepartmentViewOptions();
       departmentViewModal.classList.add("open");
       departmentViewBackdrop.classList.add("open");
-      if (firstOpen) {
-        setStatus("Choose a department view to start.");
-      }
+      if (firstOpen) setStatus("Choose one or more department views to start.");
     }
 
     function closeDepartmentViewPrompt() {
@@ -6018,12 +6112,20 @@
       if (departmentViewBackdrop) departmentViewBackdrop.classList.remove("open");
     }
 
+    function applyPendingDepartmentView() {
+      if (!pendingDepartmentViewKeys.size) {
+        alert("Select at least one department.");
+        return;
+      }
+      setDepartmentView(encodeDepartmentViewKeys([...pendingDepartmentViewKeys]), true);
+    }
+
     function setDepartmentView(value, saveChoice = true) {
-      const options = getAllowedDepartmentViewOptions();
-      const fallback = options[0] ? options[0].key : (currentUserCanViewAllDepartments() ? "all" : getAssignedDepartmentKey());
-      const view = isValidDepartmentView(value) ? normalizeAccessDepartmentKey(value) : fallback;
+      const allowed = getDepartmentsAvailableForDepartmentView().map(dept => dept.key);
+      const fallback = allowed[0] || "";
+      const view = isValidDepartmentView(value) ? value : fallback;
       selectedDepartmentView = view;
-      if (categoryFilter) categoryFilter.value = view;
+      if (categoryFilter) categoryFilter.value = getSingleSelectedDepartment() || "all";
       if (saveChoice) localStorage.setItem(DEPARTMENT_VIEW_STORAGE_KEY, view);
       updateCurrentViewDisplay();
       closeDepartmentViewPrompt();
@@ -6237,27 +6339,26 @@
       if (!legendBody) return;
 
       const allowedDepartments = getDepartmentsAvailableForDepartmentView();
-      const selected = isValidDepartmentView(selectedDepartmentView) ? selectedDepartmentView : "all";
+      const selectedKeys = parseDepartmentViewKeys();
       const statusValue = statusFilter ? statusFilter.value : "active";
 
       const visibleDepartmentKeys = new Set(
         (Array.isArray(allPins) ? allPins : [])
           .filter(pin => {
             const statusMatch = statusValue === "all" || getPinStatus(pin) === statusValue;
-            const departmentMatch = selected === "all" || (pin.category || "general") === selected;
+            const departmentMatch = selectedKeys.includes(normalizeAccessDepartmentKey(pin.category || "general"));
             const mapMatch = pinBelongsToMap(pin, currentMapId);
             return statusMatch && departmentMatch && mapMatch;
           })
-          .map(pin => pin.category || "general")
+          .map(pin => normalizeAccessDepartmentKey(pin.category || "general"))
       );
 
-      let legendDepartments = selected === "all"
-        ? allowedDepartments.filter(dept => visibleDepartmentKeys.has(dept.key))
-        : allowedDepartments.filter(dept => dept.key === selected);
+      let legendDepartments = allowedDepartments.filter(
+        dept => selectedKeys.includes(dept.key) && visibleDepartmentKeys.has(dept.key)
+      );
 
-      // A selected department should remain identifiable even when it currently has no visible pins.
-      if (!legendDepartments.length && selected !== "all") {
-        legendDepartments = allowedDepartments.filter(dept => dept.key === selected);
+      if (!legendDepartments.length && selectedKeys.length === 1) {
+        legendDepartments = allowedDepartments.filter(dept => dept.key === selectedKeys[0]);
       }
 
       if (!legendDepartments.length) {
@@ -6995,7 +7096,7 @@
       if (!activeCountCheck) return;
       const list = Array.isArray(filteredPins) ? filteredPins : [];
       const activeVisible = list.filter(pin => getPinStatus(pin) === "active").length;
-      const deptName = categoryValue === "all" ? "All Departments" : getDepartmentViewName(categoryValue);
+      const deptName = getDepartmentViewName(categoryValue);
       const statusText = statusValue === "active" ? `${activeVisible} active visible` : `${activeVisible} active in view`;
       activeCountCheck.textContent = `${deptName} • ${statusText}`;
       activeCountCheck.title = `${deptName}: ${activeVisible} active pin${activeVisible === 1 ? "" : "s"} visible on ${getMapView(currentMapId).name}`;
@@ -7004,6 +7105,7 @@
     function applyFilters() {
       const statusValue = statusFilter.value;
       const categoryValue = isValidDepartmentView(selectedDepartmentView) ? selectedDepartmentView : "all";
+      const selectedDepartmentKeys = parseDepartmentViewKeys(categoryValue);
 
       userPinsLayer.clearLayers();
       if (floorPlanPinLayer) floorPlanPinLayer.innerHTML = "";
@@ -7019,9 +7121,9 @@
           statusValue === "all" ||
           pinStatus === statusValue;
 
-        const categoryMatch =
-          categoryValue === "all" ||
-          (pin.category || "general") === categoryValue;
+        const categoryMatch = selectedDepartmentKeys.includes(
+          normalizeAccessDepartmentKey(pin.category || "general")
+        );
 
         const mapMatch = pinBelongsToMap(pin, currentMapId);
 
@@ -7915,8 +8017,9 @@ function resetPinForm() {
       } else {
         pinLocationNote.textContent = "Map location selected. You can now save the pin.";
       }
-      if (selectedDepartmentView && selectedDepartmentView !== "all" && isDepartmentAvailableForNewPin(selectedDepartmentView)) {
-        pinCategoryInput.value = selectedDepartmentView;
+      const singleSelectedDepartment = getSingleSelectedDepartment();
+      if (singleSelectedDepartment && isDepartmentAvailableForNewPin(singleSelectedDepartment)) {
+        pinCategoryInput.value = singleSelectedDepartment;
       }
       onPinDepartmentChange();
       const pinInstructionsDetails = document.getElementById("pinInstructionsDetails");
@@ -9645,6 +9748,8 @@ ${rows.map(pin => `
     window.deleteMapEditor = deleteMapEditor;
     window.resetMapSettings = resetMapSettings;
     window.openDepartmentViewPrompt = openDepartmentViewPrompt;
+    window.togglePendingDepartmentView = togglePendingDepartmentView;
+    window.applyPendingDepartmentView = applyPendingDepartmentView;
     window.setDepartmentView = setDepartmentView;
     window.saveProfilesEditor = saveProfilesEditor;
     window.resetProfilesSettings = resetProfilesSettings;
