@@ -2655,7 +2655,7 @@
 </head>
 <body>
 
-  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.11-AT</button>
+  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.11-AU</button>
   <div class="floating-ui" id="floatingUi">
     <button class="mobile-ui-toggle" id="mobileUiToggle" type="button" onclick="toggleMobileUi()">
       <span class="mobile-ui-toggle-main">
@@ -3549,7 +3549,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.11-AT";
+    const APP_VERSION = "2026.07.11-AU";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const DEPARTMENT_SHARE_CONFIG_KEY = "department_share_links";
@@ -7776,7 +7776,7 @@
         ? '<button class="action-btn secondary" onclick="printPinPopupReport(' + pin.id + ')">Printable Preview</button>'
         : "";
       const noteButton = pin.id && userCanAddPinNotes()
-        ? '<button class="action-btn pin-note-button" onclick="openPinNoteModal(' + JSON.stringify(String(pin.id)) + ')">Add note</button>'
+        ? '<button type="button" class="action-btn pin-note-button" data-pin-note-id="' + escapeHtml(String(pin.id)) + '" onclick="openPinNoteModalFromButton(this); return false;">Add Note</button>'
         : "";
 
       const actionRow = pin.id
@@ -11535,6 +11535,16 @@ ${rows.map(pin => `
     window.printClearedLogs = printClearedLogs;
     window.exportClearLogCsv = exportClearLogCsv;
     window.exportAllPinDataCsv = exportAllPinDataCsv;
+    // Build AU: robust delegated fallback for dynamically generated Add Note buttons.
+    document.addEventListener("click", function(event) {
+      const button = event.target && event.target.closest ? event.target.closest(".pin-note-button") : null;
+      if (!button) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const pinId = button.getAttribute("data-pin-note-id");
+      if (pinId) openPinNoteModal(pinId);
+    }, true);
+
     window.openPinNoteModal = openPinNoteModal;
     window.closePinNoteModal = closePinNoteModal;
     window.submitPinNote = submitPinNote;
