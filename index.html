@@ -343,6 +343,7 @@
 
     .direction-marker-wrap { position: relative; width: 42px; height: 42px; }
     .direction-marker-dot { position:absolute; left:13px; top:13px; width:16px; height:16px; border:2px solid #fff; border-radius:50%; box-shadow:0 0 6px rgba(0,0,0,.4); box-sizing:border-box; z-index:2; }
+    .pin-info-badge{position:absolute;right:1px;bottom:1px;width:15px;height:15px;border-radius:50%;background:#005a9c;color:#fff;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4);font:900 10px/11px Arial;display:flex;align-items:center;justify-content:center;z-index:4;box-sizing:border-box}.floor-info-badge{position:absolute;right:-9px;bottom:-9px;width:16px;height:16px;border-radius:50%;background:#005a9c;color:#fff;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4);font:900 10px/12px Arial;display:flex;align-items:center;justify-content:center;z-index:10;box-sizing:border-box;pointer-events:none}
     .direction-marker-arrow { position:absolute; left:18px; top:0; width:6px; height:24px; transform-origin:50% 21px; z-index:1; }
     .direction-marker-arrow::before { content:""; position:absolute; left:1px; top:7px; width:4px; height:17px; border-radius:999px; background:#111; box-shadow:0 0 0 2px #fff; }
     .direction-marker-arrow::after { content:""; position:absolute; left:-4px; top:0; width:0; height:0; border-left:7px solid transparent; border-right:7px solid transparent; border-bottom:12px solid #111; filter:drop-shadow(0 0 1px #fff); }
@@ -2645,7 +2646,7 @@
 </head>
 <body>
 
-  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.12-BF</button>
+  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.12-BG</button>
   <div class="floating-ui" id="floatingUi">
     <button class="mobile-ui-toggle" id="mobileUiToggle" type="button" onclick="toggleMobileUi()">
       <span class="mobile-ui-toggle-main">
@@ -3286,6 +3287,10 @@
       <label>Title
         <select id="pinTitleInput"></select>
       </label>
+      <label>Marker indicator
+        <select id="pinMarkerStyleInput"><option value="dot">Standard dot</option><option value="info">Info / notes indicator</option></select>
+        <small style="color:#607084;font-weight:normal;">Use for notes, instructions, or items needing extra attention.</small>
+      </label>
       <label>Direction arrow (optional)
         <select id="pinDirectionInput">
           <option value="">No arrow — standard dot</option>
@@ -3394,6 +3399,9 @@
       </label>
       <label>Title
         <select id="editPinTitleInput"></select>
+      </label>
+      <label>Marker indicator
+        <select id="editPinMarkerStyleInput"><option value="dot">Standard dot</option><option value="info">Info / notes indicator</option></select>
       </label>
       <label>Direction arrow (optional)
         <select id="editPinDirectionInput">
@@ -3533,7 +3541,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.12-BF";
+    const APP_VERSION = "2026.07.12-BG";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const DEPARTMENT_SHARE_CONFIG_KEY = "department_share_links";
@@ -6814,6 +6822,8 @@
       if (editPinDescriptionInput) editPinDescriptionInput.value = pin.description || "";
       if (editPinInstallDateInput) editPinInstallDateInput.value = pin.install_date ? String(pin.install_date).slice(0, 10) : "";
       if (editPinRemovalDateInput) editPinRemovalDateInput.value = pin.removal_date ? String(pin.removal_date).slice(0, 10) : "";
+      const editMarkerStyleInput = document.getElementById("editPinMarkerStyleInput");
+      if (editMarkerStyleInput) editMarkerStyleInput.value = pin.marker_style === "info" ? "info" : "dot";
       const editDirectionInput = document.getElementById("editPinDirectionInput");
       if (editDirectionInput) editDirectionInput.value = getPinDirection(pin) === null ? "" : String(getPinDirection(pin));
       populateEditProfileDropdowns(pin.reported_by || "", pin.cleared_by || "");
@@ -6857,6 +6867,8 @@
       const clearComment = editPinClearCommentInput ? editPinClearCommentInput.value.trim() : "";
       const installDate = editPinInstallDateInput && editPinInstallDateInput.value ? editPinInstallDateInput.value : null;
       const removalDate = editPinRemovalDateInput && editPinRemovalDateInput.value ? editPinRemovalDateInput.value : null;
+      const editMarkerStyleInput = document.getElementById("editPinMarkerStyleInput");
+      const markerStyle = editMarkerStyleInput && editMarkerStyleInput.value === "info" ? "info" : "dot";
       const editDirectionInput = document.getElementById("editPinDirectionInput");
       const directionAngle = editDirectionInput && editDirectionInput.value !== "" ? Number(editDirectionInput.value) : null;
 
@@ -6924,6 +6936,7 @@
         install_date: installDate,
         removal_date: removalDate,
         direction_angle: directionAngle,
+        marker_style: markerStyle,
         ...(status === "cleared" ? {
           cleared_device_id: getDeviceProfile().device_id,
           cleared_device_label: getDefaultDeviceLabel(),
@@ -7895,10 +7908,10 @@
     function makeDirectionalPinIcon(pin) {
       const color = getDepartmentColor(pin.category) || "#d32f2f";
       const angle = getPinDirection(pin);
-      if (angle === null) return makePinIcon(pin.category);
+      if (angle === null) { if (pin.marker_style !== "info") return makePinIcon(pin.category); return L.divIcon({className:"",html:`<div class="direction-marker-wrap"><span class="direction-marker-dot" style="background:${escapeAttr(color)}"></span><span class="pin-info-badge">i</span></div>`,iconSize:[42,42],iconAnchor:[21,21],popupAnchor:[0,-20]}); }
       return L.divIcon({
         className: "",
-        html: `<div class="direction-marker-wrap"><span class="direction-marker-arrow" style="transform:rotate(${angle}deg)"></span><span class="direction-marker-dot" style="background:${escapeAttr(color)}"></span></div>`,
+        html: `<div class="direction-marker-wrap"><span class="direction-marker-arrow" style="transform:rotate(${angle}deg)"></span><span class="direction-marker-dot" style="background:${escapeAttr(color)}"></span>${pin.marker_style === "info" ? '<span class="pin-info-badge">i</span>' : ''}</div>`,
         iconSize: [42,42],
         iconAnchor: [21,21],
         popupAnchor: [0,-20]
@@ -7934,6 +7947,7 @@
           arrow.style.transform = `translate(-50%,-86%) rotate(${directionAngle}deg)`;
           dot.appendChild(arrow);
         }
+        if (pin.marker_style === "info") { const infoBadge=document.createElement("span"); infoBadge.className="floor-info-badge"; infoBadge.textContent="i"; dot.appendChild(infoBadge); }
         dot.addEventListener("click", function(event) {
           event.stopPropagation();
           openFloorPlanPopup(pin, x, y);
@@ -8591,104 +8605,17 @@
     }
 
     async function buildPrintableFloorPlanSvg(view, pins) {
-      const sourceUrl = view.image || floorPlanImage.src;
-      const imageSrc = await fetchImageAsDataUrl(sourceUrl) || sourceUrl;
-      const img = await loadImageForCanvas(imageSrc || sourceUrl);
-      const width = Math.max(1, img.naturalWidth || img.width || 1600);
-      const height = Math.max(1, img.naturalHeight || img.height || 900);
-      const canvas = document.createElement("canvas");
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext("2d");
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(0, 0, width, height);
-      ctx.drawImage(img, 0, 0, width, height);
-
-      const markerRadius = Math.max(10, Math.round(Math.min(width, height) * 0.01));
-      const strokeWidth = Math.max(3, Math.round(markerRadius * 0.24));
-      const labelFont = Math.max(16, Math.round(markerRadius * 1.1));
-      const labelOffsetX = markerRadius + 8;
-
-      pins.forEach(pin => {
-        const xPercent = Number(pin.x_percent ?? pin.lng);
-        const yPercent = Number(pin.y_percent ?? pin.lat);
-        if (!Number.isFinite(xPercent) || !Number.isFinite(yPercent)) return;
-        const x = Math.max(0, Math.min(width, (xPercent / 100) * width));
-        const y = Math.max(0, Math.min(height, (yPercent / 100) * height));
-        const color = getDepartmentColor(pin.category) || "#d32f2f";
-        const reportId = `#${String(pin.id || "")}`;
-        const direction = getPinDirection(pin);
-        const arrowLength = markerRadius * 2.9;
-
-        if (direction !== null) {
-          ctx.save();
-          ctx.translate(x, y);
-          ctx.rotate((direction * Math.PI) / 180);
-          ctx.strokeStyle = "#ffffff";
-          ctx.lineWidth = Math.max(8, strokeWidth * 1.9);
-          ctx.lineCap = "round";
-          ctx.beginPath();
-          ctx.moveTo(0, -markerRadius * 0.55);
-          ctx.lineTo(0, -arrowLength);
-          ctx.stroke();
-          ctx.fillStyle = "#ffffff";
-          ctx.beginPath();
-          ctx.moveTo(0, -arrowLength - markerRadius * 0.72);
-          ctx.lineTo(-markerRadius * 0.78, -arrowLength + markerRadius * 0.42);
-          ctx.lineTo(markerRadius * 0.78, -arrowLength + markerRadius * 0.42);
-          ctx.closePath();
-          ctx.fill();
-          ctx.strokeStyle = "#111111";
-          ctx.lineWidth = Math.max(4, strokeWidth * 1.1);
-          ctx.beginPath();
-          ctx.moveTo(0, -markerRadius * 0.55);
-          ctx.lineTo(0, -arrowLength);
-          ctx.stroke();
-          ctx.fillStyle = "#111111";
-          ctx.beginPath();
-          ctx.moveTo(0, -arrowLength - markerRadius * 0.72);
-          ctx.lineTo(-markerRadius * 0.62, -arrowLength + markerRadius * 0.34);
-          ctx.lineTo(markerRadius * 0.62, -arrowLength + markerRadius * 0.34);
-          ctx.closePath();
-          ctx.fill();
-          ctx.restore();
-        }
-
-        ctx.save();
-        ctx.fillStyle = color;
-        ctx.strokeStyle = "#ffffff";
-        ctx.lineWidth = strokeWidth;
-        ctx.beginPath();
-        ctx.arc(x, y, markerRadius, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-        ctx.font = `900 ${labelFont}px Arial`;
-        ctx.lineWidth = Math.max(3, Math.round(labelFont * 0.22));
-        ctx.strokeStyle = "#ffffff";
-        ctx.fillStyle = "#111111";
-        ctx.textBaseline = "middle";
-        let labelX = x + labelOffsetX;
-        let labelY = y + 1;
-        let labelAlign = "left";
-        if (direction !== null) {
-          const angleRad = (direction * Math.PI) / 180;
-          const vx = Math.sin(angleRad);
-          const vy = -Math.cos(angleRad);
-          const oppositeX = -vx;
-          const oppositeY = -vy;
-          const labelDistance = Math.max(labelOffsetX + markerRadius * 0.7, markerRadius * 2.6);
-          labelX = x + oppositeX * labelDistance;
-          labelY = y + oppositeY * labelDistance;
-          if (Math.abs(oppositeX) > 0.42) labelAlign = oppositeX >= 0 ? "left" : "right";
-          else labelAlign = "center";
-        }
-        ctx.textAlign = labelAlign;
-        ctx.strokeText(reportId, labelX, labelY);
-        ctx.fillText(reportId, labelX, labelY);
-        ctx.restore();
-      });
-
-      return `<img src="${canvas.toDataURL("image/png", 1)}" alt="${escapeAttr(view.name || "Floor plan")}" style="display:block;max-width:100%;max-height:72vh;width:auto;height:auto">`;
+      const sourceUrl=view.image||floorPlanImage.src;
+      const imageSrc=await fetchImageAsDataUrl(sourceUrl)||sourceUrl;
+      const img=await loadImageForCanvas(imageSrc||sourceUrl);
+      const sw=Math.max(1,img.naturalWidth||img.width||1600), sh=Math.max(1,img.naturalHeight||img.height||900);
+      const ow=2400, oh=1500;
+      const pts=pins.map(pin=>({pin,x:(Number(pin.x_percent??pin.lng)/100)*sw,y:(Number(pin.y_percent??pin.lat)/100)*sh})).filter(p=>Number.isFinite(p.x)&&Number.isFinite(p.y));
+      let cx=0,cy=0,cw=sw,ch=sh;
+      if(pts.length){let minX=Math.min(...pts.map(p=>p.x)),maxX=Math.max(...pts.map(p=>p.x)),minY=Math.min(...pts.map(p=>p.y)),maxY=Math.max(...pts.map(p=>p.y));let spanW=Math.max(maxX-minX,sw*(pts.length===1?.34:.22)),spanH=Math.max(maxY-minY,sh*(pts.length===1?.34:.22));spanW+=Math.max(sw*.08,spanW*.18);spanH+=Math.max(sh*.08,spanH*.18);const a=ow/oh;if(spanW/spanH<a)spanW=spanH*a;else spanH=spanW/a;spanW=Math.min(sw,spanW);spanH=Math.min(sh,spanH);const mx=(minX+maxX)/2,my=(minY+maxY)/2;cx=Math.max(0,Math.min(sw-spanW,mx-spanW/2));cy=Math.max(0,Math.min(sh-spanH,my-spanH/2));cw=spanW;ch=spanH;}
+      const canvas=document.createElement("canvas");canvas.width=ow;canvas.height=oh;const ctx=canvas.getContext("2d");ctx.fillStyle="#fff";ctx.fillRect(0,0,ow,oh);ctx.drawImage(img,cx,cy,cw,ch,0,0,ow,oh);
+      pts.forEach(({pin,x:sx,y:sy})=>{const x=((sx-cx)/cw)*ow,y=((sy-cy)/ch)*oh,color=getDepartmentColor(pin.category)||"#d32f2f",id=`#${String(pin.id||"")}`,dir=getPinDirection(pin);if(dir!==null){ctx.save();ctx.translate(x,y);ctx.rotate(dir*Math.PI/180);ctx.strokeStyle="#fff";ctx.lineWidth=10;ctx.lineCap="round";ctx.beginPath();ctx.moveTo(0,-11);ctx.lineTo(0,-62);ctx.stroke();ctx.fillStyle="#fff";ctx.beginPath();ctx.moveTo(0,-78);ctx.lineTo(-16,-53);ctx.lineTo(16,-53);ctx.closePath();ctx.fill();ctx.strokeStyle="#111";ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(0,-11);ctx.lineTo(0,-62);ctx.stroke();ctx.fillStyle="#111";ctx.beginPath();ctx.moveTo(0,-76);ctx.lineTo(-12,-55);ctx.lineTo(12,-55);ctx.closePath();ctx.fill();ctx.restore();}ctx.save();ctx.fillStyle=color;ctx.strokeStyle="#fff";ctx.lineWidth=5;ctx.beginPath();ctx.arc(x,y,20,0,Math.PI*2);ctx.fill();ctx.stroke();if(pin.marker_style==="info"){ctx.fillStyle="#005a9c";ctx.strokeStyle="#fff";ctx.lineWidth=3;ctx.beginPath();ctx.arc(x+17,y+17,12,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.fillStyle="#fff";ctx.font="900 16px Arial";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText("i",x+17,y+18);}ctx.font="900 24px Arial";ctx.lineWidth=5;ctx.strokeStyle="#fff";ctx.fillStyle="#111";ctx.textBaseline="middle";let lx=x+30,ly=y,align="left";if(dir!==null){const r=dir*Math.PI/180,ox=-Math.sin(r),oy=Math.cos(r),d=58;lx=x+ox*d;ly=y+oy*d;align=Math.abs(ox)>.42?(ox>=0?"left":"right"):"center";}ctx.textAlign=align;ctx.strokeText(id,lx,ly);ctx.fillText(id,lx,ly);ctx.restore();});
+      return `<img src="${canvas.toDataURL("image/png",1)}" alt="${escapeAttr(view.name||"Floor plan")}" style="display:block;max-width:100%;max-height:72vh;width:auto;height:auto">`;
     }
 
     function buildPrintablePinDetails(pins) {
@@ -8830,14 +8757,14 @@
         }).addTo(printMap);
         const validPins = pins.filter(pin => Number.isFinite(Number(pin.lat)) && Number.isFinite(Number(pin.lng)));
         const style = document.createElement("style");
-        style.textContent = ".print-pin-marker{display:flex;align-items:center;gap:8px;transform:translate(10px,-10px)}.print-pin-dot{width:24px;height:24px;border-radius:50%;border:4px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.45);flex:none}.print-pin-id{display:inline-flex;align-items:center;white-space:nowrap;background:rgba(255,255,255,.96);border:2px solid #1f2933;border-radius:4px;box-shadow:0 1px 4px rgba(0,0,0,.35);color:#111;font:900 22px Arial;padding:3px 8px;line-height:1}.leaflet-div-icon.print-pin-icon{background:transparent;border:none!important}";
+        style.textContent = ".print-pin-marker{display:flex;align-items:center;gap:8px;transform:translate(10px,-10px)}.print-pin-dot{width:24px;height:24px;border-radius:50%;border:4px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.45);flex:none}.print-pin-info{position:absolute;left:19px;top:19px;width:18px;height:18px;border-radius:50%;background:#005a9c;color:#fff;border:2px solid #fff;font:900 11px/14px Arial;align-items:center;justify-content:center;box-sizing:border-box}.print-pin-id{display:inline-flex;align-items:center;white-space:nowrap;background:rgba(255,255,255,.96);border:2px solid #1f2933;border-radius:4px;box-shadow:0 1px 4px rgba(0,0,0,.35);color:#111;font:900 22px Arial;padding:3px 8px;line-height:1}.leaflet-div-icon.print-pin-icon{background:transparent;border:none!important}";
         printHost.appendChild(style);
         validPins.forEach(pin => {
           const color = getDepartmentColor(pin.category) || "#d32f2f";
           const reportId = `#${String(pin.id || "")}`;
           const direction = getPinDirection(pin);
           const arrowHtml = direction === null ? "" : `<span style="position:absolute;left:9px;top:-20px;width:6px;height:30px;transform-origin:50% 27px;transform:rotate(${direction}deg)"><span style="position:absolute;left:1px;top:10px;width:4px;height:20px;background:#111;box-shadow:0 0 0 2px #fff;border-radius:999px"></span><span style="position:absolute;left:-5px;top:0;width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-bottom:13px solid #111;filter:drop-shadow(0 0 1px #fff)"></span></span>`;
-          const markerHtml = `<div class="print-pin-marker" style="position:relative">${arrowHtml}<span class="print-pin-dot" style="background:${escapeAttr(color)}"></span><span class="print-pin-id">${escapeHtml(reportId)}</span></div>`;
+          const infoHtml=pin.marker_style==="info"?'<span class="print-pin-info" style="display:flex">i</span>':''; const markerHtml = `<div class="print-pin-marker" style="position:relative">${arrowHtml}<span class="print-pin-dot" style="background:${escapeAttr(color)}"></span>${infoHtml}<span class="print-pin-id">${escapeHtml(reportId)}</span></div>`;
           L.marker([Number(pin.lat), Number(pin.lng)], {
             icon: L.divIcon({
               className: "print-pin-icon",
@@ -8847,12 +8774,11 @@
             })
           }).addTo(printMap);
         });
-        if (validPins.length > 1) {
-          const bounds = L.latLngBounds(validPins.map(pin => [Number(pin.lat), Number(pin.lng)]));
-          printMap.fitBounds(bounds, { paddingTopLeft:[85,85], paddingBottomRight:[85,85], maxZoom:20, animate:false });
-        } else if (validPins.length === 1) printMap.setView([Number(validPins[0].lat), Number(validPins[0].lng)], 19, { animate:false });
-        else printMap.setView(map.getCenter(), map.getZoom(), { animate:false });
         printMap.invalidateSize(true);
+        await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+        if (validPins.length > 1) { const bounds=L.latLngBounds(validPins.map(pin=>[Number(pin.lat),Number(pin.lng)])); printMap.fitBounds(bounds.pad(0.06),{paddingTopLeft:[45,45],paddingBottomRight:[45,45],maxZoom:21,animate:false}); }
+        else if(validPins.length===1) printMap.setView([Number(validPins[0].lat),Number(validPins[0].lng)],20,{animate:false});
+        else printMap.setView(map.getCenter(),map.getZoom(),{animate:false});
         showPrintProgress("Loading outdoor map tiles… Please wait.");
         await waitForLeafletTiles(tileLayer);
         showPrintProgress("Loading overlay image and visible pins…");
@@ -8885,7 +8811,7 @@
 
       const { data, error } = await supabaseClient
         .from(SUPABASE_TABLE)
-        .select("id, title, description, lat, lng, photo_url, photo_urls, clear_photo_urls, map_snapshot_url, category, is_cleared, created_at, cleared_at, install_date, removal_date, reported_by, original_reported_by, created_by_user_name, created_by_department, cleared_by, clear_comment, status, map_id, location_type, x_percent, y_percent, direction_angle, created_device_id, created_device_label, created_user_agent, cleared_device_id, cleared_device_label, cleared_user_agent, last_action, last_action_by, last_action_device_id, last_action_device_label, last_action_user_agent")
+        .select("id, title, description, lat, lng, photo_url, photo_urls, clear_photo_urls, map_snapshot_url, category, is_cleared, created_at, cleared_at, install_date, removal_date, reported_by, original_reported_by, created_by_user_name, created_by_department, cleared_by, clear_comment, status, map_id, location_type, x_percent, y_percent, direction_angle, marker_style, created_device_id, created_device_label, created_user_agent, cleared_device_id, cleared_device_label, cleared_user_agent, last_action, last_action_by, last_action_device_id, last_action_device_label, last_action_user_agent")
         .order("created_at", { ascending: true });
 
       if (error) {
@@ -8909,7 +8835,7 @@
       handleInitialUrlAction();
     }
 
-    async function savePin(latlng, title, description, photoUrls, category, reportedBy, statusValue = "active", installDate = null, removalDate = null, directionAngle = null) {
+    async function savePin(latlng, title, description, photoUrls, category, reportedBy, statusValue = "active", installDate = null, removalDate = null, directionAngle = null, markerStyle = "dot") {
       if (!supabaseClient) {
         alert("Supabase is not configured yet. Add your URL and anon key first.");
         return;
@@ -8943,7 +8869,8 @@
         cleared_at: null,
         install_date: installDate || null,
         removal_date: removalDate || null,
-        direction_angle: directionAngle === null ? null : Number(directionAngle)
+        direction_angle: directionAngle === null ? null : Number(directionAngle),
+        marker_style: markerStyle === "info" ? "info" : "dot"
       };
 
       const { data, error } = await supabaseClient
@@ -9134,7 +9061,7 @@
         .eq("id", clearingPinId)
         .eq("status", "active")
         .eq("is_cleared", false)
-        .select("id, title, description, lat, lng, photo_url, photo_urls, clear_photo_urls, map_snapshot_url, category, is_cleared, created_at, cleared_at, install_date, removal_date, reported_by, original_reported_by, created_by_user_name, created_by_department, cleared_by, clear_comment, status, map_id, location_type, x_percent, y_percent, direction_angle, created_device_id, created_device_label, created_user_agent, cleared_device_id, cleared_device_label, cleared_user_agent, last_action, last_action_by, last_action_device_id, last_action_device_label, last_action_user_agent")
+        .select("id, title, description, lat, lng, photo_url, photo_urls, clear_photo_urls, map_snapshot_url, category, is_cleared, created_at, cleared_at, install_date, removal_date, reported_by, original_reported_by, created_by_user_name, created_by_department, cleared_by, clear_comment, status, map_id, location_type, x_percent, y_percent, direction_angle, marker_style, created_device_id, created_device_label, created_user_agent, cleared_device_id, cleared_device_label, cleared_user_agent, last_action, last_action_by, last_action_device_id, last_action_device_label, last_action_user_agent")
         .maybeSingle();
 
       if (error) {
@@ -9150,7 +9077,7 @@
       if (!data) {
         const { data: currentRow } = await supabaseClient
           .from(SUPABASE_TABLE)
-          .select("id, title, description, lat, lng, photo_url, photo_urls, clear_photo_urls, map_snapshot_url, category, is_cleared, created_at, cleared_at, install_date, removal_date, reported_by, original_reported_by, created_by_user_name, created_by_department, cleared_by, clear_comment, status, map_id, location_type, x_percent, y_percent, direction_angle, created_device_id, created_device_label, created_user_agent, cleared_device_id, cleared_device_label, cleared_user_agent, last_action, last_action_by, last_action_device_id, last_action_device_label, last_action_user_agent")
+          .select("id, title, description, lat, lng, photo_url, photo_urls, clear_photo_urls, map_snapshot_url, category, is_cleared, created_at, cleared_at, install_date, removal_date, reported_by, original_reported_by, created_by_user_name, created_by_department, cleared_by, clear_comment, status, map_id, location_type, x_percent, y_percent, direction_angle, marker_style, created_device_id, created_device_label, created_user_agent, cleared_device_id, cleared_device_label, cleared_user_agent, last_action, last_action_by, last_action_device_id, last_action_device_label, last_action_user_agent")
           .eq("id", clearingPinId)
           .maybeSingle();
 
@@ -9715,6 +9642,8 @@ function resetPinForm() {
   pinDescriptionInput.value = "";
   if (pinInstallDateInput) pinInstallDateInput.value = "";
   if (pinRemovalDateInput) pinRemovalDateInput.value = "";
+  const pinMarkerStyleInput = document.getElementById("pinMarkerStyleInput");
+  if (pinMarkerStyleInput) pinMarkerStyleInput.value = "dot";
   const pinDirectionInput = document.getElementById("pinDirectionInput");
   if (pinDirectionInput) pinDirectionInput.value = "";
   const availableDepartments = getDepartmentsAvailableForNewPins();
@@ -9819,6 +9748,8 @@ function resetPinForm() {
 
       const installDate = pinInstallDateInput && pinInstallDateInput.value ? pinInstallDateInput.value : null;
       const removalDate = pinRemovalDateInput && pinRemovalDateInput.value ? pinRemovalDateInput.value : null;
+      const markerStyleInput = document.getElementById("pinMarkerStyleInput");
+      const markerStyle = markerStyleInput && markerStyleInput.value === "info" ? "info" : "dot";
       const directionInput = document.getElementById("pinDirectionInput");
       const directionAngle = directionInput && directionInput.value !== "" ? Number(directionInput.value) : null;
       if (installDate && removalDate && removalDate < installDate) {
@@ -9847,7 +9778,8 @@ function resetPinForm() {
           requestStatus,
           installDate,
           removalDate,
-          directionAngle
+          directionAngle,
+          markerStyle
         );
 
         if (savedPin) {
@@ -9941,9 +9873,8 @@ function resetPinForm() {
       ctx.stroke();
       ctx.shadowBlur = 0;
       ctx.fillStyle = "#ffffff";
-      ctx.beginPath();
-      ctx.arc(x, y, 5, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.beginPath(); ctx.arc(x,y,5,0,Math.PI*2); ctx.fill();
+      if(pin&&pin.marker_style==="info"){ctx.fillStyle="#005a9c";ctx.strokeStyle="#fff";ctx.lineWidth=2;ctx.beginPath();ctx.arc(x+13,y+13,10,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.fillStyle="#fff";ctx.font="900 13px Arial";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText("i",x+13,y+14);ctx.textAlign="left";ctx.textBaseline="alphabetic";}
       if (label) {
         ctx.font = "bold 20px Arial";
         const text = String(label).slice(0, 34);
@@ -10585,7 +10516,7 @@ function resetPinForm() {
       if (!pin && supabaseClient && pinId) {
         const { data, error } = await supabaseClient
           .from(SUPABASE_TABLE)
-          .select("id, title, description, lat, lng, photo_url, photo_urls, clear_photo_urls, map_snapshot_url, category, is_cleared, created_at, cleared_at, install_date, removal_date, reported_by, original_reported_by, created_by_user_name, created_by_department, cleared_by, clear_comment, status, map_id, location_type, x_percent, y_percent, direction_angle, created_device_id, created_device_label, created_user_agent, cleared_device_id, cleared_device_label, cleared_user_agent, last_action, last_action_by, last_action_device_id, last_action_device_label, last_action_user_agent")
+          .select("id, title, description, lat, lng, photo_url, photo_urls, clear_photo_urls, map_snapshot_url, category, is_cleared, created_at, cleared_at, install_date, removal_date, reported_by, original_reported_by, created_by_user_name, created_by_department, cleared_by, clear_comment, status, map_id, location_type, x_percent, y_percent, direction_angle, marker_style, created_device_id, created_device_label, created_user_agent, cleared_device_id, cleared_device_label, cleared_user_agent, last_action, last_action_by, last_action_device_id, last_action_device_label, last_action_user_agent")
           .eq("id", pinId)
           .maybeSingle();
 
