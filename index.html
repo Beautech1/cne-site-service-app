@@ -2818,6 +2818,7 @@
       <div class="settings-row" id="signInCodeMultiDepartmentRow" style="display:none;">
         <label>Allowed departments, one per line
           <textarea id="signInCodeEditorAllowedDepartments" placeholder="Explace Cleaning&#10;Impact Cleaning&#10;Showtech Plumbing"></textarea>
+          <small style="font-weight:normal; color:#55606e;">The first department is the primary department. When “Additional departments: own profile pins only” is enabled, all pins from the first department remain visible; later departments show only this profile’s own pins.</small>
         </label>
       </div>
       <div class="admin-menu-section" style="margin-top:10px;">
@@ -3351,7 +3352,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.11-AF";
+    const APP_VERSION = "2026.07.11-AG";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const SIGN_IN_ACCESS_TABLE = "app_sign_in_access";
@@ -4186,8 +4187,34 @@
       if (!access || access.canViewAll) return;
       const allowed = getAllowedDepartmentKeys();
       if (!allowed.length) return;
-      const current = normalizeAccessDepartmentKey(selectedDepartmentView || localStorage.getItem(DEPARTMENT_VIEW_STORAGE_KEY) || "");
-      const selected = allowed.includes(current) ? current : allowed[0];
+
+      const savedRaw = String(selectedDepartmentView || localStorage.getItem(DEPARTMENT_VIEW_STORAGE_KEY) || "").trim();
+      let selected = "";
+
+      // Multi-department profiles should be able to retain a combined view.
+      // "all" means all departments allowed by this sign-in profile, not every
+      // department in the app. The pin-access filter still applies primary vs.
+      // additional-department ownership restrictions.
+      if (allowed.length > 1 && savedRaw === "all") {
+        selected = "all";
+      } else if (allowed.length > 1 && savedRaw.startsWith("multi:")) {
+        const requested = savedRaw.slice(6)
+          .split("|")
+          .map(normalizeAccessDepartmentKey)
+          .filter(key => allowed.includes(key));
+        const unique = Array.from(new Set(requested));
+        if (unique.length > 1) selected = "multi:" + unique.join("|");
+        else if (unique.length === 1) selected = unique[0];
+      } else {
+        const current = normalizeAccessDepartmentKey(savedRaw);
+        if (allowed.includes(current)) selected = current;
+      }
+
+      // On first use of a selected-departments profile, show the combined view
+      // so the primary department's full workload is visible together with any
+      // permitted pins from additional departments.
+      if (!selected) selected = allowed.length > 1 ? "all" : allowed[0];
+
       selectedDepartmentView = selected;
       try { localStorage.setItem(DEPARTMENT_VIEW_STORAGE_KEY, selected); } catch (error) {}
       if (categoryFilter) categoryFilter.value = selected;
