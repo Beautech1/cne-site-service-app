@@ -2630,7 +2630,7 @@
 </head>
 <body>
 
-  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.12-AS</button>
+  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.12-AU</button>
   <div class="floating-ui" id="floatingUi">
     <button class="mobile-ui-toggle" id="mobileUiToggle" type="button" onclick="toggleMobileUi()">
       <span class="mobile-ui-toggle-main">
@@ -3505,7 +3505,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.12-AS";
+    const APP_VERSION = "2026.07.12-AU";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const DEPARTMENT_SHARE_CONFIG_KEY = "department_share_links";
@@ -8406,12 +8406,39 @@
       return `<div style="position:relative;display:inline-block;max-width:100%;line-height:0"><img src="${escapeAttr(view.image || floorPlanImage.src)}" alt="${escapeAttr(view.name || "Floor plan")}" style="display:block;max-width:100%;max-height:72vh;width:auto;height:auto">${dots}</div>`;
     }
 
+    function buildPrintablePinDetails(pins) {
+      if (!pins.length) return "";
+      return pins.map(pin => {
+        const status = getPinStatus(pin);
+        const photos = normalizePhotoList(pin.photo_urls || pin.photo_url);
+        const created = pin.created_at ? new Date(pin.created_at).toLocaleString() : "";
+        const cleared = pin.cleared_at ? new Date(pin.cleared_at).toLocaleString() : "";
+        return `<article class="print-report-detail">
+          <h2>#${escapeHtml(String(pin.id || ""))} — ${escapeHtml(pin.title || "Untitled")}</h2>
+          <div class="print-detail-grid">
+            <div><b>Department:</b> ${escapeHtml(formatDepartmentLabel(pin.category))}</div>
+            <div><b>Status:</b> ${escapeHtml(status)}</div>
+            ${pin.reported_by ? `<div><b>Reported by:</b> ${escapeHtml(pin.reported_by)}</div>` : ""}
+            ${created ? `<div><b>Created:</b> ${escapeHtml(created)}</div>` : ""}
+            ${pin.cleared_by ? `<div><b>Cleared by:</b> ${escapeHtml(pin.cleared_by)}</div>` : ""}
+            ${cleared ? `<div><b>Cleared:</b> ${escapeHtml(cleared)}</div>` : ""}
+            ${pin.install_date ? `<div><b>Install date:</b> ${escapeHtml(pin.install_date)}</div>` : ""}
+            ${pin.removal_date ? `<div><b>Removal date:</b> ${escapeHtml(pin.removal_date)}</div>` : ""}
+          </div>
+          ${pin.description ? `<div class="print-description"><b>Details:</b><br>${escapeHtml(pin.description).replace(/\n/g,"<br>")}</div>` : ""}
+          ${pin.clear_comment ? `<div class="print-description"><b>Clear comments:</b><br>${escapeHtml(pin.clear_comment).replace(/\n/g,"<br>")}</div>` : ""}
+          ${photos.length ? `<div class="print-photo-row">${photos.map(url => `<img src="${escapeAttr(url)}" alt="Report photo">`).join("")}</div>` : ""}
+        </article>`;
+      }).join("");
+    }
+
     function openMapPrintPreview(title, imageHtml, pins, allowMapAdjustments = false) {
       const win = window.open("", "_blank");
       if (!win) return alert("Popup blocked. Please allow popups to print the map.");
       const statusName = statusFilter ? statusFilter.options[statusFilter.selectedIndex]?.text || statusFilter.value : "Selected";
       const departmentName = getDepartmentViewName(selectedDepartmentView);
       const legend = pins.map(pin => `<div><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${escapeAttr(getDepartmentColor(pin.category))};margin-right:5px"></span><b>#${escapeHtml(String(pin.id || ""))}</b> ${escapeHtml(pin.title || "Untitled")} — ${escapeHtml(formatDepartmentLabel(pin.category))}</div>`).join("");
+      const detailsHtml = buildPrintablePinDetails(pins);
       const adjustmentButtons = allowMapAdjustments ? `<span class="tool-group"><b>Zoom</b><button onclick="adjustMapScale(-.05)" title="Zoom out">−</button><span id="zoomValue">100%</span><button onclick="adjustMapScale(.05)" title="Zoom in">+</button></span><span class="tool-group"><b>Rotate</b><button onclick="rotateMap(-5)" title="Rotate counter-clockwise">−</button><span id="rotationValue">0°</span><button onclick="rotateMap(5)" title="Rotate clockwise">+</button></span><button onclick="rotateMap(-90)">↶ 90°</button><button onclick="rotateMap(90)">↷ 90°</button><button onclick="resetMapImage()">Reset</button>` : "";
       win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>
         @page{size:A4 landscape;margin:2mm}
@@ -8420,39 +8447,28 @@
         body{padding:4px}
         .actions{position:sticky;top:0;display:flex;align-items:center;gap:6px;flex-wrap:wrap;background:#fff;padding:5px 0;z-index:20;border-bottom:1px solid #dbe3ea}
         .actions button{border:0;border-radius:6px;padding:8px 11px;background:#005a9c;color:#fff;font-weight:700;cursor:pointer}
+        .print-option{display:inline-flex;align-items:center;gap:5px;padding:5px 7px;border:1px solid #cbd5df;border-radius:7px;background:#f8fbfe;font-size:12px;font-weight:700}
         .tool-group{display:inline-flex;align-items:center;gap:5px;padding:3px 5px;border:1px solid #cbd5df;border-radius:7px;background:#f8fbfe;font-size:12px}
-        .tool-group button{min-width:32px;padding:6px 9px}
-        .tool-group span{min-width:42px;text-align:center;font-weight:800;color:#003f70}
-        .print-header{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:3px 0 4px}
-        h1{font-size:16px;line-height:1.1;margin:0}
-        .meta{font-size:9px;color:#52606d;text-align:right;white-space:nowrap}
-        .map-sheet{position:relative;width:100%;height:calc(100vh - 88px);min-height:520px;border:1px solid #ccd6df;overflow:hidden;background:#fff;page-break-inside:avoid}
-        .map-image{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#fff}
-        .map-image img,.map-image svg,.map-image>div{display:block;max-width:100%;max-height:100%;width:auto;height:auto;margin:auto;object-fit:contain;transform-origin:center center;will-change:transform}
-        .legend{position:absolute;left:5px;right:5px;bottom:5px;max-height:20%;overflow:hidden;columns:3;column-gap:14px;padding:4px 6px;border-radius:5px;background:rgba(255,255,255,.90);font-size:8px;line-height:1.25;box-shadow:0 1px 4px rgba(0,0,0,.18)}
-        .legend div{break-inside:avoid;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-        @media print{
-          html,body{width:100%;height:auto}
-          body{padding:0}
-          .actions{display:none!important}
-          .print-header{height:8mm;margin:0 1mm 1mm}
-          h1{font-size:11pt}
-          .meta{font-size:6.5pt}
-          .map-sheet{width:100%;height:190mm;min-height:0;border:0}
-          .map-image{inset:0}
-          .legend{font-size:6pt;max-height:17%;bottom:1mm;left:1mm;right:1mm;columns:4;background:rgba(255,255,255,.86)}
-        }
-      </style></head><body><div class="actions"><button onclick="window.print()">Print / Save PDF</button>${adjustmentButtons}<button onclick="window.close()">Close Preview</button></div><div class="print-header"><h1>${escapeHtml(title)}</h1><div class="meta">${escapeHtml(departmentName)} • ${escapeHtml(statusName)} • ${pins.length} selected pin${pins.length===1?"":"s"} • ${escapeHtml(new Date().toLocaleString())}</div></div><div class="map-sheet"><div class="map-image" id="mapImageWrap">${imageHtml}</div>${legend ? `<div class="legend">${legend}</div>` : ""}</div><script>
-        let mapScale=1,mapRotation=0;
-        function mapTarget(){return document.querySelector('#mapImageWrap img, #mapImageWrap svg, #mapImageWrap > div')}
-        function updateReadouts(){const z=document.getElementById('zoomValue'),r=document.getElementById('rotationValue');if(z)z.textContent=Math.round(mapScale*100)+'%';if(r)r.textContent=mapRotation+'°'}
-        function applyMapTransform(){const el=mapTarget();if(el)el.style.transform='rotate('+mapRotation+'deg) scale('+mapScale+')';updateReadouts()}
-        function adjustMapScale(delta){mapScale=Math.max(.50,Math.min(3,mapScale+delta));applyMapTransform()}
-        function rotateMap(delta){mapRotation=((mapRotation+delta+180)%360)-180;applyMapTransform()}
-        function resetMapImage(){mapScale=1;mapRotation=0;applyMapTransform()}
-        updateReadouts();
+        .tool-group button{min-width:32px;padding:6px 9px}.tool-group span{min-width:42px;text-align:center;font-weight:800;color:#003f70}.tool-group select{border:1px solid #aebdcc;border-radius:5px;padding:6px;background:#fff;font-weight:700;color:#243447}
+        .print-header{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:3px 0 4px}h1{font-size:16px;line-height:1.1;margin:0}.meta{font-size:9px;color:#52606d;text-align:right;white-space:nowrap}
+        .map-sheet{position:relative;width:100%;height:calc(100vh - 88px);min-height:520px;border:1px solid #ccd6df;overflow:hidden;background:#fff;page-break-after:always;page-break-inside:avoid}
+        .map-image{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#fff}.map-image img,.map-image svg,.map-image>div{display:block;max-width:100%;max-height:100%;width:auto;height:auto;margin:auto;object-fit:contain;transform-origin:center center;will-change:transform}.zone-pages{display:none}.zone-pages.show{display:block}.zone-sheet{position:relative;width:100%;height:190mm;overflow:hidden;background:#fff;page-break-after:always;page-break-inside:avoid}.zone-viewport{position:absolute;inset:0;overflow:hidden;background:#fff}.zone-viewport img{position:absolute;max-width:none!important;max-height:none!important;width:auto;height:auto;transform-origin:top left}.zone-label{position:absolute;left:3mm;top:3mm;z-index:4;background:rgba(0,63,112,.94);color:#fff;padding:2mm 3mm;border-radius:2mm;font-size:15pt;font-weight:900;box-shadow:0 1mm 2mm rgba(0,0,0,.28)}.zone-subtitle{display:block;font-size:7pt;font-weight:700;margin-top:.8mm}.zone-locator{position:absolute;right:3mm;top:3mm;z-index:4;width:32mm;height:20mm;background:rgba(255,255,255,.94);border:1px solid #52606d;display:grid}.zone-locator-cell{border:.2px solid #9aa8b5}.zone-locator-cell.active{background:#005a9c}.zone-foot{position:absolute;left:3mm;right:3mm;bottom:2mm;z-index:4;background:rgba(255,255,255,.9);font-size:7pt;padding:1mm 2mm;border-radius:1mm;text-align:center}.hide-overview .map-sheet{display:none}
+        .legend{position:absolute;left:5px;right:5px;bottom:5px;max-height:20%;overflow:hidden;columns:3;column-gap:14px;padding:4px 6px;border-radius:5px;background:rgba(255,255,255,.92);font-size:8px;line-height:1.25;box-shadow:0 1px 4px rgba(0,0,0,.18)}.legend div{break-inside:avoid;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        body.hide-legend .legend{display:none}.report-details{display:none}.report-details.show{display:block}.print-report-detail{page-break-inside:avoid;border:1px solid #cbd5df;border-radius:8px;padding:10px;margin:0 0 10px;background:#fff}.print-report-detail h2{font-size:15px;margin:0 0 7px}.print-detail-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px 12px;font-size:10px}.print-description{margin-top:7px;font-size:10px;line-height:1.35}.print-photo-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}.print-photo-row img{max-width:31%;max-height:180px;object-fit:contain;border:1px solid #d9e0e6}
+        @media print{html,body{width:100%;height:auto}body{padding:0}.actions{display:none!important}.print-header{height:8mm;margin:0 1mm 1mm}h1{font-size:11pt}.meta{font-size:6.5pt}.map-sheet{width:100%;height:190mm;min-height:0;border:0}.legend{font-size:6pt;max-height:17%;bottom:1mm;left:1mm;right:1mm;columns:4;background:rgba(255,255,255,.88)}.zone-pages.show{display:block}.zone-sheet{width:100%;height:190mm}.report-details{padding:2mm}.print-report-detail{font-size:8pt}.print-report-detail h2{font-size:10pt}.print-detail-grid,.print-description{font-size:7.5pt}}
+      </style></head><body><div class="actions"><button onclick="window.print()">Print / Save PDF</button>${adjustmentButtons}<label class="print-option"><input id="legendToggle" type="checkbox" checked onchange="toggleLegend(this.checked)"> ID reference list</label><label class="print-option"><input id="detailToggle" type="checkbox" onchange="toggleDetails(this.checked)"> Full report details</label><span class="tool-group"><b>Zone pages</b><select id="zoneLayout" onchange="setZoneLayout(this.value)"><option value="none">Off</option><option value="2x2">2 × 2</option><option value="3x2" selected>3 × 2</option><option value="3x3">3 × 3</option></select></span><label class="print-option"><input id="overviewToggle" type="checkbox" checked onchange="toggleOverview(this.checked)"> Overview page</label><button onclick="window.close()">Close Preview</button></div><div class="print-header"><h1>${escapeHtml(title)}</h1><div class="meta">${escapeHtml(departmentName)} • ${escapeHtml(statusName)} • ${pins.length} selected pin${pins.length===1?"":"s"} • ${escapeHtml(new Date().toLocaleString())}</div></div><div class="map-sheet"><div class="map-image" id="mapImageWrap">${imageHtml}</div>${legend ? `<div class="legend">${legend}</div>` : ""}</div><section id="zonePages" class="zone-pages"></section><section id="reportDetails" class="report-details">${detailsHtml}</section><script>
+        let mapScale=1,mapRotation=0;function mapTarget(){return document.querySelector('#mapImageWrap img, #mapImageWrap svg, #mapImageWrap > div')}function updateReadouts(){const z=document.getElementById('zoomValue'),r=document.getElementById('rotationValue');if(z)z.textContent=Math.round(mapScale*100)+'%';if(r)r.textContent=mapRotation+'°'}function applyMapTransform(){const el=mapTarget();if(el)el.style.transform='rotate('+mapRotation+'deg) scale('+mapScale+')';updateReadouts();const layout=document.getElementById('zoneLayout');if(layout&&layout.value!=='none')setZoneLayout(layout.value)}function adjustMapScale(delta){mapScale=Math.max(.50,Math.min(3,mapScale+delta));applyMapTransform()}function rotateMap(delta){mapRotation=((mapRotation+delta+180)%360)-180;applyMapTransform()}function resetMapImage(){mapScale=1;mapRotation=0;applyMapTransform()}function toggleLegend(show){document.body.classList.toggle('hide-legend',!show)}function toggleDetails(show){document.getElementById('reportDetails').classList.toggle('show',show)}function toggleOverview(show){document.body.classList.toggle('hide-overview',!show)}function zoneLocator(cols,rows,activeCol,activeRow){let html='';for(let r=0;r<rows;r++)for(let c=0;c<cols;c++)html+='<span class="zone-locator-cell'+(c===activeCol&&r===activeRow?' active':'')+'"></span>';return '<span class="zone-locator" style="grid-template-columns:repeat('+cols+',1fr);grid-template-rows:repeat('+rows+',1fr)">'+html+'</span>'}function setZoneLayout(value){const holder=document.getElementById('zonePages');if(!holder)return;if(value==='none'){holder.classList.remove('show');holder.innerHTML='';return}const parts=value.split('x'),cols=Number(parts[0]),rows=Number(parts[1]);const source=mapTarget();if(!source||source.tagName!=='IMG'){holder.innerHTML='<div style="padding:20px">Zone printing is available for the outdoor GPS map image.</div>';holder.classList.add('show');return}const src=source.src,overlap=.08,zoneW=1/cols,zoneH=1/rows;let html='';for(let r=0;r<rows;r++){for(let c=0;c<cols;c++){const label=String.fromCharCode(65+r)+(c+1);const left=Math.max(0,c*zoneW-overlap/2),top=Math.max(0,r*zoneH-overlap/2),right=Math.min(1,(c+1)*zoneW+overlap/2),bottom=Math.min(1,(r+1)*zoneH+overlap/2),cropW=right-left,cropH=bottom-top;const imgW=100/cropW,imgH=100/cropH,x=-(left/cropW)*100,y=-(top/cropH)*100;html+='<section class="zone-sheet"><div class="zone-viewport"><img src="'+src+'" style="width:'+imgW+'%;height:'+imgH+'%;left:'+x+'%;top:'+y+'%;transform:rotate('+mapRotation+'deg) scale('+mapScale+');"></div><div class="zone-label">Zone '+label+'<span class="zone-subtitle">Enlarged setup map • '+Math.round(overlap*100)+'% overlap</span></div>'+zoneLocator(cols,rows,c,r)+'<div class="zone-foot">Match the #Report ID labels on this sheet to the reference list or report detail pages.</div></section>'}}holder.innerHTML=html;holder.classList.add('show')}updateReadouts();setZoneLayout('3x2');
       <\/script></body></html>`);
       win.document.close();
+    }
+
+    function waitForLeafletTiles(tileLayer, timeoutMs = 12000) {
+      return new Promise(resolve => {
+        let finished = false;
+        const done = () => { if (finished) return; finished = true; resolve(); };
+        tileLayer.once("load", done);
+        setTimeout(done, timeoutMs);
+      });
     }
 
     async function printCurrentMapWithSelectedPins() {
@@ -8462,44 +8478,40 @@
       closeAllMapPopups();
       const view = getMapView(currentMapId);
       const title = `${view.name} — Selected Pins`;
-
-      if (view.type === "floorplan") {
-        openMapPrintPreview(title, buildPrintableFloorPlanSvg(view, pins), pins);
-        return;
-      }
-
+      if (view.type === "floorplan") { openMapPrintPreview(title, buildPrintableFloorPlanSvg(view, pins), pins); return; }
       if (typeof html2canvas !== "function") return alert("The map print library did not load. Check your internet connection and refresh the app.");
-      let printMap = null;
-      let printHost = null;
+      let printMap = null, printHost = null;
       try {
         printHost = document.createElement("div");
-        printHost.style.cssText = "position:fixed;left:-10000px;top:0;width:2400px;height:1500px;background:#fff;z-index:-1;";
+        printHost.style.cssText = "position:fixed;left:-12000px;top:0;width:2400px;height:1500px;background:#fff;z-index:1;overflow:hidden;";
         document.body.appendChild(printHost);
-        printMap = L.map(printHost, { zoomControl: false, attributionControl: true, preferCanvas: true });
-        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 20, crossOrigin: true, attribution: "&copy; OpenStreetMap contributors" }).addTo(printMap);
-
+        const renderer = L.svg({ padding: 0.5 });
+        printMap = L.map(printHost, { zoomControl:false, attributionControl:true, preferCanvas:false, renderer, fadeAnimation:false, zoomAnimation:false, markerZoomAnimation:false });
+        const tileLayer = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom:20, crossOrigin:"anonymous", attribution:"&copy; OpenStreetMap contributors", updateWhenIdle:false, keepBuffer:4 }).addTo(printMap);
         const validPins = pins.filter(pin => Number.isFinite(Number(pin.lat)) && Number.isFinite(Number(pin.lng)));
         validPins.forEach(pin => {
           const color = getDepartmentColor(pin.category) || "#d32f2f";
-          L.circleMarker([Number(pin.lat), Number(pin.lng)], { radius: 9, color: "#ffffff", weight: 3, fillColor: color, fillOpacity: 1 }).addTo(printMap);
+          const marker = L.circleMarker([Number(pin.lat), Number(pin.lng)], { renderer, radius:12, color:"#ffffff", weight:4, fillColor:color, fillOpacity:1, opacity:1 }).addTo(printMap);
+          marker.bindTooltip(`#${String(pin.id || "")}`, { permanent:true, direction:"top", offset:[0,-11], className:"print-id-label", opacity:1 });
         });
-
+        const style = document.createElement("style");
+        style.textContent = ".print-id-label{background:rgba(255,255,255,.96)!important;border:2px solid #1f2933!important;border-radius:4px!important;box-shadow:0 1px 4px rgba(0,0,0,.45)!important;color:#111!important;font:900 22px Arial!important;padding:3px 7px!important}.print-id-label:before{display:none!important}";
+        printHost.appendChild(style);
         if (validPins.length > 1) {
           const bounds = L.latLngBounds(validPins.map(pin => [Number(pin.lat), Number(pin.lng)]));
-          printMap.fitBounds(bounds, { paddingTopLeft: [28, 28], paddingBottomRight: [28, 28], maxZoom: 20, animate: false });
-        } else if (validPins.length === 1) {
-          printMap.setView([Number(validPins[0].lat), Number(validPins[0].lng)], 19, { animate: false });
-        } else {
-          printMap.setView(map.getCenter(), map.getZoom(), { animate: false });
-        }
-
+          printMap.fitBounds(bounds, { paddingTopLeft:[85,85], paddingBottomRight:[85,85], maxZoom:20, animate:false });
+        } else if (validPins.length === 1) printMap.setView([Number(validPins[0].lat), Number(validPins[0].lng)], 19, { animate:false });
+        else printMap.setView(map.getCenter(), map.getZoom(), { animate:false });
         printMap.invalidateSize(true);
-        await new Promise(resolve => setTimeout(resolve, 1400));
-        const canvas = await html2canvas(printHost, { useCORS: true, allowTaint: false, backgroundColor: "#ffffff", scale: 2, logging: false, imageTimeout: 20000 });
-        openMapPrintPreview(title, `<img src="${canvas.toDataURL("image/png")}" alt="${escapeAttr(title)}">`, pins, true);
+        await waitForLeafletTiles(tileLayer);
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        await new Promise(resolve => setTimeout(resolve, 800));
+        const canvas = await html2canvas(printHost, { useCORS:true, allowTaint:false, backgroundColor:"#ffffff", scale:2, width:2400, height:1500, windowWidth:2400, windowHeight:1500, logging:false, imageTimeout:30000, removeContainer:false });
+        if (!canvas.width || !canvas.height) throw new Error("Empty map capture");
+        openMapPrintPreview(title, `<img src="${canvas.toDataURL("image/png",1)}" alt="${escapeAttr(title)}">`, pins, true);
       } catch (error) {
         console.error("Map print failed", error);
-        alert("The outdoor map could not be captured, usually because a map tile blocked browser printing. Try again after the map tiles finish loading.");
+        alert("The outdoor GPS map could not be fully captured. Make sure the map tiles are visible, then try Print Selected Map again.");
       } finally {
         if (printMap) printMap.remove();
         if (printHost && printHost.parentNode) printHost.parentNode.removeChild(printHost);
