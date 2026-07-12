@@ -1314,6 +1314,12 @@
       margin-top: -1px;
     }
 
+    .popup-direction-control {margin-top:9px;padding:8px;border:1px solid #cbd5df;border-radius:8px;background:#f8fbfe;}
+    .popup-direction-title {display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:7px;font-size:12px;font-weight:800;color:#243447;}
+    .popup-direction-buttons {display:grid;grid-template-columns:1fr 1fr;gap:7px;}
+    .popup-direction-buttons .action-btn {justify-content:center;min-height:38px;font-size:13px;font-weight:800;}
+    .popup-direction-remove {grid-column:1 / -1;}
+
     .pin-popup-actions {
       margin-top: 10px;
       border-top: 1px solid #e6edf3;
@@ -2639,7 +2645,7 @@
 </head>
 <body>
 
-  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.12-AZ</button>
+  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.12-BA</button>
   <div class="floating-ui" id="floatingUi">
     <button class="mobile-ui-toggle" id="mobileUiToggle" type="button" onclick="toggleMobileUi()">
       <span class="mobile-ui-toggle-main">
@@ -3527,7 +3533,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.12-AZ";
+    const APP_VERSION = "2026.07.12-BA";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const DEPARTMENT_SHARE_CONFIG_KEY = "department_share_links";
@@ -6701,6 +6707,44 @@
       if (editSmsSection) editSmsSection.style.display = isClearedStatus ? "none" : "grid";
     }
 
+    async function savePinDirectionFromMap(pinId, nextAngle) {
+      if (!userHasPermission("editPins")) return denyPermission("This user has read-only access and cannot change pin direction.");
+      if (!supabaseClient) return alert("The app is not connected to Supabase.");
+      const pin = allPins.find(item => String(item.id) === String(pinId));
+      if (!pin) return;
+      const normalizedAngle = nextAngle === null ? null : ((Number(nextAngle) % 360) + 360) % 360;
+      setStatus(normalizedAngle === null ? "Removing direction arrow..." : `Rotating direction arrow to ${normalizedAngle}°...`);
+      const { data, error } = await supabaseClient
+        .from(SUPABASE_TABLE)
+        .update({ direction_angle: normalizedAngle, ...getDeviceAuditFields("direction_updated", pin.reported_by || "") })
+        .eq("id", pin.id)
+        .select();
+      if (error) {
+        console.error(error);
+        alert("Could not update the direction arrow. Check the direction_angle column and update policy.");
+        setStatus("Direction update failed.");
+        return;
+      }
+      const updated = data && data.length ? data[0] : { ...pin, direction_angle: normalizedAngle };
+      const index = allPins.findIndex(item => String(item.id) === String(pin.id));
+      if (index !== -1) allPins[index] = { ...allPins[index], ...updated, direction_angle: normalizedAngle };
+      applyFilters();
+      setStatus(normalizedAngle === null ? "Direction arrow removed." : `Direction arrow saved at ${normalizedAngle}°.`);
+      setTimeout(() => focusPinOnMap(pin.id), 100);
+    }
+
+    function adjustPinDirectionFromPopup(pinId, delta) {
+      const pin = allPins.find(item => String(item.id) === String(pinId));
+      if (!pin) return;
+      const current = getPinDirection(pin);
+      const start = current === null ? 0 : current;
+      savePinDirectionFromMap(pinId, start + Number(delta || 0));
+    }
+
+    function removePinDirectionFromPopup(pinId) {
+      savePinDirectionFromMap(pinId, null);
+    }
+
     async function openEditPinModal(pinId) {
       if (!userHasPermission("editPins")) return denyPermission("This user has read-only access and cannot edit or reassign pins.");
       const pin = allPins.find(item => item.id === pinId);
@@ -7758,6 +7802,18 @@
         : "";
 
       const popupSmsControls = "";
+      const currentDirection = getPinDirection(pin);
+      const directionControl = pin.id && userHasPermission("editPins") && !isCleared
+        ? '<div class="popup-direction-control">' +
+            '<div class="popup-direction-title"><span>Direction arrow</span><span>' + (currentDirection === null ? 'Off' : escapeHtml(String(currentDirection) + '°')) + '</span></div>' +
+            '<div class="popup-direction-buttons">' +
+              '<button class="action-btn secondary" onclick="adjustPinDirectionFromPopup(' + pin.id + ', -15)">↶ Rotate left</button>' +
+              '<button class="action-btn secondary" onclick="adjustPinDirectionFromPopup(' + pin.id + ', 15)">Rotate right ↷</button>' +
+              '<button class="action-btn secondary popup-direction-remove" onclick="removePinDirectionFromPopup(' + pin.id + ')">Remove arrow</button>' +
+            '</div>' +
+            '<small style="display:block;margin-top:6px;color:#607084;line-height:1.25">Tap repeatedly while viewing the map. Each tap rotates and saves by 15°.</small>' +
+          '</div>'
+        : '';
 
       return (
         closeButton +
@@ -7778,6 +7834,7 @@
         (isCleared && pin.cleared_at ? "<br>Cleared: " + new Date(pin.cleared_at).toLocaleString() : (isCancelled ? "<br>Cancelled" : "")) +
         "</small>" +
         popupSmsControls +
+        directionControl +
         actionRow
       );
     }
@@ -11585,6 +11642,8 @@ ${rows.map(pin => `
     window.printPinPopupReport = printPinPopupReport;
     window.focusPinOnMap = focusPinOnMap;
     window.submitClearPinForm = submitClearPinForm;
+    window.adjustPinDirectionFromPopup = adjustPinDirectionFromPopup;
+    window.removePinDirectionFromPopup = removePinDirectionFromPopup;
     window.openEditPinModal = openEditPinModal;
     window.openEditPinModalFromReport = openEditPinModalFromReport;
     window.clearPinFromReport = clearPinFromReport;
