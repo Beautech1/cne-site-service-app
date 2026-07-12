@@ -2630,7 +2630,7 @@
 </head>
 <body>
 
-  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.12-AW</button>
+  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.12-AX</button>
   <div class="floating-ui" id="floatingUi">
     <button class="mobile-ui-toggle" id="mobileUiToggle" type="button" onclick="toggleMobileUi()">
       <span class="mobile-ui-toggle-main">
@@ -3505,7 +3505,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.12-AW";
+    const APP_VERSION = "2026.07.12-AX";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const DEPARTMENT_SHARE_CONFIG_KEY = "department_share_links";
@@ -8398,10 +8398,29 @@
     function getPrintableSelectedPins() {
       const categoryValue = isValidDepartmentView(selectedDepartmentView) ? selectedDepartmentView : "all";
       const selectedDepartmentKeys = parseDepartmentViewKeys(categoryValue);
+      const currentView = getMapView(currentMapId);
+      const currentAliases = getMapAliases(currentMapId);
+      const printingFloorPlan = currentView.type === "floorplan";
       return allPins.filter(pin => {
         const pinStatus = getPinStatus(pin);
+        if (pinStatus !== "active") return false;
         const categoryMatch = selectedDepartmentKeys.includes(normalizeAccessDepartmentKey(pin.category || "general"));
-        return pinStatus === "active" && categoryMatch && pinBelongsToMap(pin, currentMapId);
+        if (!categoryMatch) return false;
+
+        const hasFloorCoordinates = Number.isFinite(Number(pin.x_percent)) && Number.isFinite(Number(pin.y_percent));
+        const hasGpsCoordinates = Number.isFinite(Number(pin.lat)) && Number.isFinite(Number(pin.lng));
+        const pinLocationType = pin.location_type || (hasFloorCoordinates ? "floorplan" : "gps");
+        const pinMap = getPinMapId(pin);
+        const pinMapNormalized = normalizeComparableMapId(pinMap);
+        const exactMapMatch = currentAliases.has(String(pinMap)) || currentAliases.has(pinMapNormalized);
+
+        if (printingFloorPlan) {
+          const weakFloorMapId = !pin.map_id || pin.map_id === "floorplan";
+          if (exactMapMatch) return hasFloorCoordinates && pinLocationType === "floorplan";
+          return hasFloorCoordinates && pinLocationType === "floorplan" && weakFloorMapId;
+        }
+
+        return exactMapMatch && hasGpsCoordinates && pinLocationType !== "floorplan";
       });
     }
 
@@ -8521,17 +8540,51 @@
       });
     }
 
+    function showPrintProgress(message) {
+      let overlay = document.getElementById("printProgressOverlay");
+      if (!overlay) {
+        overlay = document.createElement("div");
+        overlay.id = "printProgressOverlay";
+        overlay.style.cssText = "position:fixed;inset:0;background:rgba(15,23,42,0.46);z-index:12000;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;";
+        overlay.innerHTML = '<div style="width:min(430px,calc(100vw - 24px));background:#fff;border-radius:12px;box-shadow:0 14px 34px rgba(0,0,0,.26);padding:18px 18px 16px;text-align:center;font-family:Arial,sans-serif;color:#1f2933;"><div style="width:42px;height:42px;margin:0 auto 12px;border:4px solid #dbe6f0;border-top-color:#005a9c;border-radius:50%;animation:printSpin .9s linear infinite"></div><div id="printProgressMessage" style="font-size:15px;font-weight:800;color:#003f70;">Preparing print preview…</div><div style="margin-top:8px;font-size:12px;line-height:1.4;color:#52606d;">Please be patient while the app prepares the map. Outdoor GPS prints can take a little longer.</div></div>';
+        if (!document.getElementById("printProgressStyle")) {
+          const style = document.createElement("style");
+          style.id = "printProgressStyle";
+          style.textContent = "@keyframes printSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}";
+          document.head.appendChild(style);
+        }
+        document.body.appendChild(overlay);
+      }
+      const messageEl = overlay.querySelector("#printProgressMessage");
+      if (messageEl) messageEl.textContent = message || "Preparing print preview…";
+      overlay.style.display = "flex";
+      if (typeof setStatus === "function" && message) setStatus(message);
+    }
+
+    function hidePrintProgress() {
+      const overlay = document.getElementById("printProgressOverlay");
+      if (overlay) overlay.style.display = "none";
+    }
+
     async function printCurrentMapWithSelectedPins() {
       if (!userHasPermission("printReports")) return denyPermission("This sign-in code does not have permission to print reports.");
+      showPrintProgress("Preparing print preview…");
       const pins = getPrintableSelectedPins();
-      if (!pins.length && !confirm("No active pins match the current map and department selection. Print the map without pins?")) return;
+      if (!pins.length && !confirm("No active pins match the current visible map and department selection. Print the map without pins?")) { hidePrintProgress(); return; }
       closeAllMapPopups();
       const view = getMapView(currentMapId);
       const title = `${view.name} — Selected Pins`;
-      if (view.type === "floorplan") { const floorplanImageHtml = await buildPrintableFloorPlanSvg(view, pins); openMapPrintPreview(title, floorplanImageHtml, pins, true); return; }
-      if (typeof html2canvas !== "function") return alert("The map print library did not load. Check your internet connection and refresh the app.");
+      if (view.type === "floorplan") {
+        showPrintProgress("Preparing floor plan print preview…");
+        const floorplanImageHtml = await buildPrintableFloorPlanSvg(view, pins);
+        hidePrintProgress();
+        openMapPrintPreview(title, floorplanImageHtml, pins, true);
+        return;
+      }
+      if (typeof html2canvas !== "function") { hidePrintProgress(); return alert("The map print library did not load. Check your internet connection and refresh the app."); }
       let printMap = null, printHost = null;
       try {
+        showPrintProgress("Preparing outdoor GPS map print preview…");
         printHost = document.createElement("div");
         printHost.style.cssText = "position:fixed;left:-12000px;top:0;width:2400px;height:1500px;background:#fff;z-index:1;overflow:hidden;";
         document.body.appendChild(printHost);
@@ -8566,17 +8619,23 @@
         } else if (validPins.length === 1) printMap.setView([Number(validPins[0].lat), Number(validPins[0].lng)], 19, { animate:false });
         else printMap.setView(map.getCenter(), map.getZoom(), { animate:false });
         printMap.invalidateSize(true);
+        showPrintProgress("Loading outdoor map tiles… Please wait.");
         await waitForLeafletTiles(tileLayer);
+        showPrintProgress("Loading overlay image and visible pins…");
         await waitForOverlayImage(siteOverlay);
         await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
         await new Promise(resolve => setTimeout(resolve, 1000));
+        showPrintProgress("Rendering high-resolution map preview…");
         const canvas = await html2canvas(printHost, { useCORS:true, allowTaint:false, backgroundColor:"#ffffff", scale:2, width:2400, height:1500, windowWidth:2400, windowHeight:1500, logging:false, imageTimeout:30000, removeContainer:false });
         if (!canvas.width || !canvas.height) throw new Error("Empty map capture");
+        hidePrintProgress();
         openMapPrintPreview(title, `<img src="${canvas.toDataURL("image/png",1)}" alt="${escapeAttr(title)}">`, pins, true);
       } catch (error) {
         console.error("Map print failed", error);
+        hidePrintProgress();
         alert("The outdoor GPS map could not be fully captured. Make sure the map tiles are visible, then try Print Selected Map again.");
       } finally {
+        hidePrintProgress();
         if (printMap) printMap.remove();
         if (printHost && printHost.parentNode) printHost.parentNode.removeChild(printHost);
       }
