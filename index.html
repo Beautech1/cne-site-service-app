@@ -2495,7 +2495,7 @@
 </head>
 <body>
 
-  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.11-AB</button>
+  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.11-AC</button>
   <div class="floating-ui" id="floatingUi">
     <button class="mobile-ui-toggle" id="mobileUiToggle" type="button" onclick="toggleMobileUi()">
       <span class="mobile-ui-toggle-main">
@@ -3271,7 +3271,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.11-AB";
+    const APP_VERSION = "2026.07.11-AC";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const SIGN_IN_ACCESS_TABLE = "app_sign_in_access";
@@ -7825,7 +7825,13 @@
 
       const params = new URLSearchParams(window.location.search);
       const openedFromDirectReportLink = String(params.get("report") || params.get("pin") || "") === String(clearingPinId);
-      const targetDepartment = updatedPin.category || (getPinById(clearingPinId) || {}).category || selectedDepartmentView || "all";
+      // Preserve the department view the user manually selected before clearing.
+      // Clearing a pin must not replace a single- or multi-department view with the pin's department.
+      const preservedDepartmentView = isValidDepartmentView(selectedDepartmentView)
+        ? selectedDepartmentView
+        : (isValidDepartmentView(localStorage.getItem(DEPARTMENT_VIEW_STORAGE_KEY) || "")
+            ? localStorage.getItem(DEPARTMENT_VIEW_STORAGE_KEY)
+            : "all");
       const targetMapId = getPinMapId(updatedPin || getPinById(clearingPinId) || {});
 
       // After clearing from a text/report link, leave report mode and return to the live active map.
@@ -7841,23 +7847,21 @@
       }
 
       if (statusFilter) statusFilter.value = "active";
-      if (targetDepartment && targetDepartment !== "all" && isValidDepartmentView(targetDepartment)) {
-        selectedDepartmentView = targetDepartment;
-        if (categoryFilter) categoryFilter.value = targetDepartment;
-        localStorage.setItem(DEPARTMENT_VIEW_STORAGE_KEY, targetDepartment);
-      }
+      selectedDepartmentView = preservedDepartmentView;
+      localStorage.setItem(DEPARTMENT_VIEW_STORAGE_KEY, preservedDepartmentView);
+      if (categoryFilter) categoryFilter.value = getSingleSelectedDepartment() || "all";
 
       if (targetMapId) switchMapView(targetMapId);
 
       // Force a fresh Supabase read so the cleared pin disappears from active pins immediately.
       await loadPins(false);
       if (statusFilter) statusFilter.value = "active";
-      if (targetDepartment && targetDepartment !== "all" && isValidDepartmentView(targetDepartment) && categoryFilter) {
-        categoryFilter.value = targetDepartment;
-      }
+      selectedDepartmentView = preservedDepartmentView;
+      localStorage.setItem(DEPARTMENT_VIEW_STORAGE_KEY, preservedDepartmentView);
+      if (categoryFilter) categoryFilter.value = getSingleSelectedDepartment() || "all";
       applyFilters();
 
-      setStatus("Pin cleared. Showing active pins for this department.");
+      setStatus("Pin cleared. Your selected department view was preserved.");
       activeClearRequests.delete(clearingPinKey);
     }
 
