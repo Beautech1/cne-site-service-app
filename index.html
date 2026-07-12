@@ -2655,7 +2655,7 @@
 </head>
 <body>
 
-  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.11-AS</button>
+  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.11-AT</button>
   <div class="floating-ui" id="floatingUi">
     <button class="mobile-ui-toggle" id="mobileUiToggle" type="button" onclick="toggleMobileUi()">
       <span class="mobile-ui-toggle-main">
@@ -3549,7 +3549,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.11-AR";
+    const APP_VERSION = "2026.07.11-AT";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const DEPARTMENT_SHARE_CONFIG_KEY = "department_share_links";
@@ -9937,6 +9937,11 @@ function resetPinForm() {
       return getSavedUserName() || getDefaultDeviceLabel() || ((getAccessProfile() || {}).label) || "User";
     }
 
+    function openPinNoteModalFromButton(button) {
+      const pinId = button && button.getAttribute ? button.getAttribute("data-pin-note-id") : "";
+      openPinNoteModal(pinId);
+    }
+
     function openPinNoteModal(pinId) {
       if (!userCanAddPinNotes()) return denyPermission("This access does not allow adding notes.");
       const pin = allPins.find(item => String(item.id) === String(pinId));
@@ -10212,7 +10217,7 @@ function resetPinForm() {
       const reportActionRow = (!options.print && pin.id && !reportViewOnly)
         ? '<div style="margin-top:12px; display:flex; gap:12px; flex-wrap:wrap; align-items:center; justify-content:flex-start;">' +
             (pinStatusForActions === "active" ? '<button class="action-btn clear-btn" onclick="clearPinFromReport(' + pin.id + ')">Clear Pin</button>' : '') +
-            (userCanAddPinNotes() ? '<button class="action-btn pin-note-button" onclick="openPinNoteModal(' + JSON.stringify(String(pin.id)) + ')">Add Note</button>' : '') +
+            (userCanAddPinNotes() ? '<button class="action-btn pin-note-button" data-pin-note-id="' + escapeHtml(String(pin.id)) + '" onclick="openPinNoteModalFromButton(this)">Add Note</button>' : '') +
             '<button class="action-btn secondary" onclick="openEditPinModalFromReport(' + pin.id + ')">' + (pinStatusForActions === "cleared" ? 'Admin Edit Cleared Pin' : 'Edit / Reassign / Cancel Pin') + '</button>' +
           '</div>'
         : '';
