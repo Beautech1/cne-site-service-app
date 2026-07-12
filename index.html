@@ -2629,7 +2629,7 @@
 </head>
 <body>
 
-  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.11-AM</button>
+  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.11-AN</button>
   <div class="floating-ui" id="floatingUi">
     <button class="mobile-ui-toggle" id="mobileUiToggle" type="button" onclick="toggleMobileUi()">
       <span class="mobile-ui-toggle-main">
@@ -2696,7 +2696,7 @@
           <button class="action-btn secondary" onclick="toggleDeleteHistoryPanel(true)">Delete from History</button>
           <button class="action-btn secondary" onclick="exportClearLogHtml()">Export Clear Log</button>
           <button class="action-btn secondary" onclick="exportClearLogCsv()">Export CSV Log</button>
-          <button class="action-btn secondary" onclick="toggleAllLogsPanel(true); setTimeout(printAllLogs, 150);">Print Filtered Logs</button>
+          <button class="action-btn secondary" onclick="toggleAllLogsPanel(true); setTimeout(printAllLogs, 150);">Printable Preview</button>
           <button class="action-btn secondary" onclick="toggleSignInLogPanel(true)">View Sign-In Log</button>
         </div>
       </div>
@@ -2732,7 +2732,7 @@
     <div class="panel-body">
       <div class="log-panel-actions">
         <button class="action-btn secondary" onclick="populateOperationalLogFilters(); renderClearedLog()">Refresh Cleared Log</button>
-        <button class="action-btn secondary" onclick="printClearedLogs()">Print Cleared Log</button>
+        <button class="action-btn secondary" onclick="printClearedLogs()">Printable Preview</button>
       </div>
       <div class="log-filter-grid">
         <label>Assigned department
@@ -2763,10 +2763,10 @@
       <button class="panel-close-btn" onclick="toggleActiveLogPanel(false)">&times;</button>
     </div>
     <div class="panel-body">
-      <div class="panel-note">Active / outstanding items only. Use Edit to update/reassign, or Print This Report for a single printable report.</div>
+      <div class="panel-note">Active / outstanding items only. Use Edit to update/reassign, or Printable Preview for a single printable report.</div>
       <div class="log-panel-actions">
         <button class="action-btn secondary" onclick="populateOperationalLogFilters(); renderActiveLog()">Refresh Active Log</button>
-        <button class="action-btn secondary" onclick="printActiveLogs()">Print Active Log</button>
+        <button class="action-btn secondary" onclick="printActiveLogs()">Printable Preview</button>
       </div>
       <div class="log-filter-grid">
         <label>Assigned department
@@ -2829,7 +2829,7 @@
       </div>
       <div class="export-actions">
         <button class="action-btn secondary" onclick="populateAllLogsFilters(); renderAllLogs();">Refresh Logs</button>
-        <button class="action-btn secondary" onclick="printAllLogs()">Print Filtered Logs</button>
+        <button class="action-btn secondary" onclick="printAllLogs()">Printable Preview</button>
       </div>
       <div id="allLogsBody" style="margin-top:10px;">
         <div class="empty-log">No pins found.</div>
@@ -2856,7 +2856,7 @@
 
   <div class="panel" id="signedInDevicesPanel">
     <div class="panel-header">
-      <span>Signed-In Devices / Kick Out <small style="font-weight:normal; opacity:.9;">BUILD 2026-07-11AM</small></span>
+      <span>Signed-In Devices / Kick Out <small style="font-weight:normal; opacity:.9;">BUILD 2026-07-11AN</small></span>
       <button class="panel-close-btn" onclick="toggleSignedInDevicesPanel(false)">&times;</button>
     </div>
     <div class="panel-body">
@@ -3038,10 +3038,11 @@
       <button class="panel-close-btn" onclick="toggleDepartmentSharePanel(false)">&times;</button>
     </div>
     <div class="panel-body">
-      <div class="panel-note">Create a secure link that opens one department without a sign-in code. The recipient can view only and cannot add, edit, reassign, clear, or open Admin.</div>
+      <div class="panel-note">Create a secure link that opens one department without a sign-in code. The recipient is view-only by default. You may optionally allow clearing active pins; adding, editing, reassigning, and Admin remain blocked.</div>
       <div class="settings-row"><label>Link name / recipient (optional)<input id="departmentShareLabel" type="text" placeholder="Example: Allshelter supervisor"></label></div>
       <div class="settings-row"><label>Department<select id="departmentShareDepartment"></select></label></div>
       <div class="settings-row"><label>Visible records<select id="departmentShareScope"><option value="active">Active pins only</option><option value="active_cleared">Active and cleared pins</option></select></label></div>
+      <div class="settings-row full-row"><label class="settings-check"><input id="departmentShareAllowClear" type="checkbox"><span><b>Allow this link to clear active pins</b><br><small>The recipient can mark an active pin as cleared but still cannot add, edit, reassign, cancel, or access Admin.</small></span></label></div>
       <div class="admin-menu-section">
         <h3>Allowed map views</h3>
         <div class="export-actions" style="margin-top:0;margin-bottom:7px;"><button class="action-btn secondary" type="button" onclick="setAllDepartmentShareMaps(true)">Select All</button><button class="action-btn secondary" type="button" onclick="setAllDepartmentShareMaps(false)">Clear All</button></div>
@@ -3468,7 +3469,7 @@
       <div class="panel-note">Loading report...</div>
     </div>
     <div class="modal-actions">
-      <button class="action-btn secondary" onclick="printItemReport()">Print Report</button>
+      <button class="action-btn secondary" onclick="printItemReport()">Printable Preview</button>
       <button class="action-btn" onclick="openCurrentReportOnMap()">Open on Map</button>
       <button class="action-btn secondary" onclick="closeItemReportModal()">Close</button>
     </div>
@@ -3501,7 +3502,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.11-AM";
+    const APP_VERSION = "2026.07.11-AN";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const DEPARTMENT_SHARE_CONFIG_KEY = "department_share_links";
@@ -4120,7 +4121,7 @@
           department: deptKey, canViewAll: false, allowedDepartments: [deptKey],
           permissions: normalizeUserPermissions({
             viewActive: true, viewCleared: includeCleared, addPins: false, editPins: false,
-            clearPins: false, printReports: true, viewAdmin: false, ownPinsOutsidePrimary: false
+            clearPins: !!activeDepartmentShare.allowClear, printReports: true, viewAdmin: false, ownPinsOutsidePrimary: false
           }),
           allowedMapIds: normalizeAllowedMapIds(activeDepartmentShare.allowedMapIds)
         };
@@ -4668,10 +4669,10 @@
     async function renderSignedInDevicesList() {
       const body = document.getElementById('signedInDevicesBody');
       if (!body) return;
-      body.innerHTML = '<div class="panel-note">Loading signed-in browsers/devices… <b>BUILD 2026-07-11AM</b></div>';
+      body.innerHTML = '<div class="panel-note">Loading signed-in browsers/devices… <b>BUILD 2026-07-11AN</b></div>';
       const visibleTimeout = window.setTimeout(() => {
         if (body && /Loading signed-in browsers\/devices/.test(body.textContent || '')) {
-          body.innerHTML = '<div class="log-item" style="border-color:#d32f2f;background:#fff5f5;"><div class="log-title" style="color:#b71c1c;">Device list timed out — BUILD 2026-07-11AM</div><div><small>The page loaded the new build, but the Supabase request did not complete.</small></div></div>';
+          body.innerHTML = '<div class="log-item" style="border-color:#d32f2f;background:#fff5f5;"><div class="log-title" style="color:#b71c1c;">Device list timed out — BUILD 2026-07-11AN</div><div><small>The page loaded the new build, but the Supabase request did not complete.</small></div></div>';
         }
       }, 12000);
 
@@ -5247,6 +5248,7 @@
         scope: item && item.scope === "active_cleared" ? "active_cleared" : "active",
         allowedMapIds: normalizeAllowedMapIds(item && (item.allowedMapIds || item.allowed_map_ids || item.maps)),
         message: String(item && item.message || "").trim(),
+        allowClear: !!(item && (item.allowClear === true || item.allow_clear === true || item.canClear === true)),
         expiresAt: normalizeProfileExpiryDate(item && (item.expiresAt || item.expires_at)),
         enabled: !(item && item.enabled === false),
         createdAt: String(item && (item.createdAt || item.created_at) || "")
@@ -5290,7 +5292,7 @@
       if (statusFilter) statusFilter.value = "active";
       const banner = document.createElement("div");
       banner.className = "department-share-banner";
-      banner.textContent = "View only: " + formatDepartmentLabel(selectedDepartmentView);
+      banner.textContent = (link.allowClear ? "View + clear access: " : "View only: ") + formatDepartmentLabel(selectedDepartmentView);
       document.body.appendChild(banner);
       return true;
     }
@@ -5335,7 +5337,11 @@
       const dept = formatDepartmentLabel(resolveDepartmentKeyAgainstSettings(item && item.department || ""));
       const ids = normalizeAllowedMapIds(item && item.allowedMapIds);
       const names = ids.length ? ids.map(id => { const view = getMapView(id); return view && view.name ? view.name : id; }).join(", ") : "All available maps";
-      return "You can view the current {department} service pins using this secure read-only link. No sign-in code is required.\n\n{link}\n\nAllowed maps: {maps}\n\nYou will not be able to add, edit, reassign, or clear pins."
+      const accessLine = item && item.allowClear
+        ? "You may view and clear active pins. You cannot add, edit, reassign, cancel, or access Admin."
+        : "This is view-only access. You cannot add, edit, reassign, clear, cancel, or access Admin.";
+      const template = "You can access the current {department} service pins without a sign-in code.\n\n{link}\n\nAllowed maps: {maps}\n\n" + accessLine;
+      return template
         .replaceAll("{department}", dept || "department")
         .replaceAll("{link}", url || "")
         .replaceAll("{maps}", names);
@@ -5355,6 +5361,7 @@
       const fields = { departmentShareLabel:"", departmentShareExpires:"", departmentShareEditingToken:"" };
       Object.entries(fields).forEach(([id,value]) => { const el=document.getElementById(id); if(el) el.value=value; });
       const scope=document.getElementById("departmentShareScope"); if(scope) scope.value="active";
+      const allowClear=document.getElementById("departmentShareAllowClear"); if(allowClear) allowClear.checked=false;
       populateDepartmentShareDepartmentSelect();
       populateDepartmentShareMapGrid(ids);
       const department = String((document.getElementById("departmentShareDepartment")||{}).value||"");
@@ -5368,6 +5375,7 @@
       if (!item) return alert("That link could not be found.");
       const set=(id,value)=>{const el=document.getElementById(id); if(el) el.value=value||"";};
       set("departmentShareEditingToken", item.token); set("departmentShareLabel", item.label); set("departmentShareDepartment", item.department); set("departmentShareScope", item.scope); set("departmentShareExpires", item.expiresAt);
+      const allowClear=document.getElementById("departmentShareAllowClear"); if(allowClear) allowClear.checked=!!item.allowClear;
       populateDepartmentShareMapGrid(item.allowedMapIds);
       const message=document.getElementById("departmentShareMessage"); if(message) message.value=item.message || getDepartmentShareDefaultMessage(item, "{link}");
       const button=document.getElementById("departmentShareSaveButton"); if(button) button.textContent="Save Link Changes";
@@ -5387,6 +5395,7 @@
         scope: String((document.getElementById("departmentShareScope") || {}).value || "active"),
         allowedMapIds,
         message: String((document.getElementById("departmentShareMessage") || {}).value || "").trim(),
+        allowClear: !!((document.getElementById("departmentShareAllowClear") || {}).checked),
         expiresAt: String((document.getElementById("departmentShareExpires") || {}).value || ""),
         enabled: true
       };
@@ -5450,7 +5459,7 @@
         const dept = formatDepartmentLabel(resolveDepartmentKeyAgainstSettings(item.department));
         const status = !item.enabled ? "Disabled" : (isDepartmentShareExpired(item) ? "Expired" : "Active");
         const mapNames = normalizeAllowedMapIds(item.allowedMapIds).map(id => { const view = getMapView(id); return view && view.name ? view.name : id; });
-        return '<div class="share-link-card"><b>'+escapeHtml(item.label || dept)+'</b><br><span>'+escapeHtml(dept)+' · '+escapeHtml(item.scope === "active_cleared" ? "Active + cleared" : "Active only")+' · '+escapeHtml(status)+'</span>' +
+        return '<div class="share-link-card"><b>'+escapeHtml(item.label || dept)+'</b><br><span>'+escapeHtml(dept)+' · '+escapeHtml(item.scope === "active_cleared" ? "Active + cleared" : "Active only")+' · '+escapeHtml(item.allowClear ? "Can clear active pins" : "View only")+' · '+escapeHtml(status)+'</span>' +
           '<br><small>Maps: '+escapeHtml(mapNames.length ? mapNames.join(", ") : "All available maps")+'</small>' +
           (item.expiresAt ? '<br><small>Expires: '+escapeHtml(item.expiresAt)+'</small>' : '') +
           '<div class="share-link-card-actions"><button class="action-btn secondary" onclick="editDepartmentShareLink(\''+escapeAttr(item.token)+'\')">Edit</button><button class="action-btn secondary" onclick="copyDepartmentShareLink(\''+escapeAttr(item.token)+'\')">Copy</button><button class="action-btn" onclick="emailDepartmentShareLink(\''+escapeAttr(item.token)+'\')">Email</button><button class="action-btn" onclick="textDepartmentShareLink(\''+escapeAttr(item.token)+'\')">Text</button><button class="action-btn secondary" onclick="setDepartmentShareEnabled(\''+escapeAttr(item.token)+'\','+(!item.enabled)+')">'+(item.enabled?'Disable':'Enable')+'</button><button class="action-btn secondary" style="background:#b71c1c" onclick="deleteDepartmentShareLink(\''+escapeAttr(item.token)+'\')">Delete</button></div></div>';
@@ -5645,6 +5654,19 @@
       if (el) el.textContent = message || 'Admin authentication required.';
     }
 
+    function maskEmailAddress(value) {
+      const email = String(value || "").trim();
+      const at = email.indexOf("@");
+      if (at <= 0) return email ? "••••••" : "administrator";
+      const name = email.slice(0, at);
+      const domain = email.slice(at + 1);
+      const maskedName = name.length <= 2 ? name.charAt(0) + "••" : name.slice(0, 2) + "•".repeat(Math.min(6, Math.max(2, name.length - 2)));
+      const parts = domain.split(".");
+      const host = parts.shift() || "";
+      const maskedHost = host ? host.charAt(0) + "•••" : "•••";
+      return maskedName + "@" + maskedHost + (parts.length ? "." + parts.join(".") : "");
+    }
+
     function showAdminLoginDialog() {
       return new Promise((resolve) => {
         const old = document.getElementById('adminLoginOverlay');
@@ -5657,7 +5679,8 @@
             <div style="background:#005a9c;color:#fff;padding:13px 15px;font-weight:800;">CNE Service App Admin Sign-In</div>
             <form id="adminLoginForm" style="padding:15px;display:grid;gap:11px;">
               <label style="display:grid;gap:5px;font-size:12px;font-weight:700;color:#243447;">Email
-                <input id="adminLoginEmail" type="email" autocomplete="username" value="${ADMIN_EMAIL}" required style="padding:10px;border:1px solid #c9d2dc;border-radius:7px;font-size:16px;">
+                <input id="adminLoginEmail" type="password" autocomplete="username" value="${ADMIN_EMAIL}" required aria-label="Admin email" style="padding:10px;border:1px solid #c9d2dc;border-radius:7px;font-size:16px;">
+                <label style="display:flex;align-items:center;gap:7px;font-weight:500;font-size:11px;"><input id="adminLoginShowEmail" type="checkbox"> Show email while signing in</label>
               </label>
               <label style="display:grid;gap:5px;font-size:12px;font-weight:700;color:#243447;">Password
                 <input id="adminLoginPassword" type="password" autocomplete="current-password" required style="padding:10px;border:1px solid #c9d2dc;border-radius:7px;font-size:16px;">
@@ -5675,6 +5698,9 @@
         const submit = overlay.querySelector('#adminLoginSubmit');
         const errorEl = overlay.querySelector('#adminLoginError');
         const passwordEl = overlay.querySelector('#adminLoginPassword');
+        const emailEl = overlay.querySelector('#adminLoginEmail');
+        const showEmailEl = overlay.querySelector('#adminLoginShowEmail');
+        if (showEmailEl && emailEl) showEmailEl.addEventListener('change', () => { emailEl.type = showEmailEl.checked ? 'email' : 'password'; });
         const finish = (value) => { overlay.remove(); resolve(value); };
         cancel.addEventListener('click', () => finish(null));
         overlay.addEventListener('click', (event) => { if (event.target === overlay) finish(null); });
@@ -5718,7 +5744,7 @@
       }
       const existing = await verifyCurrentAdminUser();
       if (existing) {
-        setAdminAuthStatus(`Signed in securely as ${existing.user.email || existing.admin.email || 'administrator'}.`);
+        setAdminAuthStatus(`Signed in securely as ${maskEmailAddress(existing.user.email || existing.admin.email || 'administrator')}.`);
         return true;
       }
       const credentials = await showAdminLoginDialog();
@@ -5744,7 +5770,7 @@
         setAdminAuthStatus('Signed out — administrator access was not authorized.');
         return false;
       }
-      setAdminAuthStatus(`Signed in securely as ${verified.user.email || email}.`);
+      setAdminAuthStatus(`Signed in securely as ${maskEmailAddress(verified.user.email || email)}.`);
       return true;
     }
 
@@ -7691,7 +7717,7 @@
         : "";
 
       const printButton = pin.id
-        ? '<button class="action-btn secondary" onclick="printPinPopupReport(' + pin.id + ')">Print Report</button>'
+        ? '<button class="action-btn secondary" onclick="printPinPopupReport(' + pin.id + ')">Printable Preview</button>'
         : "";
 
       const actionRow = pin.id
@@ -7980,7 +8006,7 @@
           photo +
           clearPhoto +
           '<div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">' +
-            '<button class="action-btn secondary" onclick="printPinReportById(' + Number(pin.id || 0) + ')">Print This Report</button>' +
+            '<button class="action-btn secondary" onclick="printPinReportById(' + Number(pin.id || 0) + ')">Printable Preview</button>' +
             '<button class="action-btn secondary" onclick="openEditPinModal(' + Number(pin.id || 0) + ')">' + escapeHtml(editLabel) + '</button>' +
             (status === 'active' ? '<button class="action-btn clear-btn" onclick="openClearModal(' + Number(pin.id || 0) + ')">Clear Pin</button>' : '') +
           '</div>' +
@@ -8890,13 +8916,14 @@
           .log-photo, .popup-photo, .print-log-photo, .print-report-photo, .map-photo { display:block; margin-top:8px; max-width:460px; max-height:330px; object-fit:contain; border:1px solid #d9e2ec; border-radius:8px; background:#f8fafc; }
           .photo-gallery { display:flex; gap:10px; flex-wrap:wrap; margin-top:8px; align-items:flex-start; }
           .photo-gallery img { width:460px; max-width:100%; height:auto; max-height:330px; object-fit:contain; border:1px solid #d9e2ec; border-radius:8px; background:#f8fafc; }
-          @media print { button { display:none; } body { margin: 12mm; } }
+          .preview-actions{position:sticky;top:0;display:flex;gap:8px;padding:8px 0;background:#fff;z-index:10}.preview-actions button{border:0;border-radius:6px;padding:9px 13px;background:#005a9c;color:#fff;font-weight:700;cursor:pointer}@media print { .preview-actions,button { display:none!important; } body { margin: 12mm; } }
         </style></head><body>
+        <div class="preview-actions"><button onclick="window.print()">Print</button><button onclick="window.close()">Close Preview</button></div>
         <h1>${escapeHtml(title)}</h1>
         <div class="note">Printed ${escapeHtml(printedAt)}<br>Filters: ${escapeHtml(filterTitle)}<br>${rows.length} item${rows.length === 1 ? "" : "s"}</div>
         ${summaryHtml}
         ${bodyHtml}
-        <script>window.onload = function(){ setTimeout(function(){ window.print(); }, 500); }<\/script>
+        
       </body></html>`;
 
       printWindow.document.open();
@@ -10156,7 +10183,7 @@ function resetPinForm() {
       const accessRows = await fetchReportAccessRows(pin.id, 20);
       const accessHistoryHtml = buildReportAccessHistoryHtml(accessRows);
       const changeHistoryHtml = buildPinChangeHistoryHtml(await loadPinChangeHistory(pin.id));
-      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Item Report ${escapeHtml(String(pin.id || ""))}</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#1f2933;font-size:13px}.mini-report-card{border:1px solid #d9e0e6;border-radius:10px;padding:14px;line-height:1.45;font-size:13px}.mini-report-card h2{font-size:17px;line-height:1.25}.mini-report-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;font-size:13px}.mini-report-detail{margin-top:7px;white-space:pre-line;line-height:1.32}.compact-pin-description{margin-top:5px;white-space:pre-line;line-height:1.28}.report-map-photo,.log-photo,.print-report-photo{display:block;margin:8px 0;max-width:460px;max-height:330px;object-fit:contain;border:1px solid #d9e0e6;border-radius:8px;background:#f8fafc}.photo-gallery{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start}.photo-gallery img{width:460px;max-width:100%;height:auto;max-height:330px;object-fit:contain;border:1px solid #d9e0e6;border-radius:8px;background:#f8fafc}.photo-section-title{display:block;font-weight:bold;margin-top:10px;font-size:13px}.report-access-history{border:1px solid #d9e0e6;border-radius:8px;padding:10px;margin-top:12px;background:#f8fbfe}.report-access-row{border-top:1px solid #e6edf3;padding-top:6px;margin-top:6px}.pin-change-history{border:1px solid #d9e0e6;border-radius:8px;padding:10px;margin-top:12px;background:#fffdf6}.pin-change-row{border-top:1px solid #e6edf3;padding-top:7px;margin-top:7px}.pin-change-badge{display:inline-block;padding:2px 7px;border-radius:999px;background:#e7f3ff;border:1px solid #b7d7ef;font-size:10px;font-weight:bold;margin-right:5px}@media print{button{display:none}}</style></head><body><h1>Item Report</h1>${buildMiniReportHtml(pin, { print: true, accessHistoryHtml, changeHistoryHtml })}</body></html>`;
+      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Item Report ${escapeHtml(String(pin.id || ""))}</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#1f2933;font-size:13px}.mini-report-card{border:1px solid #d9e0e6;border-radius:10px;padding:14px;line-height:1.45;font-size:13px}.mini-report-card h2{font-size:17px;line-height:1.25}.mini-report-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;font-size:13px}.mini-report-detail{margin-top:7px;white-space:pre-line;line-height:1.32}.compact-pin-description{margin-top:5px;white-space:pre-line;line-height:1.28}.report-map-photo,.log-photo,.print-report-photo{display:block;margin:8px 0;max-width:460px;max-height:330px;object-fit:contain;border:1px solid #d9e0e6;border-radius:8px;background:#f8fafc}.photo-gallery{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start}.photo-gallery img{width:460px;max-width:100%;height:auto;max-height:330px;object-fit:contain;border:1px solid #d9e0e6;border-radius:8px;background:#f8fafc}.photo-section-title{display:block;font-weight:bold;margin-top:10px;font-size:13px}.report-access-history{border:1px solid #d9e0e6;border-radius:8px;padding:10px;margin-top:12px;background:#f8fbfe}.report-access-row{border-top:1px solid #e6edf3;padding-top:6px;margin-top:6px}.pin-change-history{border:1px solid #d9e0e6;border-radius:8px;padding:10px;margin-top:12px;background:#fffdf6}.pin-change-row{border-top:1px solid #e6edf3;padding-top:7px;margin-top:7px}.pin-change-badge{display:inline-block;padding:2px 7px;border-radius:999px;background:#e7f3ff;border:1px solid #b7d7ef;font-size:10px;font-weight:bold;margin-right:5px}.preview-actions{position:sticky;top:0;display:flex;gap:8px;padding:8px 0;background:#fff;z-index:10}.preview-actions button{border:0;border-radius:6px;padding:9px 13px;background:#005a9c;color:#fff;font-weight:700;cursor:pointer}@media print{.preview-actions,button{display:none!important}}</style></head><body><div class="preview-actions"><button onclick="window.print()">Print</button><button onclick="window.close()">Close Preview</button></div><h1>Item Report</h1>${buildMiniReportHtml(pin, { print: true, accessHistoryHtml, changeHistoryHtml })}</body></html>`;
       const win = window.open("", "_blank");
       if (!win) {
         alert("Popup blocked. Please allow popups to print the report.");
@@ -10165,7 +10192,7 @@ function resetPinForm() {
       win.document.open();
       win.document.write(html);
       win.document.close();
-      setTimeout(() => { win.focus(); win.print(); }, 350);
+      setTimeout(() => { win.focus(); }, 250);
     }
 
     async function printPinPopupReport(pinId) {
