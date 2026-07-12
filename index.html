@@ -2491,6 +2491,37 @@
     }
 
 
+    .marker-direction-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      padding: 4px 0 10px;
+      border-bottom: 1px solid #e6edf3;
+    }
+    .marker-direction-grid > label {
+      min-width: 0;
+      margin: 0 !important;
+      padding: 0 !important;
+      border-bottom: 0 !important;
+      display: grid;
+      gap: 5px;
+      align-content: start;
+    }
+    .marker-direction-grid select {
+      width: 100%;
+      min-width: 0;
+      box-sizing: border-box;
+    }
+    .marker-direction-grid small {
+      font-size: 9px !important;
+      line-height: 1.2;
+    }
+    @media (max-width: 420px) {
+      .marker-direction-grid { gap: 6px; }
+      .marker-direction-grid > label { font-size: 11px !important; }
+      .marker-direction-grid select { font-size: 14px !important; padding: 7px 5px !important; }
+    }
+
     /* Compact optional scheduling dates. Kept side-by-side to reduce popup height. */
     .optional-date-grid {
       display: grid;
@@ -2646,7 +2677,7 @@
 </head>
 <body>
 
-  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.12-BG</button>
+  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.12-BH</button>
   <div class="floating-ui" id="floatingUi">
     <button class="mobile-ui-toggle" id="mobileUiToggle" type="button" onclick="toggleMobileUi()">
       <span class="mobile-ui-toggle-main">
@@ -3287,17 +3318,19 @@
       <label>Title
         <select id="pinTitleInput"></select>
       </label>
-      <label>Marker indicator
-        <select id="pinMarkerStyleInput"><option value="dot">Standard dot</option><option value="info">Info / notes indicator</option></select>
-        <small style="color:#607084;font-weight:normal;">Use for notes, instructions, or items needing extra attention.</small>
-      </label>
-      <label>Direction arrow (optional)
-        <select id="pinDirectionInput">
-          <option value="">No arrow — standard dot</option>
-          <option value="0">North / Up</option><option value="45">Northeast</option><option value="90">East / Right</option><option value="135">Southeast</option><option value="180">South / Down</option><option value="225">Southwest</option><option value="270">West / Left</option><option value="315">Northwest</option>
-        </select>
-        <small style="color:#607084;font-weight:normal;">Use this to show which way a sign, tent opening, booth front, or other item faces.</small>
-      </label>
+      <div class="marker-direction-grid">
+        <label>Marker
+          <select id="pinMarkerStyleInput"><option value="dot">Standard dot</option><option value="info">Info / notes</option></select>
+          <small style="color:#607084;font-weight:normal;">Optional info indicator.</small>
+        </label>
+        <label>Direction arrow
+          <select id="pinDirectionInput">
+            <option value="">No arrow</option>
+            <option value="0">North / Up</option><option value="45">Northeast</option><option value="90">East / Right</option><option value="135">Southeast</option><option value="180">South / Down</option><option value="225">Southwest</option><option value="270">West / Left</option><option value="315">Northwest</option>
+          </select>
+          <small style="color:#607084;font-weight:normal;">Shows the facing direction.</small>
+        </label>
+      </div>
       <label>Location and service details <span style="color:#b71c1c;">*</span>
         <textarea id="pinDescriptionInput" placeholder="Required. Example: west washroom, beside sink. Add any issue details here." required></textarea>
       </label>
@@ -3400,15 +3433,17 @@
       <label>Title
         <select id="editPinTitleInput"></select>
       </label>
-      <label>Marker indicator
-        <select id="editPinMarkerStyleInput"><option value="dot">Standard dot</option><option value="info">Info / notes indicator</option></select>
-      </label>
-      <label>Direction arrow (optional)
-        <select id="editPinDirectionInput">
-          <option value="">No arrow — standard dot</option>
-          <option value="0">North / Up</option><option value="45">Northeast</option><option value="90">East / Right</option><option value="135">Southeast</option><option value="180">South / Down</option><option value="225">Southwest</option><option value="270">West / Left</option><option value="315">Northwest</option>
-        </select>
-      </label>
+      <div class="marker-direction-grid">
+        <label>Marker
+          <select id="editPinMarkerStyleInput"><option value="dot">Standard dot</option><option value="info">Info / notes</option></select>
+        </label>
+        <label>Direction arrow
+          <select id="editPinDirectionInput">
+            <option value="">No arrow</option>
+            <option value="0">North / Up</option><option value="45">Northeast</option><option value="90">East / Right</option><option value="135">Southeast</option><option value="180">South / Down</option><option value="225">Southwest</option><option value="270">West / Left</option><option value="315">Northwest</option>
+          </select>
+        </label>
+      </div>
       <div id="editSmsSection" class="edit-sms-section">
         <div class="sms-groups-visible-card" id="editSmsGroupsVisible">
           <div class="sms-group-card-header">
@@ -3541,7 +3576,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.12-BG";
+    const APP_VERSION = "2026.07.12-BH";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const DEPARTMENT_SHARE_CONFIG_KEY = "department_share_links";
@@ -8776,9 +8811,23 @@
         });
         printMap.invalidateSize(true);
         await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
-        if (validPins.length > 1) { const bounds=L.latLngBounds(validPins.map(pin=>[Number(pin.lat),Number(pin.lng)])); printMap.fitBounds(bounds.pad(0.06),{paddingTopLeft:[45,45],paddingBottomRight:[45,45],maxZoom:21,animate:false}); }
+        await new Promise(resolve=>setTimeout(resolve,120));
+        if (validPins.length > 1) {
+          const bounds = L.latLngBounds(validPins.map(pin => [Number(pin.lat), Number(pin.lng)]));
+          const padding = L.point(70, 70);
+          let targetZoom = printMap.getBoundsZoom(bounds, false, padding);
+          if (!Number.isFinite(targetZoom)) targetZoom = 18;
+          targetZoom = Math.min(20, Math.max(15, targetZoom + 1));
+          printMap.setView(bounds.getCenter(), targetZoom, { animate:false });
+          await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+          const visibleBounds = printMap.getBounds();
+          if (!visibleBounds.contains(bounds)) {
+            targetZoom = Math.max(13, targetZoom - 1);
+            printMap.setView(bounds.getCenter(), targetZoom, { animate:false });
+          }
+        }
         else if(validPins.length===1) printMap.setView([Number(validPins[0].lat),Number(validPins[0].lng)],20,{animate:false});
-        else printMap.setView(map.getCenter(),map.getZoom(),{animate:false});
+        else printMap.setView(map.getCenter(),Math.min(20,Math.max(17,map.getZoom())),{animate:false});
         showPrintProgress("Loading outdoor map tiles… Please wait.");
         await waitForLeafletTiles(tileLayer);
         showPrintProgress("Loading overlay image and visible pins…");
