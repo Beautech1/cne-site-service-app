@@ -2584,6 +2584,9 @@
     .pin-note-photo { display:block; width:auto; max-width:min(100%,260px); max-height:220px; object-fit:contain; border:1px solid #d9e0e6; border-radius:7px; background:#fff; margin-top:6px; }
     .pin-note-button { background:#3f6f8f !important; }
     #pinNoteModal .modal-body textarea { min-height:110px; }
+    /* Build AR: keep Add Note above map popups, floor-plan sheets, and report previews. */
+    #pinNoteModal { z-index: 4300 !important; }
+    body.pin-note-open #modalBackdrop { z-index: 4200 !important; display:block !important; }
 
     /* Build AD: compact Admin share-access tool. */
     .share-access-grid {
@@ -2652,7 +2655,7 @@
 </head>
 <body>
 
-  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.11-AQ</button>
+  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.11-AR</button>
   <div class="floating-ui" id="floatingUi">
     <button class="mobile-ui-toggle" id="mobileUiToggle" type="button" onclick="toggleMobileUi()">
       <span class="mobile-ui-toggle-main">
@@ -3546,7 +3549,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.11-AQ";
+    const APP_VERSION = "2026.07.11-AR";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const DEPARTMENT_SHARE_CONFIG_KEY = "department_share_links";
@@ -7773,7 +7776,7 @@
         ? '<button class="action-btn secondary" onclick="printPinPopupReport(' + pin.id + ')">Printable Preview</button>'
         : "";
       const noteButton = pin.id && userCanAddPinNotes()
-        ? '<button class="action-btn pin-note-button" onclick="openPinNoteModal(' + pin.id + ')">Add note</button>'
+        ? '<button class="action-btn pin-note-button" onclick="openPinNoteModal(' + JSON.stringify(String(pin.id)) + ')">Add note</button>'
         : "";
 
       const actionRow = pin.id
@@ -9938,17 +9941,31 @@ function resetPinForm() {
       if (!userCanAddPinNotes()) return denyPermission("This access does not allow adding notes.");
       const pin = allPins.find(item => String(item.id) === String(pinId));
       if (!pin) return alert("That pin could not be found.");
+
+      // Close underlying map/floor popups and report preview so the note form is never hidden behind them.
+      try { closeAllMapPopups(); } catch (error) {}
+      const itemReportModal = document.getElementById("itemReportModal");
+      if (itemReportModal) itemReportModal.classList.remove("open");
+      document.querySelectorAll(".floor-popup").forEach(el => { el.style.display = "none"; });
+
       const idEl=document.getElementById("pinNotePinId"); if(idEl) idEl.value=String(pin.id);
       const author=document.getElementById("pinNoteAuthor"); if(author) author.value=getPinNoteAuthorDefault();
       const text=document.getElementById("pinNoteText"); if(text) text.value="";
       const photo=document.getElementById("pinNotePhoto"); if(photo) photo.value="";
-      const modal=document.getElementById("pinNoteModal"); if(modal) modal.classList.add("open");
+      document.body.classList.add("pin-note-open");
       const backdrop=document.getElementById("modalBackdrop"); if(backdrop) backdrop.classList.add("open");
-      setTimeout(()=>{ if(text) text.focus(); },50);
+      const modal=document.getElementById("pinNoteModal");
+      if(modal){
+        modal.classList.add("open");
+        modal.style.display="flex";
+      }
+      setTimeout(()=>{ if(text) text.focus(); },100);
     }
 
     function closePinNoteModal() {
-      const modal=document.getElementById("pinNoteModal"); if(modal) modal.classList.remove("open");
+      const modal=document.getElementById("pinNoteModal");
+      if(modal){ modal.classList.remove("open"); modal.style.display=""; }
+      document.body.classList.remove("pin-note-open");
       const openModal=document.querySelector(".modal.open");
       if(!openModal){ const backdrop=document.getElementById("modalBackdrop"); if(backdrop) backdrop.classList.remove("open"); }
     }
@@ -10180,7 +10197,7 @@ function resetPinForm() {
       const reportActionRow = (!options.print && pin.id && !reportViewOnly)
         ? '<div style="margin-top:12px; display:flex; gap:12px; flex-wrap:wrap; align-items:center; justify-content:flex-start;">' +
             (pinStatusForActions === "active" ? '<button class="action-btn clear-btn" onclick="clearPinFromReport(' + pin.id + ')">Clear Pin</button>' : '') +
-            (userCanAddPinNotes() ? '<button class="action-btn pin-note-button" onclick="openPinNoteModal(' + pin.id + ')">Add Note</button>' : '') +
+            (userCanAddPinNotes() ? '<button class="action-btn pin-note-button" onclick="openPinNoteModal(' + JSON.stringify(String(pin.id)) + ')">Add Note</button>' : '') +
             '<button class="action-btn secondary" onclick="openEditPinModalFromReport(' + pin.id + ')">' + (pinStatusForActions === "cleared" ? 'Admin Edit Cleared Pin' : 'Edit / Reassign / Cancel Pin') + '</button>' +
           '</div>'
         : '';
