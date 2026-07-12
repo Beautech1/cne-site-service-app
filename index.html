@@ -2,9 +2,6 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-  <meta http-equiv="Pragma" content="no-cache" />
-  <meta http-equiv="Expires" content="0" />
   <title>cne service app</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 
@@ -831,6 +828,20 @@
       background: #ffffff !important;
       color: #005a9c !important;
       box-shadow: 0 2px 8px rgba(0,0,0,0.28) !important;
+    }
+
+    .cne-direct-gps-button {
+      width: 42px !important;
+      height: 42px !important;
+      line-height: 42px !important;
+      font-size: 24px !important;
+      font-weight: 900 !important;
+      text-align: center !important;
+      border-radius: 8px !important;
+      background: #ffffff !important;
+      color: #005a9c !important;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.28) !important;
+      text-decoration: none !important;
     }
 
     @media (max-width: 520px) {
@@ -3382,16 +3393,11 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.11-AF";
+    const APP_VERSION = "2026.07.11-AG";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const SIGN_IN_ACCESS_TABLE = "app_sign_in_access";
     const DEVICE_SIGNOUT_TABLE = "app_device_signout_requests";
-
-    function isMissingExpiresAtSchemaError(error) {
-      const message = String((error && error.message) || error || "").toLowerCase();
-      return message.includes("expires_at") && (message.includes("schema cache") || message.includes("column"));
-    }
     const APP_LINK = window.location.href.split("#")[0].split("?")[0];
 
     const DEPARTMENT_STORAGE_KEY = "cne_map_departments_v1";
@@ -4327,20 +4333,13 @@
     async function fetchDeviceSignOutRows(limit = 500) {
       if (!supabaseClient) return { rows: [], error: new Error("Supabase is not connected.") };
       try {
-        let result = await supabaseClient
+        const { data, error } = await supabaseClient
           .from(DEVICE_SIGNOUT_TABLE)
           .select("id, device_id, reason, requested_by_device_id, requested_by_label, requested_by_user_agent, created_at, expires_at")
           .order("created_at", { ascending: false })
           .limit(limit);
-        if (result.error && isMissingExpiresAtSchemaError(result.error)) {
-          result = await supabaseClient
-            .from(DEVICE_SIGNOUT_TABLE)
-            .select("id, device_id, reason, requested_by_device_id, requested_by_label, requested_by_user_agent, created_at")
-            .order("created_at", { ascending: false })
-            .limit(limit);
-        }
-        if (result.error) return { rows: [], error: result.error };
-        return { rows: Array.isArray(result.data) ? result.data : [], error: null };
+        if (error) return { rows: [], error };
+        return { rows: Array.isArray(data) ? data : [], error: null };
       } catch (error) {
         return { rows: [], error };
       }
@@ -4977,21 +4976,13 @@
       if (!deviceId) return false;
 
       try {
-        let result = await supabaseClient
+        const { data, error } = await supabaseClient
           .from(DEVICE_SIGNOUT_TABLE)
           .select("id, created_at, expires_at, reason")
           .eq("device_id", deviceId)
           .order("created_at", { ascending: false })
           .limit(1);
-        if (result.error && isMissingExpiresAtSchemaError(result.error)) {
-          result = await supabaseClient
-            .from(DEVICE_SIGNOUT_TABLE)
-            .select("id, created_at, reason")
-            .eq("device_id", deviceId)
-            .order("created_at", { ascending: false })
-            .limit(1);
-        }
-        const { data, error } = result;
+
         if (error) {
           console.warn("Could not check device force re-sign-in requests. Run the device sign-out SQL if needed.", error);
           return false;
@@ -5185,16 +5176,10 @@
           requested_by_user_agent: navigator.userAgent || '',
           expires_at: parsedExpiry.toISOString()
         };
-        let result = await supabaseClient.from(DEVICE_SIGNOUT_TABLE).insert(payload);
-        if (result.error && isMissingExpiresAtSchemaError(result.error)) {
-          const fallbackPayload = { ...payload };
-          delete fallbackPayload.expires_at;
-          result = await supabaseClient.from(DEVICE_SIGNOUT_TABLE).insert(fallbackPayload);
-        }
-        const error = result.error;
+        const { error } = await supabaseClient.from(DEVICE_SIGNOUT_TABLE).insert(payload);
         if (error) {
           console.warn('Could not save force re-sign-in request.', error);
-          alert('Could not save the force re-sign-in request: ' + (error.message || String(error)) + '\n\nRun the device logging repair SQL.');
+          alert('Could not save the force re-sign-in request: ' + (error.message || String(error)) + '\n\nRun the new device logging repair SQL.');
           return;
         }
         alert('Force re-sign-in request saved for ' + displayLabel + '.');
@@ -5223,11 +5208,7 @@
         .update({ expires_at: parsed.toISOString() })
         .eq('id', id);
       if (error) {
-        if (isMissingExpiresAtSchemaError(error)) {
-          alert('The kick was saved, but custom expiry dates require the expires_at database column. Run the included device logging repair SQL.');
-        } else {
-          alert('Could not update the kick expiry: ' + (error.message || String(error)));
-        }
+        alert('Could not update the kick expiry: ' + (error.message || String(error)));
         return;
       }
       alert('Kick expiry updated to ' + parsed.toLocaleDateString() + '.');
@@ -6340,17 +6321,6 @@
       }
     }
 
-    async function refreshCentralSettingsAndUi() {
-      if (!supabaseClient || document.body.classList.contains("report-view-only")) return;
-      await loadCentralSettingsFromSupabase();
-      populateDepartmentDropdowns();
-      populateProfileDropdowns();
-      ensureDepartmentViewSelected();
-      enforceAssignedDepartmentView();
-      applyFilters();
-      updateCurrentViewDisplay();
-    }
-
 
     function normalizeDepartmentViewGroups(value) {
       const source = Array.isArray(value) ? value : [];
@@ -6942,53 +6912,75 @@
     const userPinsLayer = L.layerGroup().addTo(map);
 
     function locateCurrentUser() {
-      if (!map || typeof map.locate !== "function") {
-        alert("GPS location is not available on this map.");
+      if (!window.isSecureContext) {
+        alert("Phone location requires a secure HTTPS connection. Open the published https://beautech1.github.io site directly in Safari or Chrome.");
+        return;
+      }
+      if (!navigator.geolocation) {
+        alert("This browser does not provide GPS location services.");
         return;
       }
 
-      setStatus("Finding your GPS location...");
-      map.locate({
-        setView: true,
-        flyTo: true,
-        maxZoom: Math.max(map.getZoom(), 18),
-        enableHighAccuracy: true,
-        timeout: 12000
-      });
+      setStatus("Finding your phone location...");
+      navigator.geolocation.getCurrentPosition(
+        function(position) {
+          const latlng = L.latLng(position.coords.latitude, position.coords.longitude);
+          const accuracy = Math.round(position.coords.accuracy || 0);
+          if (!window.cneUserLocationMarker) {
+            window.cneUserLocationMarker = L.circleMarker(latlng, {
+              radius: 8,
+              weight: 3,
+              color: "#005a9c",
+              fillColor: "#ffffff",
+              fillOpacity: 1
+            }).addTo(map);
+          } else {
+            window.cneUserLocationMarker.setLatLng(latlng);
+          }
+          if (!window.cneUserAccuracyCircle) {
+            window.cneUserAccuracyCircle = L.circle(latlng, {
+              radius: Math.max(accuracy, 5),
+              weight: 1,
+              color: "#005a9c",
+              fillOpacity: 0.08
+            }).addTo(map);
+          } else {
+            window.cneUserAccuracyCircle.setLatLng(latlng).setRadius(Math.max(accuracy, 5));
+          }
+          map.flyTo(latlng, Math.max(map.getZoom(), 18), { duration: 0.7 });
+          setStatus(`Phone location found${accuracy ? ` (about ${accuracy} m accuracy)` : ""}.`);
+        },
+        function(error) {
+          console.warn("GPS location error:", error);
+          let message = "The phone could not provide a location.";
+          if (error && error.code === 1) message = "Location permission is blocked for this website. Allow Location for beautech1.github.io in your browser settings, then try again.";
+          else if (error && error.code === 2) message = "Your phone could not determine its location. Turn on Location Services/GPS and try outside or near a window.";
+          else if (error && error.code === 3) message = "The location request timed out. Make sure GPS is on and try again.";
+          setStatus("Could not access phone location.");
+          alert(message);
+        },
+        { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+      );
     }
 
-    map.on("locationfound", function(event) {
-      setStatus("GPS location found.");
-      if (!window.cneUserLocationMarker) {
-        window.cneUserLocationMarker = L.circleMarker(event.latlng, {
-          radius: 8,
-          weight: 3,
-          color: "#005a9c",
-          fillColor: "#ffffff",
-          fillOpacity: 1
-        }).addTo(map);
-      } else {
-        window.cneUserLocationMarker.setLatLng(event.latlng);
+    const DirectGpsControl = L.Control.extend({
+      options: { position: "bottomright" },
+      onAdd: function() {
+        const container = L.DomUtil.create("div", "leaflet-bar leaflet-control");
+        const button = L.DomUtil.create("a", "cne-direct-gps-button", container);
+        button.href = "#";
+        button.title = "Show my phone location";
+        button.setAttribute("aria-label", "Show my phone location");
+        button.innerHTML = "&#10148;";
+        L.DomEvent.disableClickPropagation(container);
+        L.DomEvent.on(button, "click", function(event) {
+          L.DomEvent.preventDefault(event);
+          locateCurrentUser();
+        });
+        return container;
       }
     });
-
-    map.on("locationerror", function(event) {
-      console.warn("GPS location error:", event && event.message);
-      setStatus("Could not access GPS location.");
-      alert("The app could not access your location. Please allow location permission for this website and make sure GPS is turned on.");
-    });
-
-    L.control.locate({
-      position: "bottomright",
-      keepCurrentZoomLevel: true,
-      flyTo: true,
-      locateOptions: {
-        enableHighAccuracy: true
-      },
-      strings: {
-        title: "Show my location"
-      }
-    }).addTo(map);
+    new DirectGpsControl().addTo(map);
 
     const cneBounds = L.latLngBounds(
       [43.6280, -79.4245],
@@ -10150,20 +10142,55 @@ ${rows.map(pin => `
       event.target.value = "";
     }
 
+    let pinSyncTimer = null;
+    let pinSyncInProgress = false;
+
+    async function refreshSharedAppData(showMessage = false) {
+      if (!supabaseClient || pinSyncInProgress || document.hidden) return;
+      pinSyncInProgress = true;
+      try {
+        await loadCentralSettingsFromSupabase();
+        populateMapSelector();
+        populateDepartmentDropdowns();
+        populateProfileDropdowns();
+        ensureDepartmentViewSelected();
+        await loadPins(showMessage);
+      } catch (error) {
+        console.warn("Shared app refresh failed:", error);
+      } finally {
+        pinSyncInProgress = false;
+      }
+    }
+
     function subscribeRealtime() {
       if (!supabaseClient) return;
+      if (realtimeChannel) {
+        try { supabaseClient.removeChannel(realtimeChannel); } catch (error) {}
+      }
       realtimeChannel = supabaseClient
-        .channel("public:pins-live")
+        .channel("public:pins-live-" + getDeviceId())
         .on(
           "postgres_changes",
           { event: "*", schema: "public", table: SUPABASE_TABLE },
-          () => loadPins(false)
+          () => refreshSharedAppData(false)
         )
         .subscribe((status) => {
-          if (status === "SUBSCRIBED") {
-            setStatus("Realtime sync connected.");
+          if (status === "SUBSCRIBED") setStatus("Live pin sync connected.");
+          if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+            console.warn("Live pin sync status:", status);
+            window.setTimeout(subscribeRealtime, 5000);
           }
         });
+
+      if (!pinSyncTimer) {
+        pinSyncTimer = window.setInterval(() => refreshSharedAppData(false), 30000);
+        document.addEventListener("visibilitychange", () => {
+          if (!document.hidden) refreshSharedAppData(false);
+        });
+        window.addEventListener("focus", () => refreshSharedAppData(false));
+        window.addEventListener("online", () => refreshSharedAppData(true));
+        window.addEventListener("pageshow", () => refreshSharedAppData(false));
+      }
     }
 
     function openPinModalAfterTargetVisible() {
@@ -10280,17 +10307,11 @@ ${rows.map(pin => `
       await recordSiteVisit();
       subscribeRealtime();
       startDeviceSignOutWatcher();
-      window.setInterval(refreshCentralSettingsAndUi, 60000);
-      window.addEventListener("focus", refreshCentralSettingsAndUi);
-      document.addEventListener("visibilitychange", () => {
-        if (!document.hidden) refreshCentralSettingsAndUi();
-      });
     }
 
     initializeApp();
 
     window.loadPins = loadPins;
-    window.refreshCentralSettingsAndUi = refreshCentralSettingsAndUi;
     window.toggleMobileUi = toggleMobileUi;
     window.closeMobileUiAfterAction = closeMobileUiAfterAction;
     window.forceDeviceReSignIn = forceDeviceReSignIn;
