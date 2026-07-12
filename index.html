@@ -2655,7 +2655,7 @@
 </head>
 <body>
 
-  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.11-AR</button>
+  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.11-AS</button>
   <div class="floating-ui" id="floatingUi">
     <button class="mobile-ui-toggle" id="mobileUiToggle" type="button" onclick="toggleMobileUi()">
       <span class="mobile-ui-toggle-main">
@@ -9942,24 +9942,39 @@ function resetPinForm() {
       const pin = allPins.find(item => String(item.id) === String(pinId));
       if (!pin) return alert("That pin could not be found.");
 
-      // Close underlying map/floor popups and report preview so the note form is never hidden behind them.
+      // Fully close every other action window first. This is especially important
+      // when Add Note is selected while Clear Pin is open on mobile or desktop.
       try { closeAllMapPopups(); } catch (error) {}
-      const itemReportModal = document.getElementById("itemReportModal");
-      if (itemReportModal) itemReportModal.classList.remove("open");
+      try { if (typeof closeClearModal === "function") closeClearModal(); } catch (error) {}
+      try { if (typeof closePinModal === "function") closePinModal(); } catch (error) {}
+      try { if (typeof closeEditPinModal === "function") closeEditPinModal(); } catch (error) {}
+      try { if (typeof closeItemReportModal === "function") closeItemReportModal(); } catch (error) {}
+
       document.querySelectorAll(".floor-popup").forEach(el => { el.style.display = "none"; });
+      document.querySelectorAll(".modal.open").forEach(el => {
+        if (el.id !== "pinNoteModal") el.classList.remove("open");
+      });
+
+      const backdrop=document.getElementById("modalBackdrop");
+      if(backdrop) backdrop.classList.remove("open");
+      document.body.classList.remove("pin-note-open");
 
       const idEl=document.getElementById("pinNotePinId"); if(idEl) idEl.value=String(pin.id);
       const author=document.getElementById("pinNoteAuthor"); if(author) author.value=getPinNoteAuthorDefault();
       const text=document.getElementById("pinNoteText"); if(text) text.value="";
       const photo=document.getElementById("pinNotePhoto"); if(photo) photo.value="";
-      document.body.classList.add("pin-note-open");
-      const backdrop=document.getElementById("modalBackdrop"); if(backdrop) backdrop.classList.add("open");
-      const modal=document.getElementById("pinNoteModal");
-      if(modal){
-        modal.classList.add("open");
-        modal.style.display="flex";
-      }
-      setTimeout(()=>{ if(text) text.focus(); },100);
+
+      // Open on the next event cycle after all prior windows have finished closing.
+      setTimeout(function() {
+        document.body.classList.add("pin-note-open");
+        if(backdrop) backdrop.classList.add("open");
+        const modal=document.getElementById("pinNoteModal");
+        if(modal){
+          modal.style.display="flex";
+          modal.classList.add("open");
+        }
+        setTimeout(function(){ if(text) text.focus(); }, 80);
+      }, 60);
     }
 
     function closePinNoteModal() {
