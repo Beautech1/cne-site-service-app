@@ -2495,7 +2495,7 @@
 </head>
 <body>
 
-  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.11-AA</button>
+  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.11-AB</button>
   <div class="floating-ui" id="floatingUi">
     <button class="mobile-ui-toggle" id="mobileUiToggle" type="button" onclick="toggleMobileUi()">
       <span class="mobile-ui-toggle-main">
@@ -3271,7 +3271,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.11-X";
+    const APP_VERSION = "2026.07.11-AB";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const SIGN_IN_ACCESS_TABLE = "app_sign_in_access";
@@ -6678,9 +6678,21 @@
       }
     }
 
+    let gpsWatchId = null;
+    let gpsFallbackTimer = null;
+
+    function stopGpsWatch() {
+      if (gpsWatchId !== null && navigator.geolocation) {
+        navigator.geolocation.clearWatch(gpsWatchId);
+      }
+      gpsWatchId = null;
+      if (gpsFallbackTimer) clearTimeout(gpsFallbackTimer);
+      gpsFallbackTimer = null;
+    }
+
     function requestCurrentLocation() {
-      // Keep getCurrentPosition directly inside the button-tap call path.
-      // Mobile Safari/Chrome only show the native Allow/Block prompt after a user gesture.
+      // This function is called directly by the GPS-arrow tap so mobile browsers
+      // can show the native Allow/Block permission prompt.
       if (gpsRequestInProgress) return;
       if (!navigator.geolocation) {
         showGpsError({ code: 0 });
@@ -6691,31 +6703,52 @@
         return;
       }
 
+      stopGpsWatch();
       gpsRequestInProgress = true;
-      setGpsButtonState("loading", "Allow location access if your phone asks, then keep this page open while your position is found.");
+      setGpsButtonState("loading", "Approve location access. The map will move automatically when your position is received.");
       if (typeof setStatus === "function") {
-        setStatus("Requesting phone location permission… Tap Allow when prompted.");
+        setStatus("Requesting phone location… Tap Allow when prompted. The map will centre automatically.");
       }
 
-      // First call triggers the browser's native permission prompt and tries a fast fix.
-      navigator.geolocation.getCurrentPosition(showGpsPosition, function(firstError) {
-        // If permission was denied, do not retry because the browser will not prompt twice.
-        if (Number(firstError && firstError.code) === 1) {
-          showGpsError(firstError);
-          return;
-        }
+      let receivedPosition = false;
+      const acceptPosition = function(position) {
+        if (receivedPosition) return;
+        receivedPosition = true;
+        stopGpsWatch();
+        showGpsPosition(position);
+      };
 
-        // Phones indoors sometimes fail high-accuracy GPS. Retry using Wi-Fi/cell positioning.
-        navigator.geolocation.getCurrentPosition(showGpsPosition, showGpsError, {
+      const watchError = function(error) {
+        if (receivedPosition) return;
+        if (Number(error && error.code) === 1) {
+          stopGpsWatch();
+          showGpsError(error);
+        }
+        // Timeout/unavailable errors are handled by the lower-accuracy fallback below.
+      };
+
+      // watchPosition remains active after the user approves permission. This avoids
+      // the common mobile issue where a one-time request ends before the first GPS fix.
+      gpsWatchId = navigator.geolocation.watchPosition(acceptPosition, watchError, {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 30000
+      });
+
+      // After 8 seconds, also request a Wi-Fi/cell based result. Whichever valid
+      // result arrives first centres the map and closes both requests.
+      gpsFallbackTimer = setTimeout(function() {
+        if (receivedPosition) return;
+        navigator.geolocation.getCurrentPosition(acceptPosition, function(error) {
+          if (receivedPosition) return;
+          stopGpsWatch();
+          showGpsError(error);
+        }, {
           enableHighAccuracy: false,
           timeout: 20000,
-          maximumAge: 60000
+          maximumAge: 120000
         });
-      }, {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0
-      });
+      }, 8000);
     }
 
     const NativeGpsControl = L.Control.extend({
