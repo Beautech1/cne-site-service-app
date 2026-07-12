@@ -2277,6 +2277,76 @@
 
 
 
+    .department-access-card {
+      display: grid;
+      gap: 9px;
+      width: 100%;
+      box-sizing: border-box;
+      border: 1px solid #d7e0ea;
+      border-radius: 10px;
+      background: #f8fbfe;
+      padding: 10px;
+    }
+    .department-access-card > label {
+      display: grid;
+      gap: 4px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #334155;
+    }
+    .department-access-card select {
+      width: 100%;
+      box-sizing: border-box;
+      border: 1px solid #c9d2dc;
+      border-radius: 6px;
+      padding: 7px 8px;
+      background: #fff;
+      font: inherit;
+    }
+    .department-access-heading {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 8px;
+      color: #334155;
+      font-size: 12px;
+    }
+    .department-access-heading small { color: #607084; font-weight: 400; }
+    .department-access-actions { display: flex; gap: 5px; flex-wrap: wrap; justify-content: flex-end; }
+    .department-checkbox-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px;
+      max-height: 220px;
+      overflow-y: auto;
+      padding: 6px;
+      border: 1px solid #d7e0ea;
+      border-radius: 8px;
+      background: #fff;
+    }
+    .department-checkbox-option {
+      display: flex !important;
+      align-items: center;
+      gap: 7px !important;
+      min-width: 0;
+      padding: 7px;
+      border: 1px solid #e1e7ed;
+      border-radius: 7px;
+      background: #f8fbfe;
+      font-size: 11px !important;
+      font-weight: 700 !important;
+      cursor: pointer;
+      box-sizing: border-box;
+    }
+    .department-checkbox-option:has(input:checked) { border-color: #78afd5; background: #eef7ff; }
+    .department-checkbox-option input { width: 16px; height: 16px; margin: 0; flex: none; accent-color: #005a9c; }
+    .department-checkbox-option span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    @media (max-width: 520px) {
+      .department-checkbox-grid { grid-template-columns: 1fr; max-height: 245px; }
+      .department-access-heading { display: grid; }
+      .department-access-actions { justify-content: flex-start; }
+    }
+
     .permission-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2524,7 +2594,7 @@
 </head>
 <body>
 
-  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.11-AF</button>
+  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.11-AI</button>
   <div class="floating-ui" id="floatingUi">
     <button class="mobile-ui-toggle" id="mobileUiToggle" type="button" onclick="toggleMobileUi()">
       <span class="mobile-ui-toggle-main">
@@ -2772,7 +2842,7 @@
       <button class="panel-close-btn" onclick="toggleSignInCodesPanel(false)">&times;</button>
     </div>
     <div class="panel-body">
-      <div class="panel-note">Add, edit, or remove sign-in codes. This saves to Supabase app_settings &gt; sign_in_codes so all devices use the same code list.</div>
+      <div class="panel-note">Add, edit, or remove sign-in codes. Department access is selected from the existing Manage Departments list to prevent spelling mismatches. This saves to Supabase app_settings &gt; sign_in_codes so all devices use the same code list.</div>
       <div class="settings-row">
         <label>Existing sign-in code
           <select id="signInCodeEditorSelect" onchange="loadSignInCodeEditor()"></select>
@@ -2816,10 +2886,23 @@
         </label>
       </div>
       <div class="settings-row" id="signInCodeMultiDepartmentRow" style="display:none;">
-        <label>Allowed departments, one per line
-          <textarea id="signInCodeEditorAllowedDepartments" placeholder="Explace Cleaning&#10;Impact Cleaning&#10;Showtech Plumbing"></textarea>
-          <small style="font-weight:normal; color:#55606e;">The first department is the primary department. When “Additional departments: own profile pins only” is enabled, all pins from the first department remain visible; later departments show only this profile’s own pins.</small>
-        </label>
+        <div class="department-access-card">
+          <label>Primary department
+            <select id="signInCodeEditorPrimaryDepartment" onchange="syncSignInPrimaryDepartmentSelection()"></select>
+          </label>
+          <div class="department-access-heading">
+            <div>
+              <b>Allowed departments</b><br>
+              <small>Select existing departments instead of typing their names.</small>
+            </div>
+            <div class="department-access-actions">
+              <button type="button" class="sms-group-mini-btn" onclick="setAllSignInDepartments(true)">Select all</button>
+              <button type="button" class="sms-group-mini-btn" onclick="setAllSignInDepartments(false)">Primary only</button>
+            </div>
+          </div>
+          <div id="signInCodeDepartmentCheckboxGrid" class="department-checkbox-grid"></div>
+          <small style="font-weight:normal; color:#55606e;">The primary department remains fully visible. When “Additional departments: own profile pins only” is enabled, other checked departments show only pins created by this profile.</small>
+        </div>
       </div>
       <div class="admin-menu-section" style="margin-top:10px;">
         <h3>User permissions</h3>
@@ -3352,7 +3435,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.11-AH";
+    const APP_VERSION = "2026.07.11-AI";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const SIGN_IN_ACCESS_TABLE = "app_sign_in_access";
@@ -4628,6 +4711,55 @@
       return checked.length === boxes.length ? [] : checked;
     }
 
+    function getOfficialDepartmentNames() {
+      const names = departments.map(item => item && item.name ? String(item.name).trim() : "").filter(Boolean);
+      return Array.from(new Set(names)).sort((a,b) => a.localeCompare(b, undefined, {sensitivity:"base", numeric:true}));
+    }
+
+    function populateSignInDepartmentCheckboxes(selectedDepartments, primaryDepartment) {
+      const grid = document.getElementById("signInCodeDepartmentCheckboxGrid");
+      const primary = document.getElementById("signInCodeEditorPrimaryDepartment");
+      if (!grid || !primary) return;
+      const official = getOfficialDepartmentNames();
+      const selectedRaw = Array.isArray(selectedDepartments) ? selectedDepartments : [];
+      const resolvedSelected = selectedRaw.map(name => {
+        const match = official.find(item => departmentNamesEquivalent(item, name));
+        return match || String(name || "").trim();
+      }).filter(Boolean);
+      let primaryName = official.find(item => departmentNamesEquivalent(item, primaryDepartment)) || resolvedSelected[0] || official[0] || "";
+      const selectedSet = new Set(resolvedSelected);
+      if (primaryName) selectedSet.add(primaryName);
+      primary.innerHTML = official.map(name => '<option value="'+escapeAttr(name)+'">'+escapeHtml(name)+'</option>').join('') || '<option value="">No departments configured</option>';
+      primary.value = primaryName;
+      grid.innerHTML = official.map(name => '<label class="department-checkbox-option"><input type="checkbox" class="sign-in-department-access" value="'+escapeAttr(name)+'" '+(selectedSet.has(name)?'checked':'')+' onchange="ensureSignInPrimaryDepartmentChecked()"><span>'+escapeHtml(name)+'</span></label>').join('') || '<div class="panel-note">No departments configured. Add departments in Manage Departments first.</div>';
+      ensureSignInPrimaryDepartmentChecked();
+    }
+
+    function ensureSignInPrimaryDepartmentChecked() {
+      const primary = document.getElementById("signInCodeEditorPrimaryDepartment");
+      const primaryName = String(primary ? primary.value : "").trim();
+      document.querySelectorAll('.sign-in-department-access').forEach(box => {
+        if (departmentNamesEquivalent(box.value, primaryName)) box.checked = true;
+      });
+    }
+
+    function syncSignInPrimaryDepartmentSelection() {
+      ensureSignInPrimaryDepartmentChecked();
+    }
+
+    function setAllSignInDepartments(checked) {
+      document.querySelectorAll('.sign-in-department-access').forEach(box => { box.checked = !!checked; });
+      ensureSignInPrimaryDepartmentChecked();
+    }
+
+    function readSignInAllowedDepartmentsEditor() {
+      const primaryEl = document.getElementById("signInCodeEditorPrimaryDepartment");
+      const primary = String(primaryEl ? primaryEl.value : "").trim();
+      const checked = Array.from(document.querySelectorAll('.sign-in-department-access:checked')).map(box => String(box.value || "").trim()).filter(Boolean);
+      const others = checked.filter(name => !departmentNamesEquivalent(name, primary));
+      return primary ? [primary, ...others] : others;
+    }
+
     function populateSignInCodeEditor(selectedCode) {
       const select = document.getElementById("signInCodeEditorSelect");
       if (!select) return;
@@ -4656,10 +4788,10 @@
       const labelInput = document.getElementById("signInCodeEditorLabel");
       const accessTypeInput = document.getElementById("signInCodeEditorAccessType");
       const deptInput = document.getElementById("signInCodeEditorDepartment");
-      const allowedInput = document.getElementById("signInCodeEditorAllowedDepartments");
+      const primaryDeptInput = document.getElementById("signInCodeEditorPrimaryDepartment");
       const enabledInput = document.getElementById("signInCodeEditorEnabled");
       const expiresInput = document.getElementById("signInCodeEditorExpiresAt");
-      if (!select || !codeInput || !labelInput || !accessTypeInput || !deptInput || !allowedInput) return;
+      if (!select || !codeInput || !labelInput || !accessTypeInput || !deptInput) return;
       const code = select.value;
       const access = SIGN_IN_CODES[code] || {};
       const normalized = lookupSignInCode(code) || access;
@@ -4675,7 +4807,7 @@
       const currentDept = access.department && access.department !== "multi" && access.department !== "all" ? access.department : "";
       deptInput.innerHTML = getDepartmentNameOptionsHtml(currentDept);
       deptInput.value = currentDept || (deptInput.options[0] ? deptInput.options[0].value : "");
-      allowedInput.value = Array.isArray(allowedDepartments) ? allowedDepartments.join("\n") : "";
+      populateSignInDepartmentCheckboxes(Array.isArray(allowedDepartments) ? allowedDepartments : [], Array.isArray(allowedDepartments) && allowedDepartments.length ? allowedDepartments[0] : currentDept);
       setPermissionEditorValues(access.permissions || normalized.permissions || DEFAULT_USER_PERMISSIONS);
       populateMapAccessEditor(access.allowedMapIds || access.allowed_map_ids || normalized.allowedMapIds || []);
       refreshSignInCodeAccessFields();
@@ -4695,13 +4827,13 @@
       const labelInput = document.getElementById("signInCodeEditorLabel");
       const accessTypeInput = document.getElementById("signInCodeEditorAccessType");
       const deptInput = document.getElementById("signInCodeEditorDepartment");
-      const allowedInput = document.getElementById("signInCodeEditorAllowedDepartments");
+      const primaryDeptInput = document.getElementById("signInCodeEditorPrimaryDepartment");
       if (select) select.value = "";
       if (codeInput) codeInput.value = "";
       if (labelInput) labelInput.value = "";
       if (accessTypeInput) accessTypeInput.value = "department";
       if (deptInput) deptInput.innerHTML = getDepartmentNameOptionsHtml("");
-      if (allowedInput) allowedInput.value = "";
+      populateSignInDepartmentCheckboxes([], "");
       const enabledInput = document.getElementById("signInCodeEditorEnabled");
       const expiresInput = document.getElementById("signInCodeEditorExpiresAt");
       if (enabledInput) enabledInput.checked = true;
@@ -4717,7 +4849,7 @@
       const labelInput = document.getElementById("signInCodeEditorLabel");
       const accessTypeInput = document.getElementById("signInCodeEditorAccessType");
       const deptInput = document.getElementById("signInCodeEditorDepartment");
-      const allowedInput = document.getElementById("signInCodeEditorAllowedDepartments");
+      const primaryDeptInput = document.getElementById("signInCodeEditorPrimaryDepartment");
       const enabledInput = document.getElementById("signInCodeEditorEnabled");
       const expiresInput = document.getElementById("signInCodeEditorExpiresAt");
       const oldSelect = document.getElementById("signInCodeEditorSelect");
@@ -4733,9 +4865,9 @@
       if (accessType === "all") {
         next = { label, role: "cne", department: "all", canViewAll: true };
       } else if (accessType === "multi") {
-        const allowed = String(allowedInput ? allowedInput.value : "").split(/\n|,/).map(v => v.trim()).filter(Boolean);
+        const allowed = readSignInAllowedDepartmentsEditor();
         if (!allowed.length) {
-          alert("Enter at least one allowed department for selected-department access.");
+          alert("Select at least one allowed department for selected-department access.");
           return;
         }
         next = { label, role: "multi_department", department: "multi", canViewAll: false, allowedDepartments: allowed };
