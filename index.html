@@ -2,6 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <title>cne service app</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 
@@ -2599,7 +2602,7 @@
   </style>
 </head>
 <body>
-<button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.11-I</button>
+<button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.11-AH</button>
   <div class="floating-ui" id="floatingUi">
     <button class="mobile-ui-toggle" id="mobileUiToggle" type="button" onclick="toggleMobileUi()">
       <span class="mobile-ui-toggle-main">
@@ -3393,7 +3396,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.11-AG";
+    const APP_VERSION = "2026.07.11-AH";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const SIGN_IN_ACCESS_TABLE = "app_sign_in_access";
@@ -3401,6 +3404,7 @@
     const APP_LINK = window.location.href.split("#")[0].split("?")[0];
 
     const DEPARTMENT_STORAGE_KEY = "cne_map_departments_v1";
+    const APP_CACHE_VERSION_KEY = "cne_service_app_cache_version";
     const PROFILES_STORAGE_KEY = "cne_map_profiles_v1";
     const MAP_VIEWS_STORAGE_KEY = "cne_map_views_v1";
     const CURRENT_MAP_STORAGE_KEY = "cne_current_map_view_v1";
@@ -3447,8 +3451,19 @@
     // This prevents deleted or hidden departments from being automatically re-created in dropdowns.
     const DEFAULT_DEPARTMENTS = [];
 
+    try {
+      const previousBuild = localStorage.getItem(APP_CACHE_VERSION_KEY) || "";
+      if (previousBuild !== APP_VERSION) {
+        localStorage.removeItem(DEPARTMENT_STORAGE_KEY);
+        localStorage.setItem(APP_CACHE_VERSION_KEY, APP_VERSION);
+      }
+    } catch (error) {}
+
     let mapViews = loadMapViewsFromStorage();
-    let departments = loadDepartmentsFromStorage();
+    // Supabase is authoritative for departments. Do not paint an old per-device list first.
+    // A local copy is retained only as an emergency offline fallback after a successful central load.
+    let departments = [];
+    let centralDepartmentsLoaded = false;
     // No built-in Reported By / Cleared By profile names.
     // Names should come only from Supabase / Admin Menu > Manage Profiles.
     const DEFAULT_PROFILES = {};
@@ -3465,6 +3480,7 @@
 
     let supabaseClient = null;
     let realtimeChannel = null;
+    let settingsRealtimeChannel = null;
     let allPins = [];
     let pendingLatLng = null;
     let pendingMovePinId = null;
@@ -6270,8 +6286,12 @@
 
         if (error) {
           console.warn("Could not load central settings:", error);
-          setStatus("Using local settings. Run the Supabase settings SQL to centralize maps/departments/profiles.");
-          return;
+          if (!centralDepartmentsLoaded) {
+            const offlineDepartments = loadDepartmentsFromStorage();
+            departments = offlineDepartments;
+          }
+          setStatus("Could not reach shared Supabase settings. Department names may be unavailable until the connection returns.");
+          return false;
         }
 
         const departmentRow = (data || []).find(row => row.config_key === "departments");
@@ -6305,9 +6325,14 @@
 
         if (departmentRow && departmentRow.settings_value) {
           departments = normalizeDepartments(departmentRow.settings_value);
+          centralDepartmentsLoaded = true;
           localStorage.setItem(DEPARTMENT_STORAGE_KEY, JSON.stringify(departments));
         } else {
-          await saveSettingToSupabase("departments", departments);
+          // Never upload a stale phone/browser list as the shared department list.
+          departments = [];
+          centralDepartmentsLoaded = false;
+          localStorage.removeItem(DEPARTMENT_STORAGE_KEY);
+          setStatus("No shared department list was found in Supabase. Save departments once from the Admin menu.");
         }
 
         if (profileRow && profileRow.settings_value) {
@@ -6316,6 +6341,7 @@
         } else {
           await saveSettingToSupabase("profiles", profiles);
         }
+        return true;
       } catch (error) {
         console.warn("Central settings load failed:", error);
       }
@@ -6969,9 +6995,17 @@
         const container = L.DomUtil.create("div", "leaflet-bar leaflet-control");
         const button = L.DomUtil.create("a", "cne-direct-gps-button", container);
         button.href = "#";
-        button.title = "Show my phone location";
-        button.setAttribute("aria-label", "Show my phone location");
-        button.innerHTML = "&#10148;";
+        button.title = "GPS — show my current phone location";
+        button.setAttribute("aria-label", "GPS — show my current phone location");
+        button.innerHTML = "GPS";
+        button.style.width = "48px";
+        button.style.height = "42px";
+        button.style.lineHeight = "42px";
+        button.style.fontSize = "12px";
+        button.style.fontWeight = "900";
+        button.style.textAlign = "center";
+        button.style.color = "#005a9c";
+        button.style.background = "#ffffff";
         L.DomEvent.disableClickPropagation(container);
         L.DomEvent.on(button, "click", function(event) {
           L.DomEvent.preventDefault(event);
@@ -10182,8 +10216,20 @@ ${rows.map(pin => `
           }
         });
 
+      if (settingsRealtimeChannel) {
+        try { supabaseClient.removeChannel(settingsRealtimeChannel); } catch (error) {}
+      }
+      settingsRealtimeChannel = supabaseClient
+        .channel("public:app-settings-live-" + getDeviceId())
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: SETTINGS_TABLE },
+          () => refreshSharedAppData(false)
+        )
+        .subscribe();
+
       if (!pinSyncTimer) {
-        pinSyncTimer = window.setInterval(() => refreshSharedAppData(false), 30000);
+        pinSyncTimer = window.setInterval(() => refreshSharedAppData(false), 15000);
         document.addEventListener("visibilitychange", () => {
           if (!document.hidden) refreshSharedAppData(false);
         });
@@ -10285,6 +10331,13 @@ ${rows.map(pin => `
       }, { passive: false });
     }
 
+    function reloadLatestPublishedVersion() {
+      const url = new URL(window.location.href);
+      url.searchParams.set("app_build", APP_VERSION);
+      url.searchParams.set("refresh", Date.now().toString());
+      window.location.replace(url.toString());
+    }
+
     let appInitialized = false;
     let deviceSignOutCheckTimer = null;
 
@@ -10311,6 +10364,7 @@ ${rows.map(pin => `
 
     initializeApp();
 
+    window.reloadLatestPublishedVersion = reloadLatestPublishedVersion;
     window.loadPins = loadPins;
     window.toggleMobileUi = toggleMobileUi;
     window.closeMobileUiAfterAction = closeMobileUiAfterAction;
