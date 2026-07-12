@@ -2590,11 +2590,39 @@
       .share-access-preview { min-height: 250px; }
     }
 
+
+    /* Secure department view-only links. */
+    body.department-share-view #adminPanel,
+    body.department-share-view #deleteHistoryPanel,
+    body.department-share-view #signInLogPanel,
+    body.department-share-view #signInCodesPanel,
+    body.department-share-view #shareAccessPanel,
+    body.department-share-view #departmentSharePanel,
+    body.department-share-view #deviceAccessPanel,
+    body.department-share-view #signedInDevicesPanel,
+    body.department-share-view #departmentPanel,
+    body.department-share-view #profilesPanel,
+    body.department-share-view #mapsPanel,
+    body.department-share-view button[onclick*="toggleAdminPanel"],
+    body.department-share-view button[onclick*="openDepartmentViewPrompt"],
+    body.department-share-view button[onclick*="openPinModal"],
+    body.department-share-view .file-label { display:none !important; }
+
+    .department-share-banner {
+      position:fixed; left:50%; bottom:10px; transform:translateX(-50%); z-index:4900;
+      max-width:min(640px,calc(100vw - 120px)); padding:6px 11px; border-radius:999px;
+      background:rgba(0,90,156,.94); color:#fff; font-size:11px; font-weight:800;
+      box-shadow:0 2px 9px rgba(0,0,0,.22); text-align:center; pointer-events:none;
+    }
+    .share-link-list { display:grid; gap:8px; margin-top:10px; }
+    .share-link-card { border:1px solid #d9e0e6; border-radius:9px; padding:9px; background:#f8fbfe; font-size:12px; }
+    .share-link-card-actions { display:flex; gap:6px; flex-wrap:wrap; margin-top:7px; }
+
   </style>
 </head>
 <body>
 
-  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.11-AJ</button>
+  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.11-AK</button>
   <div class="floating-ui" id="floatingUi">
     <button class="mobile-ui-toggle" id="mobileUiToggle" type="button" onclick="toggleMobileUi()">
       <span class="mobile-ui-toggle-main">
@@ -2676,6 +2704,7 @@
           <button class="action-btn secondary" onclick="toggleSignedInDevicesPanel(true)">Signed-In Devices / Kick Out</button>
           <button class="action-btn secondary" onclick="toggleSignInCodesPanel(true)">Manage Sign-In Codes</button>
           <button class="action-btn secondary" onclick="toggleShareAccessPanel(true)">Share App Access</button>
+          <button class="action-btn secondary" onclick="toggleDepartmentSharePanel(true)">Department View-Only Links</button>
         </div>
       </div>
       <div class="admin-menu-section">
@@ -2994,6 +3023,25 @@
     </div>
   </div>
 
+
+  <div class="panel" id="departmentSharePanel">
+    <div class="panel-header">
+      <span>Department View-Only Links</span>
+      <button class="panel-close-btn" onclick="toggleDepartmentSharePanel(false)">&times;</button>
+    </div>
+    <div class="panel-body">
+      <div class="panel-note">Create a secure link that opens one department without a sign-in code. The recipient can view only and cannot add, edit, reassign, clear, or open Admin.</div>
+      <div class="settings-row"><label>Link name / recipient (optional)<input id="departmentShareLabel" type="text" placeholder="Example: Allshelter supervisor"></label></div>
+      <div class="settings-row"><label>Department<select id="departmentShareDepartment"></select></label></div>
+      <div class="settings-row"><label>Visible records<select id="departmentShareScope"><option value="active">Active pins only</option><option value="active_cleared">Active and cleared pins</option></select></label></div>
+      <div class="settings-row"><label>Expiry date (optional)<input id="departmentShareExpires" type="date"><small style="font-weight:normal;color:#55606e;">Leave blank for no expiry. You can disable the link at any time.</small></label></div>
+      <div class="export-actions">
+        <button class="action-btn" onclick="createDepartmentShareLink()">Create Secure Link</button>
+        <button class="action-btn secondary" onclick="renderDepartmentShareLinks()">Refresh Links</button>
+      </div>
+      <div id="departmentShareLinksBody" class="share-link-list"><div class="empty-log">No links loaded.</div></div>
+    </div>
+  </div>
 
   <div class="panel" id="deviceAccessPanel">
     <div class="panel-header">
@@ -3435,9 +3483,12 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.11-AJ";
+    const APP_VERSION = "2026.07.11-AK";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
+    const DEPARTMENT_SHARE_CONFIG_KEY = "department_share_links";
+    let departmentShareLinks = [];
+    let activeDepartmentShare = null;
     const SIGN_IN_ACCESS_TABLE = "app_sign_in_access";
     const DEVICE_SIGNOUT_TABLE = "app_device_signout_requests";
     const APP_LINK = window.location.href.split("#")[0].split("?")[0];
@@ -4042,6 +4093,20 @@
     }
 
     function getAccessProfile() {
+      if (activeDepartmentShare) {
+        const deptKey = resolveDepartmentKeyAgainstSettings(activeDepartmentShare.department || "");
+        const includeCleared = activeDepartmentShare.scope === "active_cleared";
+        return {
+          approved: true, version: SITE_ACCESS_PASSWORD_VERSION, code: "",
+          label: activeDepartmentShare.label || "Department View", role: "department_share",
+          department: deptKey, canViewAll: false, allowedDepartments: [deptKey],
+          permissions: normalizeUserPermissions({
+            viewActive: true, viewCleared: includeCleared, addPins: false, editPins: false,
+            clearPins: false, printReports: true, viewAdmin: false, ownPinsOutsidePrimary: false
+          }),
+          allowedMapIds: []
+        };
+      }
       try {
         const saved = JSON.parse(localStorage.getItem(SITE_ACCESS_STORAGE_KEY) || "null") || {};
         if (!saved.approved || saved.version !== SITE_ACCESS_PASSWORD_VERSION) return null;
@@ -4361,6 +4426,11 @@
     }
 
     function ensureSiteAccess(forcePrompt = false) {
+      if (!forcePrompt && activeDepartmentShare) {
+        document.body.classList.add("department-share-view");
+        document.body.classList.remove("report-view-only");
+        return true;
+      }
       // Text/report links can be opened by recipients without a sign-in code.
       // They only get the read-only service order/report view unless they already signed in on this browser.
       if (!forcePrompt && isDirectReportLink() && !hasSavedSiteAccess()) {
@@ -4655,7 +4725,7 @@
 
 
     function closeAccessAdminPanels(exceptPanelId) {
-      ["signInCodesPanel", "deviceAccessPanel", "signedInDevicesPanel", "shareAccessPanel"].forEach(id => {
+      ["signInCodesPanel", "deviceAccessPanel", "signedInDevicesPanel", "shareAccessPanel", "departmentSharePanel"].forEach(id => {
         if (id !== exceptPanelId) {
           const panel = document.getElementById(id);
           if (panel) panel.classList.remove("open");
@@ -5148,6 +5218,160 @@
       } else {
         panel.classList.remove("open");
       }
+    }
+
+
+    function normalizeDepartmentShareLinks(value) {
+      return (Array.isArray(value) ? value : []).map(item => ({
+        token: String(item && item.token || "").trim(),
+        label: String(item && item.label || "").trim(),
+        department: String(item && item.department || "").trim(),
+        scope: item && item.scope === "active_cleared" ? "active_cleared" : "active",
+        expiresAt: normalizeProfileExpiryDate(item && (item.expiresAt || item.expires_at)),
+        enabled: !(item && item.enabled === false),
+        createdAt: String(item && (item.createdAt || item.created_at) || "")
+      })).filter(item => item.token && item.department);
+    }
+
+    async function loadDepartmentShareLinks() {
+      if (!supabaseClient) return [];
+      try {
+        const { data, error } = await supabaseClient.from(SETTINGS_TABLE).select("settings_value").eq("config_key", DEPARTMENT_SHARE_CONFIG_KEY).maybeSingle();
+        if (error) throw error;
+        departmentShareLinks = normalizeDepartmentShareLinks(data && data.settings_value);
+      } catch (error) {
+        console.warn("Could not load department share links", error);
+        departmentShareLinks = [];
+      }
+      return departmentShareLinks;
+    }
+
+    function getDepartmentShareTokenFromUrl() {
+      try { return String(new URLSearchParams(location.search).get("department_access") || "").trim(); } catch (error) { return ""; }
+    }
+
+    function isDepartmentShareExpired(link) {
+      const expiry = normalizeProfileExpiryDate(link && link.expiresAt);
+      if (!expiry) return false;
+      return Date.now() > new Date(expiry + "T23:59:59.999").getTime();
+    }
+
+    async function activateDepartmentShareFromUrl() {
+      const token = getDepartmentShareTokenFromUrl();
+      if (!token) return false;
+      await loadDepartmentShareLinks();
+      const link = departmentShareLinks.find(item => item.token === token);
+      if (!link || !link.enabled || isDepartmentShareExpired(link)) {
+        alert("This department view link is invalid, disabled, or expired.");
+        return false;
+      }
+      activeDepartmentShare = link;
+      selectedDepartmentView = resolveDepartmentKeyAgainstSettings(link.department);
+      if (statusFilter) statusFilter.value = "active";
+      const banner = document.createElement("div");
+      banner.className = "department-share-banner";
+      banner.textContent = "View only: " + formatDepartmentLabel(selectedDepartmentView);
+      document.body.appendChild(banner);
+      return true;
+    }
+
+    function makeDepartmentShareToken() {
+      const bytes = new Uint8Array(24);
+      crypto.getRandomValues(bytes);
+      return Array.from(bytes, b => b.toString(16).padStart(2, "0")).join("");
+    }
+
+    function buildDepartmentShareUrl(token) {
+      const url = new URL(location.href);
+      url.search = ""; url.hash = "";
+      url.searchParams.set("department_access", token);
+      return url.toString();
+    }
+
+    function populateDepartmentShareDepartmentSelect() {
+      const select = document.getElementById("departmentShareDepartment");
+      if (!select) return;
+      select.innerHTML = departments.filter(d => d && d.enabled !== false).map(d => '<option value="'+escapeAttr(d.key)+'">'+escapeHtml(d.name)+'</option>').join("");
+    }
+
+    async function createDepartmentShareLink() {
+      const department = String((document.getElementById("departmentShareDepartment") || {}).value || "").trim();
+      if (!department) return alert("Choose a department.");
+      await loadDepartmentShareLinks();
+      departmentShareLinks.push({
+        token: makeDepartmentShareToken(),
+        label: String((document.getElementById("departmentShareLabel") || {}).value || "").trim(),
+        department,
+        scope: String((document.getElementById("departmentShareScope") || {}).value || "active"),
+        expiresAt: String((document.getElementById("departmentShareExpires") || {}).value || ""),
+        enabled: true, createdAt: new Date().toISOString()
+      });
+      await saveSettingToSupabase(DEPARTMENT_SHARE_CONFIG_KEY, departmentShareLinks);
+      renderDepartmentShareLinks();
+      alert("Secure department link created.");
+    }
+
+    async function setDepartmentShareEnabled(token, enabled) {
+      await loadDepartmentShareLinks();
+      const item = departmentShareLinks.find(link => link.token === token);
+      if (item) item.enabled = !!enabled;
+      await saveSettingToSupabase(DEPARTMENT_SHARE_CONFIG_KEY, departmentShareLinks);
+      renderDepartmentShareLinks();
+    }
+
+    async function deleteDepartmentShareLink(token) {
+      if (!confirm("Delete this department view-only link?")) return;
+      await loadDepartmentShareLinks();
+      departmentShareLinks = departmentShareLinks.filter(link => link.token !== token);
+      await saveSettingToSupabase(DEPARTMENT_SHARE_CONFIG_KEY, departmentShareLinks);
+      renderDepartmentShareLinks();
+    }
+
+    async function copyDepartmentShareLink(token) {
+      const text = buildDepartmentShareUrl(token);
+      try { await navigator.clipboard.writeText(text); } catch (error) { window.prompt("Copy this secure link:", text); }
+      alert("Department view-only link copied.");
+    }
+
+    function emailDepartmentShareLink(token) {
+      const item = departmentShareLinks.find(link => link.token === token);
+      const dept = item ? formatDepartmentLabel(resolveDepartmentKeyAgainstSettings(item.department)) : "department";
+      const body = "You can view the current " + dept + " service pins using this secure read-only link. No sign-in code is required.\n\n" + buildDepartmentShareUrl(token) + "\n\nYou will not be able to add, edit, reassign, or clear pins.";
+      location.href = "mailto:?subject=" + encodeURIComponent("CNE Service App — " + dept + " view") + "&body=" + encodeURIComponent(body);
+    }
+
+    function textDepartmentShareLink(token) {
+      const item = departmentShareLinks.find(link => link.token === token);
+      const dept = item ? formatDepartmentLabel(resolveDepartmentKeyAgainstSettings(item.department)) : "department";
+      const body = "CNE Service App — " + dept + " read-only view (no sign-in required): " + buildDepartmentShareUrl(token);
+      const sep = /iPad|iPhone|iPod/.test(navigator.userAgent) ? "&" : "?";
+      location.href = "sms:" + sep + "body=" + encodeURIComponent(body);
+    }
+
+    async function renderDepartmentShareLinks() {
+      const body = document.getElementById("departmentShareLinksBody");
+      if (!body) return;
+      await loadDepartmentShareLinks();
+      if (!departmentShareLinks.length) { body.innerHTML = '<div class="empty-log">No department links created yet.</div>'; return; }
+      body.innerHTML = departmentShareLinks.slice().reverse().map(item => {
+        const dept = formatDepartmentLabel(resolveDepartmentKeyAgainstSettings(item.department));
+        const status = !item.enabled ? "Disabled" : (isDepartmentShareExpired(item) ? "Expired" : "Active");
+        return '<div class="share-link-card"><b>'+escapeHtml(item.label || dept)+'</b><br><span>'+escapeHtml(dept)+' · '+escapeHtml(item.scope === "active_cleared" ? "Active + cleared" : "Active only")+' · '+escapeHtml(status)+'</span>' +
+          (item.expiresAt ? '<br><small>Expires: '+escapeHtml(item.expiresAt)+'</small>' : '') +
+          '<div class="share-link-card-actions"><button class="action-btn secondary" onclick="copyDepartmentShareLink(\''+escapeAttr(item.token)+'\')">Copy</button><button class="action-btn" onclick="emailDepartmentShareLink(\''+escapeAttr(item.token)+'\')">Email</button><button class="action-btn" onclick="textDepartmentShareLink(\''+escapeAttr(item.token)+'\')">Text</button><button class="action-btn secondary" onclick="setDepartmentShareEnabled(\''+escapeAttr(item.token)+'\','+(!item.enabled)+')">'+(item.enabled?'Disable':'Enable')+'</button><button class="action-btn secondary" style="background:#b71c1c" onclick="deleteDepartmentShareLink(\''+escapeAttr(item.token)+'\')">Delete</button></div></div>';
+      }).join("");
+    }
+
+    async function toggleDepartmentSharePanel(forceOpen) {
+      const panel = document.getElementById("departmentSharePanel");
+      if (!panel) return;
+      const shouldOpen = typeof forceOpen === "boolean" ? forceOpen : !panel.classList.contains("open");
+      if (shouldOpen) {
+        closeAccessAdminPanels("departmentSharePanel");
+        populateDepartmentShareDepartmentSelect();
+        panel.classList.add("open");
+        await renderDepartmentShareLinks();
+      } else panel.classList.remove("open");
     }
 
     async function toggleSignInCodesPanel(forceOpen) {
@@ -7939,7 +8163,11 @@
     }
 
     function applyFilters() {
-      const statusValue = statusFilter.value;
+      let statusValue = statusFilter.value;
+      if (activeDepartmentShare && activeDepartmentShare.scope !== "active_cleared") {
+        statusValue = "active";
+        if (statusFilter) statusFilter.value = "active";
+      }
       const categoryValue = isValidDepartmentView(selectedDepartmentView) ? selectedDepartmentView : "all";
       const selectedDepartmentKeys = parseDepartmentViewKeys(categoryValue);
 
@@ -10533,14 +10761,19 @@ ${rows.map(pin => `
     async function initializeApp() {
       if (appInitialized) return;
       await loadSignInCodesFromSupabase();
-      await checkDeviceSignOutRequest(false);
+      await loadCentralSettingsFromSupabase();
+      await activateDepartmentShareFromUrl();
+      if (!activeDepartmentShare) await checkDeviceSignOutRequest(false);
       if (!ensureSiteAccess(false)) return;
       appInitialized = true;
       populateMapSelector();
-      if (!isReportViewOnlyMode()) ensureDeviceUserProfile(false);
-      if (!isReportViewOnlyMode()) await registerCurrentSavedSession();
-      await loadCentralSettingsFromSupabase();
+      if (!isReportViewOnlyMode() && !activeDepartmentShare) ensureDeviceUserProfile(false);
+      if (!isReportViewOnlyMode() && !activeDepartmentShare) await registerCurrentSavedSession();
       enforceAssignedDepartmentView();
+      if (activeDepartmentShare) {
+        selectedDepartmentView = resolveDepartmentKeyAgainstSettings(activeDepartmentShare.department);
+        if (statusFilter) statusFilter.value = "active";
+      }
       switchMapView(currentMapId);
       populateDepartmentDropdowns();
       populateProfileDropdowns();
@@ -10562,6 +10795,15 @@ ${rows.map(pin => `
     window.renderSignedInDevicesList = renderSignedInDevicesList;
     window.registerCurrentDeviceAndRefresh = registerCurrentDeviceAndRefresh;
     window.toggleAdminPanel = toggleAdminPanel;
+
+    window.toggleDepartmentSharePanel = toggleDepartmentSharePanel;
+    window.createDepartmentShareLink = createDepartmentShareLink;
+    window.renderDepartmentShareLinks = renderDepartmentShareLinks;
+    window.copyDepartmentShareLink = copyDepartmentShareLink;
+    window.emailDepartmentShareLink = emailDepartmentShareLink;
+    window.textDepartmentShareLink = textDepartmentShareLink;
+    window.setDepartmentShareEnabled = setDepartmentShareEnabled;
+    window.deleteDepartmentShareLink = deleteDepartmentShareLink;
     window.adminSignOut = adminSignOut;
     window.requireAdminAuth = requireAdminAuth;
     window.toggleAllLogsPanel = toggleAllLogsPanel;
