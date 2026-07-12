@@ -341,6 +341,15 @@
       box-shadow: 0 0 6px rgba(0,0,0,0.35);
     }
 
+    .direction-marker-wrap { position: relative; width: 42px; height: 42px; }
+    .direction-marker-dot { position:absolute; left:13px; top:13px; width:16px; height:16px; border:2px solid #fff; border-radius:50%; box-shadow:0 0 6px rgba(0,0,0,.4); box-sizing:border-box; z-index:2; }
+    .direction-marker-arrow { position:absolute; left:18px; top:0; width:6px; height:24px; transform-origin:50% 21px; z-index:1; }
+    .direction-marker-arrow::before { content:""; position:absolute; left:1px; top:7px; width:4px; height:17px; border-radius:999px; background:#111; box-shadow:0 0 0 2px #fff; }
+    .direction-marker-arrow::after { content:""; position:absolute; left:-4px; top:0; width:0; height:0; border-left:7px solid transparent; border-right:7px solid transparent; border-bottom:12px solid #111; filter:drop-shadow(0 0 1px #fff); }
+    .floor-direction-arrow { position:absolute; left:50%; top:50%; width:5px; height:28px; transform-origin:50% 24px; pointer-events:none; z-index:7; }
+    .floor-direction-arrow::before { content:""; position:absolute; left:1px; top:8px; width:3px; height:20px; background:#111; box-shadow:0 0 0 2px #fff; border-radius:999px; }
+    .floor-direction-arrow::after { content:""; position:absolute; left:-5px; top:0; width:0; height:0; border-left:7px solid transparent; border-right:7px solid transparent; border-bottom:12px solid #111; filter:drop-shadow(0 0 1px #fff); }
+
     .popup-photo,
     .log-photo {
       display: block;
@@ -2630,7 +2639,7 @@
 </head>
 <body>
 
-  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.12-AY</button>
+  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.12-AZ</button>
   <div class="floating-ui" id="floatingUi">
     <button class="mobile-ui-toggle" id="mobileUiToggle" type="button" onclick="toggleMobileUi()">
       <span class="mobile-ui-toggle-main">
@@ -3271,6 +3280,13 @@
       <label>Title
         <select id="pinTitleInput"></select>
       </label>
+      <label>Direction arrow (optional)
+        <select id="pinDirectionInput">
+          <option value="">No arrow — standard dot</option>
+          <option value="0">North / Up</option><option value="45">Northeast</option><option value="90">East / Right</option><option value="135">Southeast</option><option value="180">South / Down</option><option value="225">Southwest</option><option value="270">West / Left</option><option value="315">Northwest</option>
+        </select>
+        <small style="color:#607084;font-weight:normal;">Use this to show which way a sign, tent opening, booth front, or other item faces.</small>
+      </label>
       <label>Location and service details <span style="color:#b71c1c;">*</span>
         <textarea id="pinDescriptionInput" placeholder="Required. Example: west washroom, beside sink. Add any issue details here." required></textarea>
       </label>
@@ -3372,6 +3388,12 @@
       </label>
       <label>Title
         <select id="editPinTitleInput"></select>
+      </label>
+      <label>Direction arrow (optional)
+        <select id="editPinDirectionInput">
+          <option value="">No arrow — standard dot</option>
+          <option value="0">North / Up</option><option value="45">Northeast</option><option value="90">East / Right</option><option value="135">Southeast</option><option value="180">South / Down</option><option value="225">Southwest</option><option value="270">West / Left</option><option value="315">Northwest</option>
+        </select>
       </label>
       <div id="editSmsSection" class="edit-sms-section">
         <div class="sms-groups-visible-card" id="editSmsGroupsVisible">
@@ -3505,7 +3527,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.12-AY";
+    const APP_VERSION = "2026.07.12-AZ";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const DEPARTMENT_SHARE_CONFIG_KEY = "department_share_links";
@@ -6702,6 +6724,8 @@
       if (editPinDescriptionInput) editPinDescriptionInput.value = pin.description || "";
       if (editPinInstallDateInput) editPinInstallDateInput.value = pin.install_date ? String(pin.install_date).slice(0, 10) : "";
       if (editPinRemovalDateInput) editPinRemovalDateInput.value = pin.removal_date ? String(pin.removal_date).slice(0, 10) : "";
+      const editDirectionInput = document.getElementById("editPinDirectionInput");
+      if (editDirectionInput) editDirectionInput.value = getPinDirection(pin) === null ? "" : String(getPinDirection(pin));
       populateEditProfileDropdowns(pin.reported_by || "", pin.cleared_by || "");
       if (editPinClearCommentInput) editPinClearCommentInput.value = pin.clear_comment || "";
       if (editPinStatusInput) editPinStatusInput.value = getPinStatus(pin);
@@ -6743,6 +6767,8 @@
       const clearComment = editPinClearCommentInput ? editPinClearCommentInput.value.trim() : "";
       const installDate = editPinInstallDateInput && editPinInstallDateInput.value ? editPinInstallDateInput.value : null;
       const removalDate = editPinRemovalDateInput && editPinRemovalDateInput.value ? editPinRemovalDateInput.value : null;
+      const editDirectionInput = document.getElementById("editPinDirectionInput");
+      const directionAngle = editDirectionInput && editDirectionInput.value !== "" ? Number(editDirectionInput.value) : null;
 
       if (installDate && removalDate && removalDate < installDate) {
         alert("Removal date cannot be before the install date.");
@@ -6807,6 +6833,7 @@
         clear_comment: status === "cleared" ? clearComment : null,
         install_date: installDate,
         removal_date: removalDate,
+        direction_angle: directionAngle,
         ...(status === "cleared" ? {
           cleared_device_id: getDeviceProfile().device_id,
           cleared_device_label: getDefaultDeviceLabel(),
@@ -7755,8 +7782,28 @@
       );
     }
 
+    function getPinDirection(pin) {
+      const value = pin && pin.direction_angle;
+      if (value === null || value === undefined || value === "") return null;
+      const angle = Number(value);
+      return Number.isFinite(angle) ? ((angle % 360) + 360) % 360 : null;
+    }
+
+    function makeDirectionalPinIcon(pin) {
+      const color = getDepartmentColor(pin.category) || "#d32f2f";
+      const angle = getPinDirection(pin);
+      if (angle === null) return makePinIcon(pin.category);
+      return L.divIcon({
+        className: "",
+        html: `<div class="direction-marker-wrap"><span class="direction-marker-arrow" style="transform:rotate(${angle}deg)"></span><span class="direction-marker-dot" style="background:${escapeAttr(color)}"></span></div>`,
+        iconSize: [42,42],
+        iconAnchor: [21,21],
+        popupAnchor: [0,-20]
+      });
+    }
+
     function addUserPin(pin, openPopup = false) {
-      const marker = L.marker([pin.lat, pin.lng], { icon: makePinIcon(pin.category) }).addTo(userPinsLayer);
+      const marker = L.marker([pin.lat, pin.lng], { icon: makeDirectionalPinIcon(pin) }).addTo(userPinsLayer);
       marker.pinId = pin.id || null;
       marker.bindPopup(buildPopupHtml(pin), { maxWidth: 560, minWidth: 260 });
       if (openPopup) marker.openPopup();
@@ -7777,6 +7824,13 @@
         dot.style.background = getDepartmentColor(pin.category);
         dot.dataset.pinId = String(pin.id || "");
         dot.title = pin.title || "Pin";
+        const directionAngle = getPinDirection(pin);
+        if (directionAngle !== null) {
+          const arrow = document.createElement("span");
+          arrow.className = "floor-direction-arrow";
+          arrow.style.transform = `translate(-50%,-86%) rotate(${directionAngle}deg)`;
+          dot.appendChild(arrow);
+        }
         dot.addEventListener("click", function(event) {
           event.stopPropagation();
           openFloorPlanPopup(pin, x, y);
@@ -8454,7 +8508,10 @@
         const color = getDepartmentColor(pin.category) || "#d32f2f";
         const reportId = `#${String(pin.id || "")}`;
         const title = pin.title || "Pin";
-        return `<g><circle cx="${x}" cy="${y}" r="${markerRadius}" fill="${escapeAttr(color)}" stroke="#ffffff" stroke-width="${strokeWidth}" /><text x="${x + labelOffsetX}" y="${y + 1}" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="${labelFont}" font-weight="900" fill="#111111" stroke="#ffffff" stroke-width="${Math.max(3, Math.round(labelFont * 0.22))}" paint-order="stroke fill">${escapeHtml(reportId)}</text><title>${escapeHtml(reportId + ' ' + title)}</title></g>`;
+        const direction = getPinDirection(pin);
+        const arrowLength = markerRadius * 2.6;
+        const arrowSvg = direction === null ? "" : `<g transform="translate(${x} ${y}) rotate(${direction})"><line x1="0" y1="${-markerRadius * .5}" x2="0" y2="${-arrowLength}" stroke="#111" stroke-width="${Math.max(5, strokeWidth)}" stroke-linecap="round" paint-order="stroke"/><polygon points="0,${-arrowLength-markerRadius*.7} ${-markerRadius*.65},${-arrowLength+markerRadius*.35} ${markerRadius*.65},${-arrowLength+markerRadius*.35}" fill="#111" stroke="#fff" stroke-width="${Math.max(3, strokeWidth*.7)}"/></g>`;
+        return `<g>${arrowSvg}<circle cx="${x}" cy="${y}" r="${markerRadius}" fill="${escapeAttr(color)}" stroke="#ffffff" stroke-width="${strokeWidth}" /><text x="${x + labelOffsetX}" y="${y + 1}" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="${labelFont}" font-weight="900" fill="#111111" stroke="#ffffff" stroke-width="${Math.max(3, Math.round(labelFont * 0.22))}" paint-order="stroke fill">${escapeHtml(reportId)}</text><title>${escapeHtml(reportId + ' ' + title)}</title></g>`;
       }).join("");
       const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}"><image href="${escapeAttr(imageSrc)}" x="0" y="0" width="${width}" height="${height}" preserveAspectRatio="none"/>${dots}</svg>`;
       const encoded = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
@@ -8479,6 +8536,7 @@
             ${cleared ? `<div><b>Cleared:</b> ${escapeHtml(cleared)}</div>` : ""}
             ${pin.install_date ? `<div><b>Install date:</b> ${escapeHtml(pin.install_date)}</div>` : ""}
             ${pin.removal_date ? `<div><b>Removal date:</b> ${escapeHtml(pin.removal_date)}</div>` : ""}
+            ${getPinDirection(pin) !== null ? `<div><b>Direction:</b> ${escapeHtml(String(getPinDirection(pin)))}°</div>` : ""}
           </div>
           ${pin.description ? `<div class="print-description"><b>Details:</b><br>${escapeHtml(pin.description).replace(/\n/g,"<br>")}</div>` : ""}
           ${pin.clear_comment ? `<div class="print-description"><b>Clear comments:</b><br>${escapeHtml(pin.clear_comment).replace(/\n/g,"<br>")}</div>` : ""}
@@ -8507,13 +8565,13 @@
         .tool-group button{min-width:40px;padding:8px 10px;min-height:40px}.tool-group span{min-width:42px;text-align:center;font-weight:800;color:#003f70}.tool-group select{border:1px solid #aebdcc;border-radius:6px;padding:8px;background:#fff;font-weight:700;color:#243447;min-height:40px}
         .print-header{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:3px 0 4px}h1{font-size:16px;line-height:1.1;margin:0}.meta{font-size:9px;color:#52606d;text-align:right;white-space:nowrap}
         .map-sheet{position:relative;width:100%;height:calc(100vh - 88px);min-height:520px;border:1px solid #ccd6df;overflow:hidden;background:#fff;page-break-after:always;page-break-inside:avoid}
-        .map-image{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#fff}.map-image img,.map-image svg,.map-image>div{display:block;max-width:100%;max-height:100%;width:auto;height:auto;margin:auto;object-fit:contain;transform-origin:center center;will-change:transform}.zone-pages{display:none}.zone-pages.show{display:block}.zone-sheet{position:relative;width:100%;height:190mm;overflow:hidden;background:#fff;page-break-after:always;page-break-inside:avoid}.zone-viewport{position:absolute;inset:0;overflow:hidden;background:#fff}.zone-viewport img{position:absolute;max-width:none!important;max-height:none!important;width:auto;height:auto;transform-origin:top left}.zone-label{position:absolute;left:3mm;top:3mm;z-index:4;background:rgba(0,63,112,.94);color:#fff;padding:2mm 3mm;border-radius:2mm;font-size:15pt;font-weight:900;box-shadow:0 1mm 2mm rgba(0,0,0,.28)}.zone-subtitle{display:block;font-size:7pt;font-weight:700;margin-top:.8mm}.zone-locator{position:absolute;right:3mm;top:3mm;z-index:4;width:32mm;height:20mm;background:rgba(255,255,255,.94);border:1px solid #52606d;display:grid}.zone-locator-cell{border:.2px solid #9aa8b5}.zone-locator-cell.active{background:#005a9c}.zone-foot{position:absolute;left:3mm;right:3mm;bottom:2mm;z-index:4;background:rgba(255,255,255,.9);font-size:7pt;padding:1mm 2mm;border-radius:1mm;text-align:center}.hide-overview .map-sheet{display:none}
+        .map-image{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#fff}.map-image img,.map-image svg,.map-image>div{display:block;max-width:100%;max-height:100%;width:auto;height:auto;margin:auto;object-fit:contain;transform-origin:center center;will-change:transform}.zone-pages{display:none}.zone-pages.show{display:block}.zone-sheet{position:relative;width:100%;height:190mm;overflow:hidden;background:#fff;page-break-after:always;page-break-inside:avoid}.zone-viewport{position:absolute;inset:0;overflow:hidden;background:#fff}.zone-viewport img{position:absolute;max-width:none!important;max-height:none!important;width:auto;height:auto;transform-origin:top left}.zone-label{position:absolute;left:3mm;top:3mm;z-index:4;background:rgba(0,63,112,.94);color:#fff;padding:2mm 3mm;border-radius:2mm;font-size:15pt;font-weight:900;box-shadow:0 1mm 2mm rgba(0,0,0,.28)}.zone-subtitle{display:block;font-size:7pt;font-weight:700;margin-top:.8mm}.zone-locator{position:absolute;right:3mm;top:3mm;z-index:4;width:32mm;height:20mm;background:rgba(255,255,255,.94);border:1px solid #52606d;display:grid}.zone-locator-cell{border:.2px solid #9aa8b5;display:flex;align-items:center;justify-content:center;font-size:6pt;font-weight:900;color:#334155}.zone-locator-cell.active{background:#fff;color:#003f70;outline:1.2px solid #005a9c;outline-offset:-1px}.zone-foot{position:absolute;left:3mm;right:3mm;bottom:2mm;z-index:4;background:rgba(255,255,255,.9);font-size:7pt;padding:1mm 2mm;border-radius:1mm;text-align:center}.hide-overview .map-sheet{display:none}
         .legend{position:absolute;left:5px;right:5px;bottom:5px;max-height:20%;overflow:hidden;columns:3;column-gap:14px;padding:4px 6px;border-radius:5px;background:rgba(255,255,255,.92);font-size:8px;line-height:1.25;box-shadow:0 1px 4px rgba(0,0,0,.18)}.legend div{break-inside:avoid;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         body.hide-legend .legend{display:none}.report-details{display:none}.report-details.show{display:block}.print-report-detail{page-break-inside:avoid;border:1px solid #cbd5df;border-radius:8px;padding:10px;margin:0 0 10px;background:#fff}.print-report-detail h2{font-size:15px;margin:0 0 7px}.print-detail-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px 12px;font-size:10px}.print-description{margin-top:7px;font-size:10px;line-height:1.35}.print-photo-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}.print-photo-row img{max-width:31%;max-height:180px;object-fit:contain;border:1px solid #d9e0e6}
         @media (max-width: 700px){body{padding:2px}.actions{gap:8px;padding:8px 0;position:sticky}.actions button{font-size:16px;padding:14px 16px;min-height:52px;flex:1 1 calc(50% - 8px)}.print-option{font-size:14px;padding:10px 12px;min-height:50px;flex:1 1 100%}.print-option input{width:18px;height:18px}.tool-group{font-size:14px;padding:8px 10px;min-height:50px;flex:1 1 100%;flex-wrap:wrap;justify-content:center}.tool-group button{min-width:48px;min-height:48px;font-size:18px;padding:10px 12px}.tool-group select{font-size:15px;min-height:46px;flex:1 1 auto}.print-header{display:grid;gap:4px}.meta{text-align:left;white-space:normal}.print-detail-grid{grid-template-columns:1fr}.legend{columns:1;font-size:10px;max-height:28%}}
         @media print{html,body{width:100%;height:auto}body{padding:0}.actions{display:none!important}.print-header{height:8mm;margin:0 1mm 1mm}h1{font-size:11pt}.meta{font-size:6.5pt}.map-sheet{width:100%;height:190mm;min-height:0;border:0}.legend{font-size:6pt;max-height:17%;bottom:1mm;left:1mm;right:1mm;columns:4;background:rgba(255,255,255,.88)}.zone-pages.show{display:block}.zone-sheet{width:100%;height:190mm}.report-details{padding:2mm}.print-report-detail{font-size:8pt}.print-report-detail h2{font-size:10pt}.print-detail-grid,.print-description{font-size:7.5pt}}
       </style></head><body><div class="actions"><button onclick="window.print()">Print / Save PDF</button><button onclick="sharePrintableVersion()">Share Printable Version</button><button onclick="downloadPrintableHtml()">Download Share File</button>${adjustmentButtons}<label class="print-option"><input id="legendToggle" type="checkbox" checked onchange="toggleLegend(this.checked)"> ID reference list</label><label class="print-option"><input id="detailToggle" type="checkbox" onchange="toggleDetails(this.checked)"> Full report details</label><span class="tool-group"><b>Zone pages</b><select id="zoneLayout" onchange="setZoneLayout(this.value)"><option value="none">Off</option><option value="2x2">2 × 2</option><option value="3x2" selected>3 × 2</option><option value="3x3">3 × 3</option></select></span><label class="print-option"><input id="overviewToggle" type="checkbox" checked onchange="toggleOverview(this.checked)"> Overview page</label><button onclick="window.close()">Close Preview</button></div><div class="print-header"><h1>${escapeHtml(title)}</h1><div class="meta">${escapeHtml(departmentName)} • ${escapeHtml(statusName)} • ${pins.length} selected pin${pins.length===1?"":"s"} • ${escapeHtml(new Date().toLocaleString())}</div></div><div class="map-sheet"><div class="map-image" id="mapImageWrap">${imageHtml}</div>${legend ? `<div class="legend">${legend}</div>` : ""}</div><section id="zonePages" class="zone-pages"></section><section id="reportDetails" class="report-details">${detailsHtml}</section><script>
-        let mapScale=1,mapRotation=0;function mapTarget(){return document.querySelector('#mapImageWrap img, #mapImageWrap svg, #mapImageWrap > div')}function updateReadouts(){const z=document.getElementById('zoomValue'),r=document.getElementById('rotationValue');if(z)z.textContent=Math.round(mapScale*100)+'%';if(r)r.textContent=mapRotation+'°'}function applyMapTransform(){const el=mapTarget();if(el)el.style.transform='rotate('+mapRotation+'deg) scale('+mapScale+')';updateReadouts();const layout=document.getElementById('zoneLayout');if(layout&&layout.value!=='none')setZoneLayout(layout.value)}function adjustMapScale(delta){mapScale=Math.max(.50,Math.min(3,mapScale+delta));applyMapTransform()}function rotateMap(delta){mapRotation=((mapRotation+delta+180)%360)-180;applyMapTransform()}function resetMapImage(){mapScale=1;mapRotation=0;applyMapTransform()}function toggleLegend(show){document.body.classList.toggle('hide-legend',!show)}function toggleDetails(show){document.getElementById('reportDetails').classList.toggle('show',show)}function toggleOverview(show){document.body.classList.toggle('hide-overview',!show)}function buildPrintableFileName(){const base=document.title||'printable-map';return String(base).replace(/[^a-z0-9]+/gi,'-').replace(/^-+|-+$/g,'').toLowerCase()||'printable-map'}function buildPrintableHtmlBlob(){const html='<!DOCTYPE html>'+document.documentElement.outerHTML.replace(/<script>[\s\S]*?<\\/script>/g,function(m){return m});return new Blob([html],{type:'text/html'})}function downloadPrintableHtml(){const blob=buildPrintableHtmlBlob();const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=buildPrintableFileName()+'.html';document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(url);a.remove()},1200)}async function sharePrintableVersion(){try{const blob=buildPrintableHtmlBlob();const file=new File([blob],buildPrintableFileName()+'.html',{type:'text/html'});if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({title:document.title,text:'Printable map view',files:[file]});return}downloadPrintableHtml();alert('Your device does not support direct sharing here, so a shareable printable HTML file was downloaded instead.')}catch(error){if(error&&error.name==='AbortError')return;console.error('Share failed',error);downloadPrintableHtml();alert('Direct sharing was not available, so a shareable printable HTML file was downloaded instead.')}}function zoneLocator(cols,rows,activeCol,activeRow){let html='';for(let r=0;r<rows;r++)for(let c=0;c<cols;c++)html+='<span class="zone-locator-cell'+(c===activeCol&&r===activeRow?' active':'')+'"></span>';return '<span class="zone-locator" style="grid-template-columns:repeat('+cols+',1fr);grid-template-rows:repeat('+rows+',1fr)">'+html+'</span>'}function setZoneLayout(value){const holder=document.getElementById('zonePages');if(!holder)return;if(value==='none'){holder.classList.remove('show');holder.innerHTML='';return}const parts=value.split('x'),cols=Number(parts[0]),rows=Number(parts[1]);const source=mapTarget();if(!source||source.tagName!=='IMG'){holder.innerHTML='<div style="padding:20px">Zone printing is available when the preview is a printable image.</div>';holder.classList.add('show');return}const src=source.src,overlap=.08,zoneW=1/cols,zoneH=1/rows;let html='';for(let r=0;r<rows;r++){for(let c=0;c<cols;c++){const label=String.fromCharCode(65+r)+(c+1);const left=Math.max(0,c*zoneW-overlap/2),top=Math.max(0,r*zoneH-overlap/2),right=Math.min(1,(c+1)*zoneW+overlap/2),bottom=Math.min(1,(r+1)*zoneH+overlap/2),cropW=right-left,cropH=bottom-top;const imgW=100/cropW,imgH=100/cropH,x=-(left/cropW)*100,y=-(top/cropH)*100;html+='<section class="zone-sheet"><div class="zone-viewport"><img src="'+src+'" style="width:'+imgW+'%;height:'+imgH+'%;left:'+x+'%;top:'+y+'%;transform:rotate('+mapRotation+'deg) scale('+mapScale+');"></div><div class="zone-label">Zone '+label+'<span class="zone-subtitle">Enlarged setup zone • '+Math.round(overlap*100)+'% overlap</span></div>'+zoneLocator(cols,rows,c,r)+'<div class="zone-foot">Match the #Report ID labels on this sheet to the reference list or report detail pages.</div></section>'}}holder.innerHTML=html;holder.classList.add('show')}updateReadouts();setZoneLayout('3x2');
+        let mapScale=1,mapRotation=0;function mapTarget(){return document.querySelector('#mapImageWrap img, #mapImageWrap svg, #mapImageWrap > div')}function updateReadouts(){const z=document.getElementById('zoomValue'),r=document.getElementById('rotationValue');if(z)z.textContent=Math.round(mapScale*100)+'%';if(r)r.textContent=mapRotation+'°'}function applyMapTransform(){const el=mapTarget();if(el)el.style.transform='rotate('+mapRotation+'deg) scale('+mapScale+')';updateReadouts();const layout=document.getElementById('zoneLayout');if(layout&&layout.value!=='none')setZoneLayout(layout.value)}function adjustMapScale(delta){mapScale=Math.max(.50,Math.min(3,mapScale+delta));applyMapTransform()}function rotateMap(delta){mapRotation=((mapRotation+delta+180)%360)-180;applyMapTransform()}function resetMapImage(){mapScale=1;mapRotation=0;applyMapTransform()}function toggleLegend(show){document.body.classList.toggle('hide-legend',!show)}function toggleDetails(show){document.getElementById('reportDetails').classList.toggle('show',show)}function toggleOverview(show){document.body.classList.toggle('hide-overview',!show)}function buildPrintableFileName(){const base=document.title||'printable-map';return String(base).replace(/[^a-z0-9]+/gi,'-').replace(/^-+|-+$/g,'').toLowerCase()||'printable-map'}function buildPrintableHtmlBlob(){const html='<!DOCTYPE html>'+document.documentElement.outerHTML.replace(/<script>[\s\S]*?<\\/script>/g,function(m){return m});return new Blob([html],{type:'text/html'})}function downloadPrintableHtml(){const blob=buildPrintableHtmlBlob();const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=buildPrintableFileName()+'.html';document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(url);a.remove()},1200)}async function sharePrintableVersion(){try{const blob=buildPrintableHtmlBlob();const file=new File([blob],buildPrintableFileName()+'.html',{type:'text/html'});if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({title:document.title,text:'Printable map view',files:[file]});return}downloadPrintableHtml();alert('Your device does not support direct sharing here, so a shareable printable HTML file was downloaded instead.')}catch(error){if(error&&error.name==='AbortError')return;console.error('Share failed',error);downloadPrintableHtml();alert('Direct sharing was not available, so a shareable printable HTML file was downloaded instead.')}}function zoneLocator(cols,rows,activeCol,activeRow){let html='';for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){const z=String.fromCharCode(65+r)+(c+1);html+='<span class="zone-locator-cell'+(c===activeCol&&r===activeRow?' active':'')+'">'+z+'</span>'}return '<span class="zone-locator" style="grid-template-columns:repeat('+cols+',1fr);grid-template-rows:repeat('+rows+',1fr)">'+html+'</span>'}function setZoneLayout(value){const holder=document.getElementById('zonePages');if(!holder)return;if(value==='none'){holder.classList.remove('show');holder.innerHTML='';return}const parts=value.split('x'),cols=Number(parts[0]),rows=Number(parts[1]);const source=mapTarget();if(!source||source.tagName!=='IMG'){holder.innerHTML='<div style="padding:20px">Zone printing is available when the preview is a printable image.</div>';holder.classList.add('show');return}const src=source.src,overlap=.08,zoneW=1/cols,zoneH=1/rows;let html='';for(let r=0;r<rows;r++){for(let c=0;c<cols;c++){const label=String.fromCharCode(65+r)+(c+1);const left=Math.max(0,c*zoneW-overlap/2),top=Math.max(0,r*zoneH-overlap/2),right=Math.min(1,(c+1)*zoneW+overlap/2),bottom=Math.min(1,(r+1)*zoneH+overlap/2),cropW=right-left,cropH=bottom-top;const imgW=100/cropW,imgH=100/cropH,x=-(left/cropW)*100,y=-(top/cropH)*100;html+='<section class="zone-sheet"><div class="zone-viewport"><img src="'+src+'" style="width:'+imgW+'%;height:'+imgH+'%;left:'+x+'%;top:'+y+'%;transform:rotate('+mapRotation+'deg) scale('+mapScale+');"></div><div class="zone-label">Zone '+label+'<span class="zone-subtitle">Enlarged setup zone • '+Math.round(overlap*100)+'% overlap</span></div>'+zoneLocator(cols,rows,c,r)+'<div class="zone-foot">Match the #Report ID labels on this sheet to the reference list or report detail pages.</div></section>'}}holder.innerHTML=html;holder.classList.add('show')}updateReadouts();setZoneLayout('3x2');
       <\/script></body></html>`);
       win.document.close();
     }
@@ -8604,7 +8662,9 @@
         validPins.forEach(pin => {
           const color = getDepartmentColor(pin.category) || "#d32f2f";
           const reportId = `#${String(pin.id || "")}`;
-          const markerHtml = `<div class="print-pin-marker"><span class="print-pin-dot" style="background:${escapeAttr(color)}"></span><span class="print-pin-id">${escapeHtml(reportId)}</span></div>`;
+          const direction = getPinDirection(pin);
+          const arrowHtml = direction === null ? "" : `<span style="position:absolute;left:9px;top:-20px;width:6px;height:30px;transform-origin:50% 27px;transform:rotate(${direction}deg)"><span style="position:absolute;left:1px;top:10px;width:4px;height:20px;background:#111;box-shadow:0 0 0 2px #fff;border-radius:999px"></span><span style="position:absolute;left:-5px;top:0;width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-bottom:13px solid #111;filter:drop-shadow(0 0 1px #fff)"></span></span>`;
+          const markerHtml = `<div class="print-pin-marker" style="position:relative">${arrowHtml}<span class="print-pin-dot" style="background:${escapeAttr(color)}"></span><span class="print-pin-id">${escapeHtml(reportId)}</span></div>`;
           L.marker([Number(pin.lat), Number(pin.lng)], {
             icon: L.divIcon({
               className: "print-pin-icon",
@@ -8652,7 +8712,7 @@
 
       const { data, error } = await supabaseClient
         .from(SUPABASE_TABLE)
-        .select("id, title, description, lat, lng, photo_url, photo_urls, clear_photo_urls, map_snapshot_url, category, is_cleared, created_at, cleared_at, install_date, removal_date, reported_by, original_reported_by, created_by_user_name, created_by_department, cleared_by, clear_comment, status, map_id, location_type, x_percent, y_percent, created_device_id, created_device_label, created_user_agent, cleared_device_id, cleared_device_label, cleared_user_agent, last_action, last_action_by, last_action_device_id, last_action_device_label, last_action_user_agent")
+        .select("id, title, description, lat, lng, photo_url, photo_urls, clear_photo_urls, map_snapshot_url, category, is_cleared, created_at, cleared_at, install_date, removal_date, reported_by, original_reported_by, created_by_user_name, created_by_department, cleared_by, clear_comment, status, map_id, location_type, x_percent, y_percent, direction_angle, created_device_id, created_device_label, created_user_agent, cleared_device_id, cleared_device_label, cleared_user_agent, last_action, last_action_by, last_action_device_id, last_action_device_label, last_action_user_agent")
         .order("created_at", { ascending: true });
 
       if (error) {
@@ -8676,7 +8736,7 @@
       handleInitialUrlAction();
     }
 
-    async function savePin(latlng, title, description, photoUrls, category, reportedBy, statusValue = "active", installDate = null, removalDate = null) {
+    async function savePin(latlng, title, description, photoUrls, category, reportedBy, statusValue = "active", installDate = null, removalDate = null, directionAngle = null) {
       if (!supabaseClient) {
         alert("Supabase is not configured yet. Add your URL and anon key first.");
         return;
@@ -8709,7 +8769,8 @@
         status: statusValue || "active",
         cleared_at: null,
         install_date: installDate || null,
-        removal_date: removalDate || null
+        removal_date: removalDate || null,
+        direction_angle: directionAngle === null ? null : Number(directionAngle)
       };
 
       const { data, error } = await supabaseClient
@@ -8900,7 +8961,7 @@
         .eq("id", clearingPinId)
         .eq("status", "active")
         .eq("is_cleared", false)
-        .select("id, title, description, lat, lng, photo_url, photo_urls, clear_photo_urls, map_snapshot_url, category, is_cleared, created_at, cleared_at, install_date, removal_date, reported_by, original_reported_by, created_by_user_name, created_by_department, cleared_by, clear_comment, status, map_id, location_type, x_percent, y_percent, created_device_id, created_device_label, created_user_agent, cleared_device_id, cleared_device_label, cleared_user_agent, last_action, last_action_by, last_action_device_id, last_action_device_label, last_action_user_agent")
+        .select("id, title, description, lat, lng, photo_url, photo_urls, clear_photo_urls, map_snapshot_url, category, is_cleared, created_at, cleared_at, install_date, removal_date, reported_by, original_reported_by, created_by_user_name, created_by_department, cleared_by, clear_comment, status, map_id, location_type, x_percent, y_percent, direction_angle, created_device_id, created_device_label, created_user_agent, cleared_device_id, cleared_device_label, cleared_user_agent, last_action, last_action_by, last_action_device_id, last_action_device_label, last_action_user_agent")
         .maybeSingle();
 
       if (error) {
@@ -8916,7 +8977,7 @@
       if (!data) {
         const { data: currentRow } = await supabaseClient
           .from(SUPABASE_TABLE)
-          .select("id, title, description, lat, lng, photo_url, photo_urls, clear_photo_urls, map_snapshot_url, category, is_cleared, created_at, cleared_at, install_date, removal_date, reported_by, original_reported_by, created_by_user_name, created_by_department, cleared_by, clear_comment, status, map_id, location_type, x_percent, y_percent, created_device_id, created_device_label, created_user_agent, cleared_device_id, cleared_device_label, cleared_user_agent, last_action, last_action_by, last_action_device_id, last_action_device_label, last_action_user_agent")
+          .select("id, title, description, lat, lng, photo_url, photo_urls, clear_photo_urls, map_snapshot_url, category, is_cleared, created_at, cleared_at, install_date, removal_date, reported_by, original_reported_by, created_by_user_name, created_by_department, cleared_by, clear_comment, status, map_id, location_type, x_percent, y_percent, direction_angle, created_device_id, created_device_label, created_user_agent, cleared_device_id, cleared_device_label, cleared_user_agent, last_action, last_action_by, last_action_device_id, last_action_device_label, last_action_user_agent")
           .eq("id", clearingPinId)
           .maybeSingle();
 
@@ -9481,6 +9542,8 @@ function resetPinForm() {
   pinDescriptionInput.value = "";
   if (pinInstallDateInput) pinInstallDateInput.value = "";
   if (pinRemovalDateInput) pinRemovalDateInput.value = "";
+  const pinDirectionInput = document.getElementById("pinDirectionInput");
+  if (pinDirectionInput) pinDirectionInput.value = "";
   const availableDepartments = getDepartmentsAvailableForNewPins();
   if (availableDepartments[0]) {
     pinCategoryInput.disabled = false;
@@ -9583,6 +9646,8 @@ function resetPinForm() {
 
       const installDate = pinInstallDateInput && pinInstallDateInput.value ? pinInstallDateInput.value : null;
       const removalDate = pinRemovalDateInput && pinRemovalDateInput.value ? pinRemovalDateInput.value : null;
+      const directionInput = document.getElementById("pinDirectionInput");
+      const directionAngle = directionInput && directionInput.value !== "" ? Number(directionInput.value) : null;
       if (installDate && removalDate && removalDate < installDate) {
         alert("Removal date cannot be before the install date.");
         pinRemovalDateInput.focus();
@@ -9608,7 +9673,8 @@ function resetPinForm() {
           reportedBy,
           requestStatus,
           installDate,
-          removalDate
+          removalDate,
+          directionAngle
         );
 
         if (savedPin) {
@@ -10308,7 +10374,7 @@ function resetPinForm() {
       if (!pin && supabaseClient && pinId) {
         const { data, error } = await supabaseClient
           .from(SUPABASE_TABLE)
-          .select("id, title, description, lat, lng, photo_url, photo_urls, clear_photo_urls, map_snapshot_url, category, is_cleared, created_at, cleared_at, install_date, removal_date, reported_by, original_reported_by, created_by_user_name, created_by_department, cleared_by, clear_comment, status, map_id, location_type, x_percent, y_percent, created_device_id, created_device_label, created_user_agent, cleared_device_id, cleared_device_label, cleared_user_agent, last_action, last_action_by, last_action_device_id, last_action_device_label, last_action_user_agent")
+          .select("id, title, description, lat, lng, photo_url, photo_urls, clear_photo_urls, map_snapshot_url, category, is_cleared, created_at, cleared_at, install_date, removal_date, reported_by, original_reported_by, created_by_user_name, created_by_department, cleared_by, clear_comment, status, map_id, location_type, x_percent, y_percent, direction_angle, created_device_id, created_device_label, created_user_agent, cleared_device_id, cleared_device_label, cleared_user_agent, last_action, last_action_by, last_action_device_id, last_action_device_label, last_action_user_agent")
           .eq("id", pinId)
           .maybeSingle();
 
