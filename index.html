@@ -819,8 +819,7 @@
       opacity: 1 !important;
     }
 
-    .leaflet-control-locate a,
-    .mobile-gps-fallback button {
+    .leaflet-control-locate a {
       width: 38px !important;
       height: 38px !important;
       line-height: 38px !important;
@@ -829,19 +828,6 @@
       background: #ffffff !important;
       color: #005a9c !important;
       box-shadow: 0 2px 8px rgba(0,0,0,0.28) !important;
-    }
-
-    .mobile-gps-fallback {
-      display: none;
-    }
-
-    .mobile-gps-fallback button {
-      border: 1px solid #9fb5c8;
-      cursor: pointer;
-      font-weight: 900;
-      align-items: center;
-      justify-content: center;
-      padding: 0;
     }
 
     @media (max-width: 520px) {
@@ -854,25 +840,11 @@
         bottom: calc(72px + env(safe-area-inset-bottom, 0px));
       }
 
-      .leaflet-control-locate a,
-      .mobile-gps-fallback button {
+      .leaflet-control-locate a {
         width: 44px !important;
         height: 44px !important;
         line-height: 44px !important;
         font-size: 23px !important;
-      }
-
-      .mobile-gps-fallback {
-        display: flex;
-        position: fixed;
-        right: 12px;
-        bottom: calc(72px + env(safe-area-inset-bottom, 0px));
-        z-index: 1400;
-      }
-
-      body.floor-plan-active .mobile-gps-fallback,
-      body.report-view-only .mobile-gps-fallback {
-        display: none !important;
       }
     }
 
@@ -986,6 +958,68 @@
       margin-top: 5px;
       white-space: pre-line;
       line-height: 1.28;
+    }
+
+    .compact-schedule-line {
+      display: inline-flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 4px 10px;
+      margin-top: 5px;
+      padding: 4px 7px;
+      border-radius: 6px;
+      background: #f4f7fa;
+      border: 1px solid #d9e0e6;
+      color: #4b5563;
+      font-size: 11px;
+      line-height: 1.2;
+    }
+
+    .compact-schedule-label {
+      font-weight: 800;
+      color: #334155;
+    }
+
+    .compact-schedule-item {
+      white-space: nowrap;
+    }
+
+    .optional-schedule-details {
+      border: 1px solid #d9e0e6;
+      border-radius: 8px;
+      background: #f8fbfe;
+      overflow: hidden;
+    }
+
+    .optional-schedule-details summary {
+      cursor: pointer;
+      padding: 7px 9px;
+      font-size: 12px;
+      font-weight: 800;
+      color: #334155;
+      list-style: none;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .optional-schedule-details summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .optional-schedule-details summary::after {
+      content: "+";
+      color: #005a9c;
+      font-size: 15px;
+    }
+
+    .optional-schedule-details[open] summary::after {
+      content: "−";
+    }
+
+    .optional-schedule-details-body {
+      border-top: 1px solid #d9e0e6;
+      padding: 8px 9px 9px;
     }
 
 
@@ -2551,11 +2585,7 @@
   </style>
 </head>
 <body>
-  <div class="mobile-gps-fallback" id="mobileGpsFallback">
-    <button type="button" onclick="locateCurrentUser()" aria-label="Find my GPS location" title="Find my GPS location">⌖</button>
-  </div>
-
-  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.11-I</button>
+<button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.11-I</button>
   <div class="floating-ui" id="floatingUi">
     <button class="mobile-ui-toggle" id="mobileUiToggle" type="button" onclick="toggleMobileUi()">
       <span class="mobile-ui-toggle-main">
@@ -3101,14 +3131,19 @@
       <label>Location and service details <span style="color:#b71c1c;">*</span>
         <textarea id="pinDescriptionInput" placeholder="Required. Example: west washroom, beside sink. Add any issue details here." required></textarea>
       </label>
-      <div class="optional-date-grid">
-        <label>Install date, optional
-          <input type="date" id="pinInstallDateInput">
-        </label>
-        <label>Removal date, optional
-          <input type="date" id="pinRemovalDateInput">
-        </label>
-      </div>
+      <details class="optional-schedule-details">
+        <summary>Optional install/removal dates</summary>
+        <div class="optional-schedule-details-body">
+          <div class="optional-date-grid">
+            <label>Install date
+              <input type="date" id="pinInstallDateInput">
+            </label>
+            <label>Removal date
+              <input type="date" id="pinRemovalDateInput">
+            </label>
+          </div>
+        </div>
+      </details>
       <label>Photo / file upload
         <input type="file" id="pinPhotoFileInput" accept="image/*" multiple>
         <small style="color:#607084; font-weight:normal; line-height:1.25;">Phone camera: take one photo, then choose again to add another. Laptop: select multiple photos at once.</small>
@@ -3233,14 +3268,19 @@
       <label>Location and service details
         <textarea id="editPinDescriptionInput" placeholder="Example: west washroom, beside sink. Add any issue details here."></textarea>
       </label>
-      <div class="optional-date-grid">
-        <label>Install date, optional
-          <input type="date" id="editPinInstallDateInput">
-        </label>
-        <label>Removal date, optional
-          <input type="date" id="editPinRemovalDateInput">
-        </label>
-      </div>
+      <details class="optional-schedule-details">
+        <summary>Optional install/removal dates</summary>
+        <div class="optional-schedule-details-body">
+          <div class="optional-date-grid">
+            <label>Install date
+              <input type="date" id="editPinInstallDateInput">
+            </label>
+            <label>Removal date
+              <input type="date" id="editPinRemovalDateInput">
+            </label>
+          </div>
+        </div>
+      </details>
       <label>Reported By <span style="color:#b71c1c;">*</span>
         <input type="text" id="editPinReportedByInput" list="editPinReportedByList" placeholder="Select or type name...">
         <datalist id="editPinReportedByList"></datalist>
@@ -3349,7 +3389,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.11-AB";
+    const APP_VERSION = "2026.07.11-AC";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const SIGN_IN_ACCESS_TABLE = "app_sign_in_access";
@@ -6762,13 +6802,20 @@
       return Number.isNaN(date.getTime()) ? clean : date.toLocaleDateString();
     }
 
-    function getPinScheduleHtml(pin, wrapperTag = "div") {
+    function getPinScheduleHtml(pin) {
       const install = formatOptionalDate(pin && pin.install_date);
       const removal = formatOptionalDate(pin && pin.removal_date);
-      const rows = [];
-      if (install) rows.push("<b>Install date:</b> " + escapeHtml(install));
-      if (removal) rows.push("<b>Removal date:</b> " + escapeHtml(removal));
-      return rows.map(row => "<" + wrapperTag + ' class="log-schedule-line">' + row + "</" + wrapperTag + ">").join("");
+      if (!install && !removal) return "";
+
+      const items = [];
+      if (install) {
+        items.push('<span class="compact-schedule-item"><span class="compact-schedule-label">Install:</span> ' + escapeHtml(install) + '</span>');
+      }
+      if (removal) {
+        items.push('<span class="compact-schedule-item"><span class="compact-schedule-label">Remove:</span> ' + escapeHtml(removal) + '</span>');
+      }
+
+      return '<div class="compact-schedule-line">' + items.join("") + '</div>';
     }
 
     function buildLegend() {
@@ -9275,8 +9322,7 @@ function resetPinForm() {
             '<div><strong>Original reported by:</strong> ' + escapeHtml(pin.original_reported_by || pin.reported_by || "") + '</div>' +
             (pin.created_by_user_name ? '<div><strong>Created by user:</strong> ' + escapeHtml(pin.created_by_user_name) + '</div>' : '') +
             ((pin.created_by_department || pin.created_device_label) ? '<div><strong>Created by department/company:</strong> ' + escapeHtml(pin.created_by_department || pin.created_device_label) + '</div>' : '') +
-            (pin.install_date ? '<div><strong>Install date:</strong> ' + escapeHtml(formatOptionalDate(pin.install_date)) + '</div>' : '') +
-            (pin.removal_date ? '<div><strong>Removal date:</strong> ' + escapeHtml(formatOptionalDate(pin.removal_date)) + '</div>' : '') +
+            getPinScheduleHtml(pin) +
             (closedByValue ? '<div><strong>' + escapeHtml(getClosedByLabel(pin)) + ':</strong> ' + escapeHtml(closedByValue) + '</div>' : '') +
             (closedFromValue ? '<div><strong>' + escapeHtml(getClosedFromLabel(pin)) + ':</strong> ' + escapeHtml(closedFromValue) + '</div>' : '') +
             (isCleared && formatTimeToClear(pin) ? '<div><strong>Time to clear:</strong> ' + escapeHtml(formatTimeToClear(pin)) + '</div>' : '') +
