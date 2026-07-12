@@ -8395,15 +8395,41 @@
       });
     }
 
-    function buildPrintableFloorPlanSvg(view, pins) {
+    async function loadImageDimensions(url) {
+      return await new Promise(resolve => {
+        const img = new Image();
+        img.onload = () => resolve({ width: img.naturalWidth || img.width || 1600, height: img.naturalHeight || img.height || 900 });
+        img.onerror = () => resolve({ width: 1600, height: 900 });
+        img.src = url;
+      });
+    }
+
+    async function buildPrintableFloorPlanSvg(view, pins) {
+      const sourceUrl = view.image || floorPlanImage.src;
+      const imageSrc = await fetchImageAsDataUrl(sourceUrl) || sourceUrl;
+      const dims = await loadImageDimensions(imageSrc || sourceUrl);
+      const width = Math.max(1, Number(dims && dims.width) || 1600);
+      const height = Math.max(1, Number(dims && dims.height) || 900);
+      const markerRadius = Math.max(10, Math.round(Math.min(width, height) * 0.01));
+      const strokeWidth = Math.max(3, Math.round(markerRadius * 0.24));
+      const labelFont = Math.max(16, Math.round(markerRadius * 1.1));
+      const labelPadX = Math.max(7, Math.round(markerRadius * 0.55));
+      const labelPadY = Math.max(4, Math.round(markerRadius * 0.35));
+      const labelOffsetX = markerRadius + 8;
       const dots = pins.map(pin => {
-        const x = Number(pin.x_percent ?? pin.lng);
-        const y = Number(pin.y_percent ?? pin.lat);
-        if (!Number.isFinite(x) || !Number.isFinite(y)) return "";
+        const xPercent = Number(pin.x_percent ?? pin.lng);
+        const yPercent = Number(pin.y_percent ?? pin.lat);
+        if (!Number.isFinite(xPercent) || !Number.isFinite(yPercent)) return "";
+        const x = Math.max(0, Math.min(width, (xPercent / 100) * width));
+        const y = Math.max(0, Math.min(height, (yPercent / 100) * height));
         const color = getDepartmentColor(pin.category) || "#d32f2f";
-        return `<span title="${escapeAttr(pin.title || "Pin")}" style="position:absolute;left:${x}%;top:${y}%;width:16px;height:16px;border:3px solid #fff;border-radius:50%;background:${escapeAttr(color)};box-shadow:0 1px 5px rgba(0,0,0,.65);transform:translate(-50%,-50%);box-sizing:border-box"><small style="position:absolute;left:50%;bottom:18px;transform:translateX(-50%);white-space:nowrap;background:rgba(255,255,255,.92);padding:1px 3px;border-radius:3px;color:#111;font:700 9px Arial">#${escapeHtml(String(pin.id || ""))}</small></span>`;
+        const reportId = `#${String(pin.id || "")}`;
+        const title = pin.title || "Pin";
+        return `<g><circle cx="${x}" cy="${y}" r="${markerRadius}" fill="${escapeAttr(color)}" stroke="#ffffff" stroke-width="${strokeWidth}" /><text x="${x + labelOffsetX}" y="${y + 1}" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="${labelFont}" font-weight="900" fill="#111111" stroke="#ffffff" stroke-width="${Math.max(3, Math.round(labelFont * 0.22))}" paint-order="stroke fill">${escapeHtml(reportId)}</text><title>${escapeHtml(reportId + ' ' + title)}</title></g>`;
       }).join("");
-      return `<div style="position:relative;display:inline-block;max-width:100%;line-height:0"><img src="${escapeAttr(view.image || floorPlanImage.src)}" alt="${escapeAttr(view.name || "Floor plan")}" style="display:block;max-width:100%;max-height:72vh;width:auto;height:auto">${dots}</div>`;
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}"><image href="${escapeAttr(imageSrc)}" x="0" y="0" width="${width}" height="${height}" preserveAspectRatio="none"/>${dots}</svg>`;
+      const encoded = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+      return `<img src="${encoded}" alt="${escapeAttr(view.name || "Floor plan")}" style="display:block;max-width:100%;max-height:72vh;width:auto;height:auto">`;
     }
 
     function buildPrintablePinDetails(pins) {
@@ -8457,7 +8483,7 @@
         body.hide-legend .legend{display:none}.report-details{display:none}.report-details.show{display:block}.print-report-detail{page-break-inside:avoid;border:1px solid #cbd5df;border-radius:8px;padding:10px;margin:0 0 10px;background:#fff}.print-report-detail h2{font-size:15px;margin:0 0 7px}.print-detail-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px 12px;font-size:10px}.print-description{margin-top:7px;font-size:10px;line-height:1.35}.print-photo-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}.print-photo-row img{max-width:31%;max-height:180px;object-fit:contain;border:1px solid #d9e0e6}
         @media print{html,body{width:100%;height:auto}body{padding:0}.actions{display:none!important}.print-header{height:8mm;margin:0 1mm 1mm}h1{font-size:11pt}.meta{font-size:6.5pt}.map-sheet{width:100%;height:190mm;min-height:0;border:0}.legend{font-size:6pt;max-height:17%;bottom:1mm;left:1mm;right:1mm;columns:4;background:rgba(255,255,255,.88)}.zone-pages.show{display:block}.zone-sheet{width:100%;height:190mm}.report-details{padding:2mm}.print-report-detail{font-size:8pt}.print-report-detail h2{font-size:10pt}.print-detail-grid,.print-description{font-size:7.5pt}}
       </style></head><body><div class="actions"><button onclick="window.print()">Print / Save PDF</button>${adjustmentButtons}<label class="print-option"><input id="legendToggle" type="checkbox" checked onchange="toggleLegend(this.checked)"> ID reference list</label><label class="print-option"><input id="detailToggle" type="checkbox" onchange="toggleDetails(this.checked)"> Full report details</label><span class="tool-group"><b>Zone pages</b><select id="zoneLayout" onchange="setZoneLayout(this.value)"><option value="none">Off</option><option value="2x2">2 × 2</option><option value="3x2" selected>3 × 2</option><option value="3x3">3 × 3</option></select></span><label class="print-option"><input id="overviewToggle" type="checkbox" checked onchange="toggleOverview(this.checked)"> Overview page</label><button onclick="window.close()">Close Preview</button></div><div class="print-header"><h1>${escapeHtml(title)}</h1><div class="meta">${escapeHtml(departmentName)} • ${escapeHtml(statusName)} • ${pins.length} selected pin${pins.length===1?"":"s"} • ${escapeHtml(new Date().toLocaleString())}</div></div><div class="map-sheet"><div class="map-image" id="mapImageWrap">${imageHtml}</div>${legend ? `<div class="legend">${legend}</div>` : ""}</div><section id="zonePages" class="zone-pages"></section><section id="reportDetails" class="report-details">${detailsHtml}</section><script>
-        let mapScale=1,mapRotation=0;function mapTarget(){return document.querySelector('#mapImageWrap img, #mapImageWrap svg, #mapImageWrap > div')}function updateReadouts(){const z=document.getElementById('zoomValue'),r=document.getElementById('rotationValue');if(z)z.textContent=Math.round(mapScale*100)+'%';if(r)r.textContent=mapRotation+'°'}function applyMapTransform(){const el=mapTarget();if(el)el.style.transform='rotate('+mapRotation+'deg) scale('+mapScale+')';updateReadouts();const layout=document.getElementById('zoneLayout');if(layout&&layout.value!=='none')setZoneLayout(layout.value)}function adjustMapScale(delta){mapScale=Math.max(.50,Math.min(3,mapScale+delta));applyMapTransform()}function rotateMap(delta){mapRotation=((mapRotation+delta+180)%360)-180;applyMapTransform()}function resetMapImage(){mapScale=1;mapRotation=0;applyMapTransform()}function toggleLegend(show){document.body.classList.toggle('hide-legend',!show)}function toggleDetails(show){document.getElementById('reportDetails').classList.toggle('show',show)}function toggleOverview(show){document.body.classList.toggle('hide-overview',!show)}function zoneLocator(cols,rows,activeCol,activeRow){let html='';for(let r=0;r<rows;r++)for(let c=0;c<cols;c++)html+='<span class="zone-locator-cell'+(c===activeCol&&r===activeRow?' active':'')+'"></span>';return '<span class="zone-locator" style="grid-template-columns:repeat('+cols+',1fr);grid-template-rows:repeat('+rows+',1fr)">'+html+'</span>'}function setZoneLayout(value){const holder=document.getElementById('zonePages');if(!holder)return;if(value==='none'){holder.classList.remove('show');holder.innerHTML='';return}const parts=value.split('x'),cols=Number(parts[0]),rows=Number(parts[1]);const source=mapTarget();if(!source||source.tagName!=='IMG'){holder.innerHTML='<div style="padding:20px">Zone printing is available for the outdoor GPS map image.</div>';holder.classList.add('show');return}const src=source.src,overlap=.08,zoneW=1/cols,zoneH=1/rows;let html='';for(let r=0;r<rows;r++){for(let c=0;c<cols;c++){const label=String.fromCharCode(65+r)+(c+1);const left=Math.max(0,c*zoneW-overlap/2),top=Math.max(0,r*zoneH-overlap/2),right=Math.min(1,(c+1)*zoneW+overlap/2),bottom=Math.min(1,(r+1)*zoneH+overlap/2),cropW=right-left,cropH=bottom-top;const imgW=100/cropW,imgH=100/cropH,x=-(left/cropW)*100,y=-(top/cropH)*100;html+='<section class="zone-sheet"><div class="zone-viewport"><img src="'+src+'" style="width:'+imgW+'%;height:'+imgH+'%;left:'+x+'%;top:'+y+'%;transform:rotate('+mapRotation+'deg) scale('+mapScale+');"></div><div class="zone-label">Zone '+label+'<span class="zone-subtitle">Enlarged setup map • '+Math.round(overlap*100)+'% overlap</span></div>'+zoneLocator(cols,rows,c,r)+'<div class="zone-foot">Match the #Report ID labels on this sheet to the reference list or report detail pages.</div></section>'}}holder.innerHTML=html;holder.classList.add('show')}updateReadouts();setZoneLayout('3x2');
+        let mapScale=1,mapRotation=0;function mapTarget(){return document.querySelector('#mapImageWrap img, #mapImageWrap svg, #mapImageWrap > div')}function updateReadouts(){const z=document.getElementById('zoomValue'),r=document.getElementById('rotationValue');if(z)z.textContent=Math.round(mapScale*100)+'%';if(r)r.textContent=mapRotation+'°'}function applyMapTransform(){const el=mapTarget();if(el)el.style.transform='rotate('+mapRotation+'deg) scale('+mapScale+')';updateReadouts();const layout=document.getElementById('zoneLayout');if(layout&&layout.value!=='none')setZoneLayout(layout.value)}function adjustMapScale(delta){mapScale=Math.max(.50,Math.min(3,mapScale+delta));applyMapTransform()}function rotateMap(delta){mapRotation=((mapRotation+delta+180)%360)-180;applyMapTransform()}function resetMapImage(){mapScale=1;mapRotation=0;applyMapTransform()}function toggleLegend(show){document.body.classList.toggle('hide-legend',!show)}function toggleDetails(show){document.getElementById('reportDetails').classList.toggle('show',show)}function toggleOverview(show){document.body.classList.toggle('hide-overview',!show)}function zoneLocator(cols,rows,activeCol,activeRow){let html='';for(let r=0;r<rows;r++)for(let c=0;c<cols;c++)html+='<span class="zone-locator-cell'+(c===activeCol&&r===activeRow?' active':'')+'"></span>';return '<span class="zone-locator" style="grid-template-columns:repeat('+cols+',1fr);grid-template-rows:repeat('+rows+',1fr)">'+html+'</span>'}function setZoneLayout(value){const holder=document.getElementById('zonePages');if(!holder)return;if(value==='none'){holder.classList.remove('show');holder.innerHTML='';return}const parts=value.split('x'),cols=Number(parts[0]),rows=Number(parts[1]);const source=mapTarget();if(!source||source.tagName!=='IMG'){holder.innerHTML='<div style="padding:20px">Zone printing is available when the preview is a printable image.</div>';holder.classList.add('show');return}const src=source.src,overlap=.08,zoneW=1/cols,zoneH=1/rows;let html='';for(let r=0;r<rows;r++){for(let c=0;c<cols;c++){const label=String.fromCharCode(65+r)+(c+1);const left=Math.max(0,c*zoneW-overlap/2),top=Math.max(0,r*zoneH-overlap/2),right=Math.min(1,(c+1)*zoneW+overlap/2),bottom=Math.min(1,(r+1)*zoneH+overlap/2),cropW=right-left,cropH=bottom-top;const imgW=100/cropW,imgH=100/cropH,x=-(left/cropW)*100,y=-(top/cropH)*100;html+='<section class="zone-sheet"><div class="zone-viewport"><img src="'+src+'" style="width:'+imgW+'%;height:'+imgH+'%;left:'+x+'%;top:'+y+'%;transform:rotate('+mapRotation+'deg) scale('+mapScale+');"></div><div class="zone-label">Zone '+label+'<span class="zone-subtitle">Enlarged setup zone • '+Math.round(overlap*100)+'% overlap</span></div>'+zoneLocator(cols,rows,c,r)+'<div class="zone-foot">Match the #Report ID labels on this sheet to the reference list or report detail pages.</div></section>'}}holder.innerHTML=html;holder.classList.add('show')}updateReadouts();setZoneLayout('3x2');
       <\/script></body></html>`);
       win.document.close();
     }
@@ -8471,6 +8497,20 @@
       });
     }
 
+    function waitForOverlayImage(overlayLayer, timeoutMs = 12000) {
+      return new Promise(resolve => {
+        let finished = false;
+        const done = () => { if (finished) return; finished = true; resolve(); };
+        const image = overlayLayer && typeof overlayLayer.getElement === "function" ? overlayLayer.getElement() : null;
+        if (image && image.complete && image.naturalWidth) return done();
+        if (image) {
+          image.addEventListener("load", done, { once: true });
+          image.addEventListener("error", done, { once: true });
+        }
+        setTimeout(done, timeoutMs);
+      });
+    }
+
     async function printCurrentMapWithSelectedPins() {
       if (!userHasPermission("printReports")) return denyPermission("This sign-in code does not have permission to print reports.");
       const pins = getCurrentlyFilteredPins();
@@ -8478,7 +8518,7 @@
       closeAllMapPopups();
       const view = getMapView(currentMapId);
       const title = `${view.name} — Selected Pins`;
-      if (view.type === "floorplan") { openMapPrintPreview(title, buildPrintableFloorPlanSvg(view, pins), pins); return; }
+      if (view.type === "floorplan") { const floorplanImageHtml = await buildPrintableFloorPlanSvg(view, pins); openMapPrintPreview(title, floorplanImageHtml, pins, true); return; }
       if (typeof html2canvas !== "function") return alert("The map print library did not load. Check your internet connection and refresh the app.");
       let printMap = null, printHost = null;
       try {
@@ -8488,15 +8528,28 @@
         const renderer = L.svg({ padding: 0.5 });
         printMap = L.map(printHost, { zoomControl:false, attributionControl:true, preferCanvas:false, renderer, fadeAnimation:false, zoomAnimation:false, markerZoomAnimation:false });
         const tileLayer = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom:20, crossOrigin:"anonymous", attribution:"&copy; OpenStreetMap contributors", updateWhenIdle:false, keepBuffer:4 }).addTo(printMap);
+        const siteOverlay = L.imageOverlay.rotated("./site-plan.png", p1, p2, p3, {
+          opacity: 0.68,
+          interactive: false,
+          crossOrigin: "anonymous"
+        }).addTo(printMap);
         const validPins = pins.filter(pin => Number.isFinite(Number(pin.lat)) && Number.isFinite(Number(pin.lng)));
+        const style = document.createElement("style");
+        style.textContent = ".print-pin-marker{display:flex;align-items:center;gap:8px;transform:translate(10px,-10px)}.print-pin-dot{width:24px;height:24px;border-radius:50%;border:4px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.45);flex:none}.print-pin-id{display:inline-flex;align-items:center;white-space:nowrap;background:rgba(255,255,255,.96);border:2px solid #1f2933;border-radius:4px;box-shadow:0 1px 4px rgba(0,0,0,.35);color:#111;font:900 22px Arial;padding:3px 8px;line-height:1}.leaflet-div-icon.print-pin-icon{background:transparent;border:none!important}";
+        printHost.appendChild(style);
         validPins.forEach(pin => {
           const color = getDepartmentColor(pin.category) || "#d32f2f";
-          const marker = L.circleMarker([Number(pin.lat), Number(pin.lng)], { renderer, radius:12, color:"#ffffff", weight:4, fillColor:color, fillOpacity:1, opacity:1 }).addTo(printMap);
-          marker.bindTooltip(`#${String(pin.id || "")}`, { permanent:true, direction:"top", offset:[0,-11], className:"print-id-label", opacity:1 });
+          const reportId = `#${String(pin.id || "")}`;
+          const markerHtml = `<div class="print-pin-marker"><span class="print-pin-dot" style="background:${escapeAttr(color)}"></span><span class="print-pin-id">${escapeHtml(reportId)}</span></div>`;
+          L.marker([Number(pin.lat), Number(pin.lng)], {
+            icon: L.divIcon({
+              className: "print-pin-icon",
+              html: markerHtml,
+              iconSize: [180, 32],
+              iconAnchor: [12, 12]
+            })
+          }).addTo(printMap);
         });
-        const style = document.createElement("style");
-        style.textContent = ".print-id-label{background:rgba(255,255,255,.96)!important;border:2px solid #1f2933!important;border-radius:4px!important;box-shadow:0 1px 4px rgba(0,0,0,.45)!important;color:#111!important;font:900 22px Arial!important;padding:3px 7px!important}.print-id-label:before{display:none!important}";
-        printHost.appendChild(style);
         if (validPins.length > 1) {
           const bounds = L.latLngBounds(validPins.map(pin => [Number(pin.lat), Number(pin.lng)]));
           printMap.fitBounds(bounds, { paddingTopLeft:[85,85], paddingBottomRight:[85,85], maxZoom:20, animate:false });
@@ -8504,8 +8557,9 @@
         else printMap.setView(map.getCenter(), map.getZoom(), { animate:false });
         printMap.invalidateSize(true);
         await waitForLeafletTiles(tileLayer);
+        await waitForOverlayImage(siteOverlay);
         await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-        await new Promise(resolve => setTimeout(resolve, 800));
+        await new Promise(resolve => setTimeout(resolve, 1000));
         const canvas = await html2canvas(printHost, { useCORS:true, allowTaint:false, backgroundColor:"#ffffff", scale:2, width:2400, height:1500, windowWidth:2400, windowHeight:1500, logging:false, imageTimeout:30000, removeContainer:false });
         if (!canvas.width || !canvas.height) throw new Error("Empty map capture");
         openMapPrintPreview(title, `<img src="${canvas.toDataURL("image/png",1)}" alt="${escapeAttr(title)}">`, pins, true);
