@@ -2524,7 +2524,7 @@
 </head>
 <body>
 
-  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.11-AE</button>
+  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.11-AF</button>
   <div class="floating-ui" id="floatingUi">
     <button class="mobile-ui-toggle" id="mobileUiToggle" type="button" onclick="toggleMobileUi()">
       <span class="mobile-ui-toggle-main">
@@ -3351,7 +3351,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.11-AE";
+    const APP_VERSION = "2026.07.11-AF";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const SIGN_IN_ACCESS_TABLE = "app_sign_in_access";
@@ -4063,14 +4063,32 @@
     function pinWasCreatedByCurrentProfile(pin) {
       const access = getAccessProfile();
       if (!access) return true;
-      const profileLabel = normalizeAccessDepartmentKey(access.label || "");
+
+      const deviceProfile = getDeviceProfile();
       const primaryKey = getPrimaryDepartmentKey();
-      const primaryName = normalizeAccessDepartmentKey(formatDepartmentLabel(primaryKey));
+      const identityValues = [
+        access.label,
+        access.department,
+        primaryKey,
+        formatDepartmentLabel(primaryKey),
+        deviceProfile.user_name,
+        deviceProfile.device_label
+      ].map(value => normalizeAccessDepartmentKey(value || "")).filter(Boolean);
+
       const creatorValues = [
         pin && pin.created_by_department,
-        pin && pin.created_device_label
+        pin && pin.created_device_label,
+        pin && pin.created_by_user_name,
+        pin && pin.reported_by,
+        pin && pin.original_reported_by
       ].map(value => normalizeAccessDepartmentKey(value || "")).filter(Boolean);
-      return creatorValues.some(value => value === profileLabel || value === primaryKey || value === primaryName);
+
+      const sameDevice = !!(
+        pin && pin.created_device_id && deviceProfile.device_id &&
+        String(pin.created_device_id) === String(deviceProfile.device_id)
+      );
+
+      return sameDevice || creatorValues.some(value => identityValues.includes(value));
     }
 
     function userCanViewPinForCurrentAccess(pin) {
