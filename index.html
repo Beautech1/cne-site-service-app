@@ -2491,11 +2491,40 @@
       .native-gps-button { width: 40px; height: 40px; }
     }
 
+
+    /* Build AD: compact Admin share-access tool. */
+    .share-access-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .share-access-grid .full-row { grid-column: 1 / -1; }
+    .share-access-preview {
+      width: 100%;
+      min-height: 220px;
+      box-sizing: border-box;
+      white-space: pre-wrap;
+      font-size: 12px !important;
+      line-height: 1.4;
+    }
+    .share-access-actions {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .share-access-actions .action-btn { justify-content: center; }
+    @media (max-width: 520px) {
+      .share-access-grid, .share-access-actions { grid-template-columns: 1fr; }
+      .share-access-grid .full-row { grid-column: auto; }
+      .share-access-preview { min-height: 250px; }
+    }
+
   </style>
 </head>
 <body>
 
-  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.11-AC</button>
+  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.11-AD</button>
   <div class="floating-ui" id="floatingUi">
     <button class="mobile-ui-toggle" id="mobileUiToggle" type="button" onclick="toggleMobileUi()">
       <span class="mobile-ui-toggle-main">
@@ -2576,6 +2605,7 @@
           <button class="action-btn secondary" onclick="toggleDeviceAccessPanel(true)">Device/User/Department Access</button>
           <button class="action-btn secondary" onclick="toggleSignedInDevicesPanel(true)">Signed-In Devices / Kick Out</button>
           <button class="action-btn secondary" onclick="toggleSignInCodesPanel(true)">Manage Sign-In Codes</button>
+          <button class="action-btn secondary" onclick="toggleShareAccessPanel(true)">Share App Access</button>
         </div>
       </div>
       <div class="admin-menu-section">
@@ -2830,6 +2860,56 @@
       <div class="panel-note">Tip: Disable a profile to block all devices using that code. Use the optional expiry date for temporary access. For one specific device, use Signed-In Devices / Kick Out.</div>
     </div>
   </div>
+
+  <div class="panel" id="shareAccessPanel">
+    <div class="panel-header">
+      <span>Share App Access</span>
+      <button class="panel-close-btn" onclick="toggleShareAccessPanel(false)">&times;</button>
+    </div>
+    <div class="panel-body">
+      <div class="panel-note">Select an enabled sign-in profile and send the user the app link, code, and basic instructions. Email and text open your device's normal mail or messaging app.</div>
+      <div class="share-access-grid">
+        <div class="settings-row">
+          <label>Sign-in profile / code
+            <select id="shareAccessCode" onchange="buildShareAccessMessage()"></select>
+          </label>
+        </div>
+        <div class="settings-row">
+          <label>Recipient name (optional)
+            <input id="shareAccessName" type="text" placeholder="Example: Chris" oninput="buildShareAccessMessage()">
+          </label>
+        </div>
+        <div class="settings-row">
+          <label>Email address (optional)
+            <input id="shareAccessEmail" type="email" placeholder="name@example.com">
+          </label>
+        </div>
+        <div class="settings-row">
+          <label>Mobile number (optional)
+            <input id="shareAccessPhone" type="tel" inputmode="tel" placeholder="416-555-0123">
+          </label>
+        </div>
+        <div class="settings-row full-row">
+          <label>Program link
+            <input id="shareAccessLink" type="url" oninput="buildShareAccessMessage()">
+            <small style="font-weight:normal; color:#55606e;">The current page address is inserted automatically. Replace it if your published app uses a different URL.</small>
+          </label>
+        </div>
+        <div class="settings-row full-row">
+          <label>Message and instructions
+            <textarea id="shareAccessMessage" class="share-access-preview"></textarea>
+          </label>
+        </div>
+      </div>
+      <div class="share-access-actions">
+        <button class="action-btn secondary" onclick="copyShareAccessMessage()">Copy Message</button>
+        <button class="action-btn" onclick="emailShareAccessMessage()">Email User</button>
+        <button class="action-btn" onclick="textShareAccessMessage()">Text User</button>
+      </div>
+      <div class="panel-note">For security, only send a code to the intended user. Disable or expire the profile later from Manage Sign-In Codes when access is no longer required.</div>
+    </div>
+  </div>
+
 
   <div class="panel" id="deviceAccessPanel">
     <div class="panel-header">
@@ -3271,7 +3351,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.11-AC";
+    const APP_VERSION = "2026.07.11-AD";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const SIGN_IN_ACCESS_TABLE = "app_sign_in_access";
@@ -4390,7 +4470,7 @@
 
 
     function closeAccessAdminPanels(exceptPanelId) {
-      ["signInCodesPanel", "deviceAccessPanel", "signedInDevicesPanel"].forEach(id => {
+      ["signInCodesPanel", "deviceAccessPanel", "signedInDevicesPanel", "shareAccessPanel"].forEach(id => {
         if (id !== exceptPanelId) {
           const panel = document.getElementById(id);
           if (panel) panel.classList.remove("open");
@@ -4708,6 +4788,125 @@
       await saveSettingToSupabase("sign_in_codes", SIGN_IN_CODES);
       populateSignInCodeEditor();
       setStatus("Sign-in codes reset to defaults.");
+    }
+
+
+
+    function getShareAccessDefaultLink() {
+      try {
+        const url = new URL(window.location.href);
+        url.search = "";
+        url.hash = "";
+        return url.href;
+      } catch (error) {
+        return window.location.href.split("#")[0].split("?")[0];
+      }
+    }
+
+    function populateShareAccessCodes(selectedCode) {
+      const select = document.getElementById("shareAccessCode");
+      if (!select) return;
+      const entries = Object.entries(SIGN_IN_CODES || {}).filter(([code, profile]) => {
+        const status = getSignInProfileStatus(profile || {});
+        return status && status.active !== false;
+      }).sort((a, b) => {
+        const aLabel = String((a[1] && a[1].label) || a[0]);
+        const bLabel = String((b[1] && b[1].label) || b[0]);
+        return aLabel.localeCompare(bLabel, undefined, { sensitivity: "base", numeric: true });
+      });
+      select.innerHTML = entries.length
+        ? entries.map(([code, profile]) => '<option value="' + escapeAttr(code) + '">' + escapeHtml(String((profile && profile.label) || code)) + ' — ' + escapeHtml(code) + '</option>').join("")
+        : '<option value="">No enabled sign-in codes available</option>';
+      if (selectedCode && entries.some(([code]) => code === selectedCode)) select.value = selectedCode;
+    }
+
+    function getShareAccessProfileSummary(profile) {
+      if (!profile) return "the access assigned to this code";
+      if (profile.canViewAll || String(profile.department || "").toLowerCase() === "all") return "all authorized departments";
+      const allowed = Array.isArray(profile.allowedDepartments) ? profile.allowedDepartments.filter(Boolean) : [];
+      if (allowed.length) return allowed.join(", ");
+      return String(profile.department || "your assigned department");
+    }
+
+    function buildShareAccessMessage() {
+      const code = String((document.getElementById("shareAccessCode") || {}).value || "").trim();
+      const profile = SIGN_IN_CODES && SIGN_IN_CODES[code] ? SIGN_IN_CODES[code] : null;
+      const name = String((document.getElementById("shareAccessName") || {}).value || "").trim();
+      const link = String((document.getElementById("shareAccessLink") || {}).value || "").trim();
+      const message = document.getElementById("shareAccessMessage");
+      if (!message) return "";
+      const greeting = name ? "Hi " + name + "," : "Hello,";
+      if (!code || !profile) {
+        message.value = greeting + "\n\nNo enabled CNE Service App sign-in code is currently selected.";
+        return message.value;
+      }
+      const label = String(profile.label || code);
+      const accessSummary = getShareAccessProfileSummary(profile);
+      message.value = greeting + "\n\n" +
+        "You have been given access to the CNE Service App.\n\n" +
+        "App link:\n" + (link || "[Add the published app link]") + "\n\n" +
+        "Sign-in code: " + code + "\n" +
+        "Access profile: " + label + "\n" +
+        "Department access: " + accessSummary + "\n\n" +
+        "How to use the app:\n" +
+        "1. Open the app link in Chrome, Safari, or your normal phone browser.\n" +
+        "2. Enter the sign-in code above when prompted.\n" +
+        "3. Enter your name and department/company so your activity can be identified.\n" +
+        "4. Choose the permitted map/building and department view.\n" +
+        "5. Tap a pin to review its details. Use the available buttons only for actions included with your access.\n" +
+        "6. To use your location, tap the GPS arrow and choose Allow when your phone asks for location permission.\n" +
+        "7. Keep this code private and do not forward it to anyone else.\n\n" +
+        "Please contact the CNE operations team if you have trouble signing in.";
+      return message.value;
+    }
+
+    async function copyShareAccessMessage() {
+      const text = String((document.getElementById("shareAccessMessage") || {}).value || buildShareAccessMessage());
+      if (!text) return alert("There is no access message to copy.");
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch (error) {
+        const box = document.getElementById("shareAccessMessage");
+        if (box) { box.focus(); box.select(); document.execCommand("copy"); }
+      }
+      setStatus("App access message copied.");
+      alert("App access message copied.");
+    }
+
+    function emailShareAccessMessage() {
+      const code = String((document.getElementById("shareAccessCode") || {}).value || "").trim();
+      if (!code) return alert("Choose an enabled sign-in code first.");
+      const email = String((document.getElementById("shareAccessEmail") || {}).value || "").trim();
+      const text = String((document.getElementById("shareAccessMessage") || {}).value || buildShareAccessMessage());
+      const subject = "CNE Service App access";
+      window.location.href = "mailto:" + encodeURIComponent(email) + "?subject=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(text);
+    }
+
+    function textShareAccessMessage() {
+      const code = String((document.getElementById("shareAccessCode") || {}).value || "").trim();
+      if (!code) return alert("Choose an enabled sign-in code first.");
+      const phone = String((document.getElementById("shareAccessPhone") || {}).value || "").trim();
+      const text = String((document.getElementById("shareAccessMessage") || {}).value || buildShareAccessMessage());
+      const isiOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+      const separator = isiOS ? "&" : "?";
+      window.location.href = "sms:" + encodeURIComponent(phone) + separator + "body=" + encodeURIComponent(text);
+    }
+
+    async function toggleShareAccessPanel(forceOpen) {
+      const panel = document.getElementById("shareAccessPanel");
+      if (!panel) return;
+      const shouldOpen = typeof forceOpen === "boolean" ? forceOpen : !panel.classList.contains("open");
+      if (shouldOpen) {
+        closeAccessAdminPanels("shareAccessPanel");
+        await loadSignInCodesFromSupabase();
+        populateShareAccessCodes();
+        const linkInput = document.getElementById("shareAccessLink");
+        if (linkInput && !linkInput.value) linkInput.value = getShareAccessDefaultLink();
+        buildShareAccessMessage();
+        panel.classList.add("open");
+      } else {
+        panel.classList.remove("open");
+      }
     }
 
     async function toggleSignInCodesPanel(forceOpen) {
