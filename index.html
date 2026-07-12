@@ -3352,7 +3352,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.11-AG";
+    const APP_VERSION = "2026.07.11-AH";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const SIGN_IN_ACCESS_TABLE = "app_sign_in_access";
@@ -4036,14 +4036,71 @@
       return !!(access && access.canViewAll);
     }
 
+    function departmentMatchToken(value) {
+      return String(value || "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, "");
+    }
+
+    function smallEditDistance(a, b) {
+      a = String(a || "");
+      b = String(b || "");
+      if (a === b) return 0;
+      if (!a.length) return b.length;
+      if (!b.length) return a.length;
+      const previous = Array.from({ length: b.length + 1 }, (_, index) => index);
+      for (let i = 1; i <= a.length; i += 1) {
+        const current = [i];
+        for (let j = 1; j <= b.length; j += 1) {
+          const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+          current[j] = Math.min(
+            current[j - 1] + 1,
+            previous[j] + 1,
+            previous[j - 1] + cost
+          );
+        }
+        for (let j = 0; j < current.length; j += 1) previous[j] = current[j];
+      }
+      return previous[b.length];
+    }
+
+    function resolveDepartmentKeyAgainstSettings(value) {
+      const normalized = normalizeAccessDepartmentKey(value || "");
+      if (!normalized || normalized === "all" || normalized === "multi") return normalized;
+      const exact = departments.find(dept => dept && dept.key === normalized);
+      if (exact) return exact.key;
+
+      const targetToken = departmentMatchToken(value || normalized);
+      if (!targetToken) return normalized;
+
+      const tokenMatch = departments.find(dept =>
+        departmentMatchToken(dept && dept.key) === targetToken ||
+        departmentMatchToken(dept && dept.name) === targetToken
+      );
+      if (tokenMatch) return tokenMatch.key;
+
+      // Safely tolerate one minor spelling mistake in a reasonably long department name,
+      // such as "Allshelter Tents" versus "Allsheter Tents". Only use a unique match.
+      if (targetToken.length >= 8) {
+        const closeMatches = departments.filter(dept => {
+          const candidates = [departmentMatchToken(dept && dept.key), departmentMatchToken(dept && dept.name)].filter(Boolean);
+          return candidates.some(candidate => smallEditDistance(targetToken, candidate) <= 1);
+        });
+        if (closeMatches.length === 1) return closeMatches[0].key;
+      }
+      return normalized;
+    }
+
     function getAllowedDepartmentKeys() {
       const access = getAccessProfile();
       if (!access) return [];
       if (access.canViewAll) return ["all"];
       if (Array.isArray(access.allowedDepartments) && access.allowedDepartments.length) {
-        return access.allowedDepartments.map(normalizeAccessDepartmentKey).filter(key => key && key !== "all" && key !== "multi");
+        return [...new Set(access.allowedDepartments
+          .map(resolveDepartmentKeyAgainstSettings)
+          .filter(key => key && key !== "all" && key !== "multi"))];
       }
-      const assigned = normalizeAccessDepartmentKey(access.department || "");
+      const assigned = resolveDepartmentKeyAgainstSettings(access.department || "");
       return assigned && assigned !== "all" && assigned !== "multi" ? [assigned] : [];
     }
 
