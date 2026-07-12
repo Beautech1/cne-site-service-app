@@ -2645,7 +2645,7 @@
 </head>
 <body>
 
-  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.12-BE</button>
+  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.12-BF</button>
   <div class="floating-ui" id="floatingUi">
     <button class="mobile-ui-toggle" id="mobileUiToggle" type="button" onclick="toggleMobileUi()">
       <span class="mobile-ui-toggle-main">
@@ -3533,7 +3533,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.12-BE";
+    const APP_VERSION = "2026.07.12-BF";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const DEPARTMENT_SHARE_CONFIG_KEY = "department_share_links";
@@ -8666,8 +8666,25 @@
         ctx.lineWidth = Math.max(3, Math.round(labelFont * 0.22));
         ctx.strokeStyle = "#ffffff";
         ctx.fillStyle = "#111111";
-        ctx.strokeText(reportId, x + labelOffsetX, y + 1);
-        ctx.fillText(reportId, x + labelOffsetX, y + 1);
+        ctx.textBaseline = "middle";
+        let labelX = x + labelOffsetX;
+        let labelY = y + 1;
+        let labelAlign = "left";
+        if (direction !== null) {
+          const angleRad = (direction * Math.PI) / 180;
+          const vx = Math.sin(angleRad);
+          const vy = -Math.cos(angleRad);
+          const oppositeX = -vx;
+          const oppositeY = -vy;
+          const labelDistance = Math.max(labelOffsetX + markerRadius * 0.7, markerRadius * 2.6);
+          labelX = x + oppositeX * labelDistance;
+          labelY = y + oppositeY * labelDistance;
+          if (Math.abs(oppositeX) > 0.42) labelAlign = oppositeX >= 0 ? "left" : "right";
+          else labelAlign = "center";
+        }
+        ctx.textAlign = labelAlign;
+        ctx.strokeText(reportId, labelX, labelY);
+        ctx.fillText(reportId, labelX, labelY);
         ctx.restore();
       });
 
