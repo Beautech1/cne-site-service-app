@@ -984,42 +984,42 @@
       white-space: nowrap;
     }
 
-    .optional-schedule-details {
+    .optional-schedule-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      padding: 6px 7px;
       border: 1px solid #d9e0e6;
-      border-radius: 8px;
+      border-radius: 7px;
       background: #f8fbfe;
-      overflow: hidden;
     }
 
-    .optional-schedule-details summary {
-      cursor: pointer;
-      padding: 7px 9px;
-      font-size: 12px;
-      font-weight: 800;
-      color: #334155;
-      list-style: none;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+    .optional-schedule-row label {
+      font-size: 10px !important;
+      font-weight: 700 !important;
+      color: #55606e !important;
+      gap: 3px !important;
     }
 
-    .optional-schedule-details summary::-webkit-details-marker {
-      display: none;
+    .optional-schedule-row input[type="date"] {
+      min-width: 0;
+      width: 100%;
+      box-sizing: border-box;
+      padding: 5px 6px !important;
+      font-size: 12px !important;
+      min-height: 30px;
     }
 
-    .optional-schedule-details summary::after {
-      content: "+";
-      color: #005a9c;
-      font-size: 15px;
-    }
+    @media (max-width: 360px) {
+      .optional-schedule-row {
+        gap: 4px;
+        padding: 5px;
+      }
 
-    .optional-schedule-details[open] summary::after {
-      content: "−";
-    }
-
-    .optional-schedule-details-body {
-      border-top: 1px solid #d9e0e6;
-      padding: 8px 9px 9px;
+      .optional-schedule-row input[type="date"] {
+        font-size: 11px !important;
+        padding: 4px !important;
+      }
     }
 
 
@@ -3131,19 +3131,14 @@
       <label>Location and service details <span style="color:#b71c1c;">*</span>
         <textarea id="pinDescriptionInput" placeholder="Required. Example: west washroom, beside sink. Add any issue details here." required></textarea>
       </label>
-      <details class="optional-schedule-details">
-        <summary>Optional install/removal dates</summary>
-        <div class="optional-schedule-details-body">
-          <div class="optional-date-grid">
-            <label>Install date
-              <input type="date" id="pinInstallDateInput">
-            </label>
-            <label>Removal date
-              <input type="date" id="pinRemovalDateInput">
-            </label>
-          </div>
-        </div>
-      </details>
+      <div class="optional-schedule-row">
+        <label>Install date
+          <input type="date" id="pinInstallDateInput">
+        </label>
+        <label>Removal date
+          <input type="date" id="pinRemovalDateInput">
+        </label>
+      </div>
       <label>Photo / file upload
         <input type="file" id="pinPhotoFileInput" accept="image/*" multiple>
         <small style="color:#607084; font-weight:normal; line-height:1.25;">Phone camera: take one photo, then choose again to add another. Laptop: select multiple photos at once.</small>
@@ -3268,19 +3263,14 @@
       <label>Location and service details
         <textarea id="editPinDescriptionInput" placeholder="Example: west washroom, beside sink. Add any issue details here."></textarea>
       </label>
-      <details class="optional-schedule-details">
-        <summary>Optional install/removal dates</summary>
-        <div class="optional-schedule-details-body">
-          <div class="optional-date-grid">
-            <label>Install date
-              <input type="date" id="editPinInstallDateInput">
-            </label>
-            <label>Removal date
-              <input type="date" id="editPinRemovalDateInput">
-            </label>
-          </div>
-        </div>
-      </details>
+      <div class="optional-schedule-row">
+        <label>Install date
+          <input type="date" id="editPinInstallDateInput">
+        </label>
+        <label>Removal date
+          <input type="date" id="editPinRemovalDateInput">
+        </label>
+      </div>
       <label>Reported By <span style="color:#b71c1c;">*</span>
         <input type="text" id="editPinReportedByInput" list="editPinReportedByList" placeholder="Select or type name...">
         <datalist id="editPinReportedByList"></datalist>
@@ -3389,7 +3379,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.11-AC";
+    const APP_VERSION = "2026.07.11-AD";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const SIGN_IN_ACCESS_TABLE = "app_sign_in_access";
