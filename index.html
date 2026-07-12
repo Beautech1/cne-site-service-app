@@ -2630,7 +2630,7 @@
 </head>
 <body>
 
-  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.12-AQ</button>
+  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.12-AR</button>
   <div class="floating-ui" id="floatingUi">
     <button class="mobile-ui-toggle" id="mobileUiToggle" type="button" onclick="toggleMobileUi()">
       <span class="mobile-ui-toggle-main">
@@ -3505,7 +3505,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.11-AP";
+    const APP_VERSION = "2026.07.12-AR";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const DEPARTMENT_SHARE_CONFIG_KEY = "department_share_links";
@@ -8406,13 +8406,14 @@
       return `<div style="position:relative;display:inline-block;max-width:100%;line-height:0"><img src="${escapeAttr(view.image || floorPlanImage.src)}" alt="${escapeAttr(view.name || "Floor plan")}" style="display:block;max-width:100%;max-height:72vh;width:auto;height:auto">${dots}</div>`;
     }
 
-    function openMapPrintPreview(title, imageHtml, pins) {
+    function openMapPrintPreview(title, imageHtml, pins, allowMapAdjustments = false) {
       const win = window.open("", "_blank");
       if (!win) return alert("Popup blocked. Please allow popups to print the map.");
       const statusName = statusFilter ? statusFilter.options[statusFilter.selectedIndex]?.text || statusFilter.value : "Selected";
       const departmentName = getDepartmentViewName(selectedDepartmentView);
       const legend = pins.map(pin => `<div><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${escapeAttr(getDepartmentColor(pin.category))};margin-right:6px"></span><b>#${escapeHtml(String(pin.id || ""))}</b> ${escapeHtml(pin.title || "Untitled")} — ${escapeHtml(formatDepartmentLabel(pin.category))}</div>`).join("");
-      win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>@page{size:landscape;margin:8mm}body{font-family:Arial,sans-serif;margin:0;color:#1f2933}.actions{position:sticky;top:0;background:#fff;padding:8px 0;z-index:5}.actions button{border:0;border-radius:6px;padding:9px 13px;margin-right:8px;background:#005a9c;color:#fff;font-weight:700}.map-sheet{border:1px solid #ccd6df;padding:8px;page-break-inside:avoid}.map-image img,.map-image svg{max-width:100%;max-height:72vh;object-fit:contain;display:block;margin:auto}.meta{font-size:12px;color:#52606d;margin:5px 0 10px}.legend{columns:2;column-gap:20px;font-size:11px;line-height:1.45;margin-top:8px}.legend div{break-inside:avoid}@media print{.actions{display:none}.map-image img,.map-image svg{max-height:78vh}}</style></head><body><div class="actions"><button onclick="window.print()">Print / Save PDF</button><button onclick="window.close()">Close Preview</button></div><h1>${escapeHtml(title)}</h1><div class="meta">${escapeHtml(departmentName)} • ${escapeHtml(statusName)} • ${pins.length} selected pin${pins.length===1?"":"s"} • ${escapeHtml(new Date().toLocaleString())}</div><div class="map-sheet"><div class="map-image">${imageHtml}</div>${legend ? `<div class="legend">${legend}</div>` : ""}</div></body></html>`);
+      const adjustmentButtons = allowMapAdjustments ? `<button onclick="adjustMapScale(.1)">Zoom In</button><button onclick="adjustMapScale(-.1)">Zoom Out</button><button onclick="rotateMap(-90)">Rotate Left</button><button onclick="rotateMap(90)">Rotate Right</button><button onclick="resetMapImage()">Reset</button>` : "";
+      win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>@page{size:landscape;margin:8mm}body{font-family:Arial,sans-serif;margin:0;color:#1f2933}.actions{position:sticky;top:0;background:#fff;padding:8px 0;z-index:5}.actions button{border:0;border-radius:6px;padding:9px 13px;margin:3px 8px 3px 0;background:#005a9c;color:#fff;font-weight:700}.map-sheet{border:1px solid #ccd6df;padding:8px;page-break-inside:avoid;overflow:hidden}.map-image{height:min(72vh,760px);display:flex;align-items:center;justify-content:center;overflow:hidden;background:#fff}.map-image img,.map-image svg{max-width:100%;max-height:100%;object-fit:contain;display:block;margin:auto;transform-origin:center center}.meta{font-size:12px;color:#52606d;margin:5px 0 10px}.legend{columns:2;column-gap:20px;font-size:11px;line-height:1.45;margin-top:8px}.legend div{break-inside:avoid}@media print{.actions{display:none}.map-image{height:76vh}.map-image img,.map-image svg{max-height:76vh}}</style></head><body><div class="actions"><button onclick="window.print()">Print / Save PDF</button>${adjustmentButtons}<button onclick="window.close()">Close Preview</button></div><h1>${escapeHtml(title)}</h1><div class="meta">${escapeHtml(departmentName)} • ${escapeHtml(statusName)} • ${pins.length} selected pin${pins.length===1?"":"s"} • ${escapeHtml(new Date().toLocaleString())}</div><div class="map-sheet"><div class="map-image" id="mapImageWrap">${imageHtml}</div>${legend ? `<div class="legend">${legend}</div>` : ""}</div><script>let mapScale=1,mapRotation=0;function mapTarget(){return document.querySelector('#mapImageWrap img, #mapImageWrap svg')}function applyMapTransform(){const el=mapTarget();if(el)el.style.transform='rotate('+mapRotation+'deg) scale('+mapScale+')'}function adjustMapScale(delta){mapScale=Math.max(.5,Math.min(2.5,mapScale+delta));applyMapTransform()}function rotateMap(delta){mapRotation=(mapRotation+delta)%360;applyMapTransform()}function resetMapImage(){mapScale=1;mapRotation=0;applyMapTransform()}<\/script></body></html>`);
       win.document.close();
     }
 
@@ -8430,21 +8431,40 @@
       }
 
       if (typeof html2canvas !== "function") return alert("The map print library did not load. Check your internet connection and refresh the app.");
-      const originalCenter = map.getCenter();
-      const originalZoom = map.getZoom();
+      let printMap = null;
+      let printHost = null;
       try {
-        if (pins.length) {
-          const bounds = L.latLngBounds(pins.map(pin => [Number(pin.lat), Number(pin.lng)]).filter(pair => pair.every(Number.isFinite)));
-          if (bounds.isValid()) map.fitBounds(bounds.pad(0.18), { maxZoom: 18, animate: false });
+        printHost = document.createElement("div");
+        printHost.style.cssText = "position:fixed;left:-10000px;top:0;width:1100px;height:1100px;background:#fff;z-index:-1;";
+        document.body.appendChild(printHost);
+        printMap = L.map(printHost, { zoomControl: false, attributionControl: true, preferCanvas: true });
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 20, crossOrigin: true, attribution: "&copy; OpenStreetMap contributors" }).addTo(printMap);
+
+        const validPins = pins.filter(pin => Number.isFinite(Number(pin.lat)) && Number.isFinite(Number(pin.lng)));
+        validPins.forEach(pin => {
+          const color = getDepartmentColor(pin.category) || "#d32f2f";
+          L.circleMarker([Number(pin.lat), Number(pin.lng)], { radius: 9, color: "#ffffff", weight: 3, fillColor: color, fillOpacity: 1 }).addTo(printMap);
+        });
+
+        if (validPins.length > 1) {
+          const bounds = L.latLngBounds(validPins.map(pin => [Number(pin.lat), Number(pin.lng)]));
+          printMap.fitBounds(bounds, { padding: [28, 28], maxZoom: 20, animate: false });
+        } else if (validPins.length === 1) {
+          printMap.setView([Number(validPins[0].lat), Number(validPins[0].lng)], 19, { animate: false });
+        } else {
+          printMap.setView(map.getCenter(), map.getZoom(), { animate: false });
         }
-        await new Promise(resolve => setTimeout(resolve, 900));
-        const canvas = await html2canvas(document.getElementById("map"), { useCORS: true, allowTaint: false, backgroundColor: "#ffffff", scale: Math.min(2, window.devicePixelRatio || 1) });
-        openMapPrintPreview(title, `<img src="${canvas.toDataURL("image/png")}" alt="${escapeAttr(title)}">`, pins);
+
+        printMap.invalidateSize(true);
+        await new Promise(resolve => setTimeout(resolve, 1400));
+        const canvas = await html2canvas(printHost, { useCORS: true, allowTaint: false, backgroundColor: "#ffffff", scale: 1.5, logging: false });
+        openMapPrintPreview(title, `<img src="${canvas.toDataURL("image/png")}" alt="${escapeAttr(title)}">`, pins, true);
       } catch (error) {
         console.error("Map print failed", error);
         alert("The outdoor map could not be captured, usually because a map tile blocked browser printing. Try again after the map tiles finish loading.");
       } finally {
-        map.setView(originalCenter, originalZoom, { animate: false });
+        if (printMap) printMap.remove();
+        if (printHost && printHost.parentNode) printHost.parentNode.removeChild(printHost);
       }
     }
 
