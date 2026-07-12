@@ -800,7 +800,8 @@
 
     .leaflet-bottom.leaflet-left,
     .leaflet-bottom.leaflet-right {
-      bottom: 18px;
+      bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+      z-index: 1200;
     }
 
     .leaflet-bottom.leaflet-left {
@@ -811,6 +812,38 @@
       right: 8px;
     }
 
+    .leaflet-control-locate,
+    .leaflet-control-locate a {
+      display: block !important;
+      visibility: visible !important;
+      opacity: 1 !important;
+    }
+
+    .leaflet-control-locate a,
+    .mobile-gps-fallback button {
+      width: 38px !important;
+      height: 38px !important;
+      line-height: 38px !important;
+      font-size: 20px !important;
+      border-radius: 7px !important;
+      background: #ffffff !important;
+      color: #005a9c !important;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.28) !important;
+    }
+
+    .mobile-gps-fallback {
+      display: none;
+    }
+
+    .mobile-gps-fallback button {
+      border: 1px solid #9fb5c8;
+      cursor: pointer;
+      font-weight: 900;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+    }
+
     @media (max-width: 520px) {
       .optional-date-grid {
         grid-template-columns: 1fr;
@@ -818,7 +851,28 @@
 
       .leaflet-bottom.leaflet-left,
       .leaflet-bottom.leaflet-right {
-        bottom: 12px;
+        bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+      }
+
+      .leaflet-control-locate a,
+      .mobile-gps-fallback button {
+        width: 44px !important;
+        height: 44px !important;
+        line-height: 44px !important;
+        font-size: 23px !important;
+      }
+
+      .mobile-gps-fallback {
+        display: flex;
+        position: fixed;
+        right: 12px;
+        bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+        z-index: 1400;
+      }
+
+      body.floor-plan-active .mobile-gps-fallback,
+      body.report-view-only .mobile-gps-fallback {
+        display: none !important;
       }
     }
 
@@ -2497,6 +2551,9 @@
   </style>
 </head>
 <body>
+  <div class="mobile-gps-fallback" id="mobileGpsFallback">
+    <button type="button" onclick="locateCurrentUser()" aria-label="Find my GPS location" title="Find my GPS location">⌖</button>
+  </div>
 
   <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.11-I</button>
   <div class="floating-ui" id="floatingUi">
@@ -3292,7 +3349,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.11-Z";
+    const APP_VERSION = "2026.07.11-AB";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const SIGN_IN_ACCESS_TABLE = "app_sign_in_access";
@@ -3334,6 +3391,7 @@
       "CARPENTRY2026": { label: "Carpentry", role: "department", department: "Carpentry", canViewAll: false }
     };
     let SIGN_IN_CODES = { ...DEFAULT_SIGN_IN_CODES };
+    let signInCodesRemoteLoadSucceeded = false;
     const ADMIN_EMAIL = "beaufelipe@gmail.com";
     const ADMIN_USERS_TABLE = "app_admin_users";
     let cachedAdminUser = null;
@@ -3853,7 +3911,8 @@
     }
 
     async function loadSignInCodesFromSupabase() {
-      if (!supabaseClient) return;
+      signInCodesRemoteLoadSucceeded = false;
+      if (!supabaseClient) return false;
       try {
         const { data, error } = await supabaseClient
           .from(SETTINGS_TABLE)
@@ -3863,16 +3922,22 @@
 
         if (error) {
           console.warn("Could not load sign-in codes from Supabase:", error);
-          return;
+          return false;
         }
 
         if (data && data.settings_value) {
           SIGN_IN_CODES = normalizeSignInCodes(data.settings_value);
-        } else {
-          await saveSettingToSupabase("sign_in_codes", DEFAULT_SIGN_IN_CODES);
+          signInCodesRemoteLoadSucceeded = true;
+          return true;
         }
+
+        await saveSettingToSupabase("sign_in_codes", DEFAULT_SIGN_IN_CODES);
+        SIGN_IN_CODES = normalizeSignInCodes(DEFAULT_SIGN_IN_CODES);
+        signInCodesRemoteLoadSucceeded = true;
+        return true;
       } catch (error) {
         console.warn("Sign-in code load failed:", error);
+        return false;
       }
     }
 
@@ -3923,7 +3988,30 @@
               approved_at: saved.approved_at || null
             };
           }
-          // The code was deleted, disabled, or expired. Do not keep stale browser access.
+          // Do not erase a valid saved browser session merely because the
+          // Supabase settings list did not load yet. A temporary network delay
+          // should not force the user to enter the code again.
+          if (!signInCodesRemoteLoadSucceeded) {
+            const savedAllowed = Array.isArray(saved.allowedDepartments)
+              ? saved.allowedDepartments.map(normalizeAccessDepartmentKey).filter(Boolean)
+              : [];
+            return {
+              approved: true,
+              version: saved.version,
+              code: saved.code || "",
+              label: saved.label || "User",
+              role: saved.role || "department",
+              department: normalizeAccessDepartmentKey(saved.department || ""),
+              canViewAll: !!saved.canViewAll,
+              allowedDepartments: savedAllowed,
+              permissions: normalizeUserPermissions(saved.permissions),
+              allowedMapIds: normalizeAllowedMapIds(saved.allowedMapIds),
+              approved_at: saved.approved_at || null
+            };
+          }
+
+          // The current Supabase list loaded successfully and the code is
+          // genuinely unavailable, disabled, or expired.
           resetSiteAccessApproval();
           return null;
         }
@@ -4040,6 +4128,8 @@
           allowedDepartments: Array.isArray(access.allowedDepartments) ? access.allowedDepartments.map(normalizeAccessDepartmentKey).filter(Boolean) : [],
           permissions: normalizeUserPermissions(access.permissions),
           allowedMapIds: normalizeAllowedMapIds(access.allowedMapIds),
+          enabled: access.enabled !== false,
+          expiresAt: normalizeProfileExpiryDate(access.expiresAt),
           approved_at: new Date().toISOString()
         }));
       } catch (error) {}
@@ -4061,6 +4151,18 @@
 
     function hasSavedSiteAccess() {
       return !!getAccessProfile();
+    }
+
+    function browserCanPersistSiteAccess() {
+      try {
+        const key = "__cne_storage_test__";
+        localStorage.setItem(key, "1");
+        const ok = localStorage.getItem(key) === "1";
+        localStorage.removeItem(key);
+        return ok;
+      } catch (error) {
+        return false;
+      }
     }
 
     function resetSiteAccessApproval() {
@@ -4110,6 +4212,9 @@
       if (!forcePrompt && hasSavedSiteAccess()) {
         enforceAssignedDepartmentView();
         return true;
+      }
+      if (!browserCanPersistSiteAccess()) {
+        alert("This browser is not allowing the app to save its sign-in. Turn off Private/Incognito mode or allow site storage/cookies for this page.");
       }
       const entered = window.prompt("Enter your CNE Service App sign-in code:");
       const access = lookupSignInCode(entered);
@@ -6754,6 +6859,43 @@
     }).addTo(map);
 
     const userPinsLayer = L.layerGroup().addTo(map);
+
+    function locateCurrentUser() {
+      if (!map || typeof map.locate !== "function") {
+        alert("GPS location is not available on this map.");
+        return;
+      }
+
+      setStatus("Finding your GPS location...");
+      map.locate({
+        setView: true,
+        flyTo: true,
+        maxZoom: Math.max(map.getZoom(), 18),
+        enableHighAccuracy: true,
+        timeout: 12000
+      });
+    }
+
+    map.on("locationfound", function(event) {
+      setStatus("GPS location found.");
+      if (!window.cneUserLocationMarker) {
+        window.cneUserLocationMarker = L.circleMarker(event.latlng, {
+          radius: 8,
+          weight: 3,
+          color: "#005a9c",
+          fillColor: "#ffffff",
+          fillOpacity: 1
+        }).addTo(map);
+      } else {
+        window.cneUserLocationMarker.setLatLng(event.latlng);
+      }
+    });
+
+    map.on("locationerror", function(event) {
+      console.warn("GPS location error:", event && event.message);
+      setStatus("Could not access GPS location.");
+      alert("The app could not access your location. Please allow location permission for this website and make sure GPS is turned on.");
+    });
 
     L.control.locate({
       position: "bottomright",
@@ -10120,6 +10262,7 @@ ${rows.map(pin => `
     window.addNewMapEditor = addNewMapEditor;
     window.deleteMapEditor = deleteMapEditor;
     window.resetMapSettings = resetMapSettings;
+    window.locateCurrentUser = locateCurrentUser;
     window.openDepartmentViewPrompt = openDepartmentViewPrompt;
     window.togglePendingDepartmentView = togglePendingDepartmentView;
     window.applyPendingDepartmentView = applyPendingDepartmentView;
