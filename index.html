@@ -788,6 +788,40 @@
       resize: vertical;
     }
 
+    .optional-date-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .optional-date-grid label {
+      min-width: 0;
+    }
+
+    .leaflet-bottom.leaflet-left,
+    .leaflet-bottom.leaflet-right {
+      bottom: 18px;
+    }
+
+    .leaflet-bottom.leaflet-left {
+      left: 8px;
+    }
+
+    .leaflet-bottom.leaflet-right {
+      right: 8px;
+    }
+
+    @media (max-width: 520px) {
+      .optional-date-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .leaflet-bottom.leaflet-left,
+      .leaflet-bottom.leaflet-right {
+        bottom: 12px;
+      }
+    }
+
     .modal-actions {
       display: flex;
       justify-content: flex-end;
@@ -1430,6 +1464,63 @@
 
     .department-view-btn.selected .department-view-check::after {
       content: "✓";
+    }
+
+
+    .department-view-groups {
+      border-top: 1px solid #d9e0e6;
+      margin-top: 10px;
+      padding-top: 10px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .department-view-group-title {
+      font-size: 12px;
+      font-weight: 800;
+      color: #243447;
+    }
+
+    .department-view-group-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+    }
+
+    .department-view-group-chip {
+      border: 1px solid #9fb5c8;
+      border-radius: 999px;
+      background: #f8fbfe;
+      color: #243447;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .department-view-group-chip:hover,
+    .department-view-group-chip.selected {
+      border-color: #005a9c;
+      background: #e7f3ff;
+      color: #003f70;
+    }
+
+    .department-view-group-editor {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 7px;
+      align-items: end;
+    }
+
+    .department-view-group-editor input,
+    .department-view-group-editor select {
+      min-width: 0;
+    }
+
+    @media (max-width: 520px) {
+      .department-view-group-editor {
+        grid-template-columns: 1fr;
+      }
     }
 
     @media (max-width: 520px) {
@@ -2520,6 +2611,16 @@
         <label class="log-filter-search">Search
           <input id="clearedLogSearchFilter" type="search" placeholder="Title, details, user..." oninput="renderClearedLog()">
         </label>
+        <label>Date order
+          <select id="clearedLogSortFilter" onchange="renderClearedLog()">
+            <option value="created_desc">Created date — newest first</option>
+            <option value="created_asc">Created date — oldest first</option>
+            <option value="install_asc">Install date — earliest first</option>
+            <option value="install_desc">Install date — latest first</option>
+            <option value="removal_asc">Removal date — earliest first</option>
+            <option value="removal_desc">Removal date — latest first</option>
+          </select>
+        </label>
       </div>
       <div id="logBody">
         <div class="empty-log">No cleared pins yet.</div>
@@ -2547,6 +2648,16 @@
         </label>
         <label class="log-filter-search">Search
           <input id="activeLogSearchFilter" type="search" placeholder="Title, details, user..." oninput="renderActiveLog()">
+        </label>
+        <label>Date order
+          <select id="activeLogSortFilter" onchange="renderActiveLog()">
+            <option value="created_desc">Created date — newest first</option>
+            <option value="created_asc">Created date — oldest first</option>
+            <option value="install_asc">Install date — earliest first</option>
+            <option value="install_desc">Install date — latest first</option>
+            <option value="removal_asc">Removal date — earliest first</option>
+            <option value="removal_desc">Removal date — latest first</option>
+          </select>
         </label>
       </div>
       <div id="activeLogBody">
@@ -2933,6 +3044,14 @@
       <label>Location and service details <span style="color:#b71c1c;">*</span>
         <textarea id="pinDescriptionInput" placeholder="Required. Example: west washroom, beside sink. Add any issue details here." required></textarea>
       </label>
+      <div class="optional-date-grid">
+        <label>Install date, optional
+          <input type="date" id="pinInstallDateInput">
+        </label>
+        <label>Removal date, optional
+          <input type="date" id="pinRemovalDateInput">
+        </label>
+      </div>
       <label>Photo / file upload
         <input type="file" id="pinPhotoFileInput" accept="image/*" multiple>
         <small style="color:#607084; font-weight:normal; line-height:1.25;">Phone camera: take one photo, then choose again to add another. Laptop: select multiple photos at once.</small>
@@ -3057,6 +3176,14 @@
       <label>Location and service details
         <textarea id="editPinDescriptionInput" placeholder="Example: west washroom, beside sink. Add any issue details here."></textarea>
       </label>
+      <div class="optional-date-grid">
+        <label>Install date, optional
+          <input type="date" id="editPinInstallDateInput">
+        </label>
+        <label>Removal date, optional
+          <input type="date" id="editPinRemovalDateInput">
+        </label>
+      </div>
       <label>Reported By <span style="color:#b71c1c;">*</span>
         <input type="text" id="editPinReportedByInput" list="editPinReportedByList" placeholder="Select or type name...">
         <datalist id="editPinReportedByList"></datalist>
@@ -3099,7 +3226,27 @@
     <div class="modal-header">Choose Your Department View</div>
     <div class="modal-body">
       <div class="panel-note" style="padding-top:0;">Select one or more departments to display. Only departments allowed by this sign-in profile are available.</div>
+      <div id="departmentViewSavedGroups" class="department-view-groups" style="display:none;">
+        <div class="department-view-group-title">Saved department groups</div>
+        <div id="departmentViewGroupList" class="department-view-group-list"></div>
+      </div>
       <div class="department-view-grid" id="departmentViewOptions"></div>
+      <div id="departmentViewGroupEditor" class="department-view-groups" style="display:none;">
+        <div class="department-view-group-title">Create or manage a saved group</div>
+        <div class="department-view-group-editor">
+          <label>Group name
+            <input type="text" id="departmentViewGroupName" placeholder="Example: Showtech">
+          </label>
+          <button class="action-btn" type="button" onclick="saveCurrentDepartmentGroup()">Save Selected as Group</button>
+        </div>
+        <div class="department-view-group-editor">
+          <label>Existing group
+            <select id="departmentViewGroupDeleteSelect"></select>
+          </label>
+          <button class="action-btn secondary" style="background:#b71c1c;" type="button" onclick="deleteSelectedDepartmentGroup()">Delete Group</button>
+        </div>
+        <div class="panel-note" style="padding:0;">Saved groups are shared through Supabase and only include departments each signed-in profile is permitted to view.</div>
+      </div>
     </div>
     <div class="modal-actions">
       <button class="action-btn secondary" onclick="closeDepartmentViewPrompt()">Cancel</button>
@@ -3145,7 +3292,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.11-X";
+    const APP_VERSION = "2026.07.11-Z";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const SIGN_IN_ACCESS_TABLE = "app_sign_in_access";
@@ -3211,6 +3358,7 @@
     let pendingEditPinId = null;
     let selectedDepartmentView = localStorage.getItem(DEPARTMENT_VIEW_STORAGE_KEY) || "";
     let pendingDepartmentViewKeys = new Set();
+    let departmentViewGroups = loadDepartmentViewGroupsFromStorage();
     let currentMapId = localStorage.getItem(CURRENT_MAP_STORAGE_KEY) || ((mapViews[0] && mapViews[0].id) || DEFAULT_MAP_VIEWS[0].id);
 
     let supabaseClient = null;
@@ -3271,8 +3419,15 @@
     const departmentViewBackdrop = document.getElementById("departmentViewBackdrop");
     const departmentViewModal = document.getElementById("departmentViewModal");
     const departmentViewOptions = document.getElementById("departmentViewOptions");
+    const departmentViewSavedGroups = document.getElementById("departmentViewSavedGroups");
+    const departmentViewGroupList = document.getElementById("departmentViewGroupList");
+    const departmentViewGroupEditor = document.getElementById("departmentViewGroupEditor");
+    const departmentViewGroupName = document.getElementById("departmentViewGroupName");
+    const departmentViewGroupDeleteSelect = document.getElementById("departmentViewGroupDeleteSelect");
     const pinTitleInput = document.getElementById("pinTitleInput");
     const pinDescriptionInput = document.getElementById("pinDescriptionInput");
+    const pinInstallDateInput = document.getElementById("pinInstallDateInput");
+    const pinRemovalDateInput = document.getElementById("pinRemovalDateInput");
     const pinCategoryInput = document.getElementById("pinCategoryInput");
     const pinReportedByInput = document.getElementById("pinReportedByInput");
     const pinPhotoFileInput = document.getElementById("pinPhotoFileInput");
@@ -3314,6 +3469,8 @@
     const editCustomSmsInput = document.getElementById("editCustomSmsInput");
     const editCustomSmsMessageInput = document.getElementById("editCustomSmsMessageInput");
     const editPinDescriptionInput = document.getElementById("editPinDescriptionInput");
+    const editPinInstallDateInput = document.getElementById("editPinInstallDateInput");
+    const editPinRemovalDateInput = document.getElementById("editPinRemovalDateInput");
     const editPinReportedByInput = document.getElementById("editPinReportedByInput");
     const editPinStatusInput = document.getElementById("editPinStatusInput");
     const editClearedFields = document.getElementById("editClearedFields");
@@ -5711,6 +5868,8 @@
       populateEditSmsGroupCheckboxes();
       if (editNotifySmsNowInput) editNotifySmsNowInput.checked = shouldDefaultSmsOpen();
       if (editPinDescriptionInput) editPinDescriptionInput.value = pin.description || "";
+      if (editPinInstallDateInput) editPinInstallDateInput.value = normalizeOptionalDate(pin.install_date) || "";
+      if (editPinRemovalDateInput) editPinRemovalDateInput.value = normalizeOptionalDate(pin.removal_date) || "";
       populateEditProfileDropdowns(pin.reported_by || "", pin.cleared_by || "");
       if (editPinClearCommentInput) editPinClearCommentInput.value = pin.clear_comment || "";
       if (editPinStatusInput) editPinStatusInput.value = getPinStatus(pin);
@@ -5745,6 +5904,8 @@
       const category = editPinCategoryInput.value || "general";
       const title = editPinTitleInput.value || "General request";
       const description = editPinDescriptionInput.value.trim();
+      const installDate = normalizeOptionalDate(editPinInstallDateInput && editPinInstallDateInput.value);
+      const removalDate = normalizeOptionalDate(editPinRemovalDateInput && editPinRemovalDateInput.value);
       const reportedBy = editPinReportedByInput.value.trim();
       rememberUserNameFromInput(editPinReportedByInput);
       const status = editPinStatusInput.value;
@@ -5754,6 +5915,11 @@
       if (!reportedBy) {
         alert("Reported By is required.");
         editPinReportedByInput.focus();
+        return;
+      }
+      if (installDate && removalDate && removalDate < installDate) {
+        alert("Removal date cannot be earlier than the install date.");
+        if (editPinRemovalDateInput) editPinRemovalDateInput.focus();
         return;
       }
       if (status === "cleared" && !clearedBy) {
@@ -5796,6 +5962,8 @@
       const updatePayload = {
         title,
         description,
+        install_date: installDate,
+        removal_date: removalDate,
         category,
         reported_by: reportedBy,
         photo_urls: nextReportedPhotos,
@@ -5949,7 +6117,7 @@
         const { data, error } = await supabaseClient
           .from(SETTINGS_TABLE)
           .select("config_key, settings_value")
-          .in("config_key", ["departments", "profiles", "map_views", "sign_in_codes"]);
+          .in("config_key", ["departments", "profiles", "map_views", "sign_in_codes", "department_view_groups"]);
 
         if (error) {
           console.warn("Could not load central settings:", error);
@@ -5961,6 +6129,14 @@
         const profileRow = (data || []).find(row => row.config_key === "profiles");
         const mapRow = (data || []).find(row => row.config_key === "map_views");
         const signInCodesRow = (data || []).find(row => row.config_key === "sign_in_codes");
+        const departmentViewGroupsRow = (data || []).find(row => row.config_key === "department_view_groups");
+
+        if (departmentViewGroupsRow && departmentViewGroupsRow.settings_value) {
+          departmentViewGroups = normalizeDepartmentViewGroups(departmentViewGroupsRow.settings_value);
+          localStorage.setItem(DEPARTMENT_VIEW_GROUPS_STORAGE_KEY, JSON.stringify(departmentViewGroups));
+        } else {
+          await saveSettingToSupabase("department_view_groups", departmentViewGroups);
+        }
 
         if (signInCodesRow && signInCodesRow.settings_value) {
           SIGN_IN_CODES = normalizeSignInCodes(signInCodesRow.settings_value);
@@ -5996,6 +6172,138 @@
       }
     }
 
+
+    function normalizeDepartmentViewGroups(value) {
+      const source = Array.isArray(value) ? value : [];
+      const seen = new Set();
+      return source.map((group, index) => {
+        const name = String((group && group.name) || "").trim();
+        const departments = Array.from(new Set(
+          (Array.isArray(group && group.departments) ? group.departments : [])
+            .map(normalizeAccessDepartmentKey)
+            .filter(Boolean)
+        ));
+        const id = String((group && group.id) || `group-${index}-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`).trim();
+        return { id, name, departments };
+      }).filter(group => {
+        if (!group.name || !group.departments.length || seen.has(group.id)) return false;
+        seen.add(group.id);
+        return true;
+      }).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+    }
+
+    function loadDepartmentViewGroupsFromStorage() {
+      try {
+        return normalizeDepartmentViewGroups(
+          JSON.parse(localStorage.getItem(DEPARTMENT_VIEW_GROUPS_STORAGE_KEY) || "[]")
+        );
+      } catch (error) {
+        console.warn("Could not load saved department groups:", error);
+        return [];
+      }
+    }
+
+    async function saveDepartmentViewGroups() {
+      departmentViewGroups = normalizeDepartmentViewGroups(departmentViewGroups);
+      localStorage.setItem(DEPARTMENT_VIEW_GROUPS_STORAGE_KEY, JSON.stringify(departmentViewGroups));
+      await saveSettingToSupabase("department_view_groups", departmentViewGroups);
+      renderDepartmentViewGroups();
+    }
+
+    function getAvailableSavedDepartmentGroups() {
+      const allowed = new Set(getDepartmentsAvailableForDepartmentView().map(dept => dept.key));
+      return departmentViewGroups.map(group => ({
+        ...group,
+        availableDepartments: group.departments.filter(key => allowed.has(key))
+      })).filter(group => group.availableDepartments.length);
+    }
+
+    function renderDepartmentViewGroups() {
+      const availableGroups = getAvailableSavedDepartmentGroups();
+      if (departmentViewSavedGroups) {
+        departmentViewSavedGroups.style.display = availableGroups.length ? "grid" : "none";
+      }
+      if (departmentViewGroupList) {
+        departmentViewGroupList.innerHTML = availableGroups.map(group => {
+          const selected = group.availableDepartments.length === pendingDepartmentViewKeys.size &&
+            group.availableDepartments.every(key => pendingDepartmentViewKeys.has(key));
+          const title = group.availableDepartments.map(key => {
+            const dept = departments.find(item => item.key === key);
+            return dept ? dept.name : formatCategoryLabel(key);
+          }).join(", ");
+          return `<button type="button" class="department-view-group-chip${selected ? " selected" : ""}" ` +
+            `title="${escapeAttr(title)}" onclick="selectSavedDepartmentGroup('${escapeAttr(group.id)}')">` +
+            `${escapeHtml(group.name)}</button>`;
+        }).join("");
+      }
+
+      const canManage = userHasPermission("viewAdmin");
+      if (departmentViewGroupEditor) departmentViewGroupEditor.style.display = canManage ? "grid" : "none";
+      if (departmentViewGroupDeleteSelect) {
+        departmentViewGroupDeleteSelect.innerHTML =
+          '<option value="">Select a saved group</option>' +
+          departmentViewGroups.map(group =>
+            `<option value="${escapeAttr(group.id)}">${escapeHtml(group.name)}</option>`
+          ).join("");
+      }
+    }
+
+    function selectSavedDepartmentGroup(groupId) {
+      const group = getAvailableSavedDepartmentGroups().find(item => item.id === groupId);
+      if (!group) return;
+      pendingDepartmentViewKeys = new Set(group.availableDepartments);
+      buildDepartmentViewOptions();
+      renderDepartmentViewGroups();
+    }
+
+    async function saveCurrentDepartmentGroup() {
+      if (!userHasPermission("viewAdmin")) {
+        denyPermission("This profile cannot manage saved department groups.");
+        return;
+      }
+      const name = String(departmentViewGroupName && departmentViewGroupName.value || "").trim();
+      if (!name) {
+        alert("Enter a group name.");
+        return;
+      }
+      if (!pendingDepartmentViewKeys.size) {
+        alert("Select at least one department before saving the group.");
+        return;
+      }
+      const existing = departmentViewGroups.find(
+        group => group.name.toLowerCase() === name.toLowerCase()
+      );
+      const record = {
+        id: existing ? existing.id : `group-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        name,
+        departments: [...pendingDepartmentViewKeys]
+      };
+      if (existing) {
+        departmentViewGroups = departmentViewGroups.map(group => group.id === existing.id ? record : group);
+      } else {
+        departmentViewGroups.push(record);
+      }
+      await saveDepartmentViewGroups();
+      if (departmentViewGroupName) departmentViewGroupName.value = "";
+      setStatus(`Saved department group: ${name}`);
+    }
+
+    async function deleteSelectedDepartmentGroup() {
+      if (!userHasPermission("viewAdmin")) {
+        denyPermission("This profile cannot manage saved department groups.");
+        return;
+      }
+      const id = departmentViewGroupDeleteSelect ? departmentViewGroupDeleteSelect.value : "";
+      const group = departmentViewGroups.find(item => item.id === id);
+      if (!group) {
+        alert("Select a saved group to delete.");
+        return;
+      }
+      if (!confirm(`Delete the saved department group "${group.name}"?`)) return;
+      departmentViewGroups = departmentViewGroups.filter(item => item.id !== id);
+      await saveDepartmentViewGroups();
+      setStatus(`Deleted department group: ${group.name}`);
+    }
 
     function getDepartmentsAvailableForDepartmentView() {
       // The Change Department Default View menu should only show departments that are enabled in Admin > Manage Departments.
@@ -6092,6 +6400,7 @@
         else pendingDepartmentViewKeys.add(key);
       }
       buildDepartmentViewOptions();
+      renderDepartmentViewGroups();
     }
 
     function openDepartmentViewPrompt(firstOpen = false) {
@@ -6102,6 +6411,7 @@
         if (allowed[0]) pendingDepartmentViewKeys.add(allowed[0]);
       }
       buildDepartmentViewOptions();
+      renderDepartmentViewGroups();
       departmentViewModal.classList.add("open");
       departmentViewBackdrop.classList.add("open");
       if (firstOpen) setStatus("Choose one or more department views to start.");
@@ -6335,6 +6645,27 @@
         .trim();
     }
 
+    function normalizeOptionalDate(value) {
+      const clean = String(value || "").trim();
+      return /^\d{4}-\d{2}-\d{2}$/.test(clean) ? clean : null;
+    }
+
+    function formatOptionalDate(value) {
+      const clean = normalizeOptionalDate(value);
+      if (!clean) return "";
+      const date = new Date(clean + "T12:00:00");
+      return Number.isNaN(date.getTime()) ? clean : date.toLocaleDateString();
+    }
+
+    function getPinScheduleHtml(pin, wrapperTag = "div") {
+      const install = formatOptionalDate(pin && pin.install_date);
+      const removal = formatOptionalDate(pin && pin.removal_date);
+      const rows = [];
+      if (install) rows.push("<b>Install date:</b> " + escapeHtml(install));
+      if (removal) rows.push("<b>Removal date:</b> " + escapeHtml(removal));
+      return rows.map(row => "<" + wrapperTag + ' class="log-schedule-line">' + row + "</" + wrapperTag + ">").join("");
+    }
+
     function buildLegend() {
       if (!legendBody) return;
 
@@ -6400,8 +6731,13 @@
 
     const map = L.map("map", {
       minZoom: 13,
-      maxZoom: 22
+      maxZoom: 22,
+      zoomControl: false
     }).setView([43.6326, -79.4148], 17);
+
+    L.control.zoom({
+      position: "bottomleft"
+    }).addTo(map);
 
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 22,
@@ -6420,7 +6756,7 @@
     const userPinsLayer = L.layerGroup().addTo(map);
 
     L.control.locate({
-      position: "topright",
+      position: "bottomright",
       keepCurrentZoomLevel: true,
       flyTo: true,
       locateOptions: {
@@ -6708,7 +7044,7 @@
         pin.title, pin.description, formatDepartmentLabel(pin.category),
         getMapView(getPinMapId(pin)).name, pin.original_reported_by, pin.reported_by,
         pin.created_by_user_name, pin.created_by_department, pin.created_device_label,
-        pin.cleared_by, pin.clear_comment
+        pin.cleared_by, pin.clear_comment, pin.install_date, pin.removal_date
       ].filter(Boolean).join(' ').toLowerCase();
     }
 
@@ -6733,9 +7069,28 @@
       const dept = document.getElementById(prefix + 'DepartmentFilter')?.value || 'all';
       const mapId = document.getElementById(prefix + 'MapFilter')?.value || 'all';
       const term = (document.getElementById(prefix + 'SearchFilter')?.value || '').trim().toLowerCase();
-      return rows.filter(pin => dept === 'all' || String(pin.category || 'general') === dept)
+      const sort = document.getElementById(prefix + 'SortFilter')?.value || 'created_desc';
+      const filtered = rows.filter(pin => dept === 'all' || String(pin.category || 'general') === dept)
         .filter(pin => mapId === 'all' || String(getPinMapId(pin)) === mapId)
         .filter(pin => !term || operationalLogSearchText(pin).includes(term));
+
+      const getTime = (pin, field) => {
+        const value = pin && pin[field];
+        if (!value) return null;
+        const parsed = field === 'created_at' ? new Date(value) : new Date(String(value) + 'T12:00:00');
+        const time = parsed.getTime();
+        return Number.isNaN(time) ? null : time;
+      };
+      const [field, direction] = sort.split('_');
+      const dbField = field === 'install' ? 'install_date' : field === 'removal' ? 'removal_date' : 'created_at';
+      return filtered.slice().sort((a, b) => {
+        const aTime = getTime(a, dbField);
+        const bTime = getTime(b, dbField);
+        if (aTime === null && bTime === null) return 0;
+        if (aTime === null) return 1;
+        if (bTime === null) return -1;
+        return direction === 'asc' ? aTime - bTime : bTime - aTime;
+      });
     }
 
     function buildLogItemHtml(pin, options = {}) {
@@ -6763,6 +7118,7 @@
             '<span><b>Location:</b> ' + escapeHtml(getMapView(getPinMapId(pin)).name) + '</span>' +
           '</div>' +
           getPinOriginSummaryHtml(pin) +
+          getPinScheduleHtml(pin) +
           (closedByValue ? '<div><small><b>' + escapeHtml(getClosedByLabel(pin)) + ':</b> ' + escapeHtml(closedByValue) + '</small></div>' : '') +
           (closedFromValue ? '<div><small><b>' + escapeHtml(getClosedFromLabel(pin)) + ':</b> ' + escapeHtml(closedFromValue) + '</small></div>' : '') +
           (isCleared && formatTimeToClear(pin) ? '<div><small><b>Time to clear:</b> ' + escapeHtml(formatTimeToClear(pin)) + '</small></div>' : '') +
@@ -7180,7 +7536,7 @@
       handleInitialUrlAction();
     }
 
-    async function savePin(latlng, title, description, photoUrls, category, reportedBy, statusValue = "active") {
+    async function savePin(latlng, title, description, photoUrls, category, reportedBy, statusValue = "active", installDate = null, removalDate = null) {
       if (!supabaseClient) {
         alert("Supabase is not configured yet. Add your URL and anon key first.");
         return;
@@ -7191,6 +7547,8 @@
       const payload = {
         title: title,
         description: description || "",
+        install_date: normalizeOptionalDate(installDate),
+        removal_date: normalizeOptionalDate(removalDate),
         lat: latlng.lat,
         lng: latlng.lng,
         photo_urls: normalizePhotoList(photoUrls),
@@ -7972,6 +8330,8 @@
 
 function resetPinForm() {
   pinDescriptionInput.value = "";
+  if (pinInstallDateInput) pinInstallDateInput.value = "";
+  if (pinRemovalDateInput) pinRemovalDateInput.value = "";
   const availableDepartments = getDepartmentsAvailableForNewPins();
   if (availableDepartments[0]) {
     pinCategoryInput.disabled = false;
@@ -8066,9 +8426,16 @@ function resetPinForm() {
       }
 
       const locationDetails = pinDescriptionInput.value.trim();
+      const installDate = normalizeOptionalDate(pinInstallDateInput && pinInstallDateInput.value);
+      const removalDate = normalizeOptionalDate(pinRemovalDateInput && pinRemovalDateInput.value);
       if (!locationDetails) {
         alert("Location and service details are required.");
         pinDescriptionInput.focus();
+        return;
+      }
+      if (installDate && removalDate && removalDate < installDate) {
+        alert("Removal date cannot be earlier than the install date.");
+        if (pinRemovalDateInput) pinRemovalDateInput.focus();
         return;
       }
 
@@ -8089,7 +8456,9 @@ function resetPinForm() {
           uploadedPhotoUrls,
           pinCategoryInput.value,
           reportedBy,
-          requestStatus
+          requestStatus,
+          installDate,
+          removalDate
         );
 
         if (savedPin) {
@@ -8616,6 +8985,8 @@ function resetPinForm() {
         ["category", "Department"],
         ["title", "Title"],
         ["description", "Location and service details"],
+        ["install_date", "Install date"],
+        ["removal_date", "Removal date"],
         ["reported_by", "Reported by"],
         ["status", "Status"],
         ["cleared_by", "Cleared by"],
@@ -8762,6 +9133,8 @@ function resetPinForm() {
             '<div><strong>Original reported by:</strong> ' + escapeHtml(pin.original_reported_by || pin.reported_by || "") + '</div>' +
             (pin.created_by_user_name ? '<div><strong>Created by user:</strong> ' + escapeHtml(pin.created_by_user_name) + '</div>' : '') +
             ((pin.created_by_department || pin.created_device_label) ? '<div><strong>Created by department/company:</strong> ' + escapeHtml(pin.created_by_department || pin.created_device_label) + '</div>' : '') +
+            (pin.install_date ? '<div><strong>Install date:</strong> ' + escapeHtml(formatOptionalDate(pin.install_date)) + '</div>' : '') +
+            (pin.removal_date ? '<div><strong>Removal date:</strong> ' + escapeHtml(formatOptionalDate(pin.removal_date)) + '</div>' : '') +
             (closedByValue ? '<div><strong>' + escapeHtml(getClosedByLabel(pin)) + ':</strong> ' + escapeHtml(closedByValue) + '</div>' : '') +
             (closedFromValue ? '<div><strong>' + escapeHtml(getClosedFromLabel(pin)) + ':</strong> ' + escapeHtml(closedFromValue) + '</div>' : '') +
             (isCleared && formatTimeToClear(pin) ? '<div><strong>Time to clear:</strong> ' + escapeHtml(formatTimeToClear(pin)) + '</div>' : '') +
@@ -9750,6 +10123,9 @@ ${rows.map(pin => `
     window.openDepartmentViewPrompt = openDepartmentViewPrompt;
     window.togglePendingDepartmentView = togglePendingDepartmentView;
     window.applyPendingDepartmentView = applyPendingDepartmentView;
+    window.selectSavedDepartmentGroup = selectSavedDepartmentGroup;
+    window.saveCurrentDepartmentGroup = saveCurrentDepartmentGroup;
+    window.deleteSelectedDepartmentGroup = deleteSelectedDepartmentGroup;
     window.setDepartmentView = setDepartmentView;
     window.saveProfilesEditor = saveProfilesEditor;
     window.resetProfilesSettings = resetProfilesSettings;
