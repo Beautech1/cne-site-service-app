@@ -2629,7 +2629,7 @@
 </head>
 <body>
 
-  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.11-AN</button>
+  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.11-AP</button>
   <div class="floating-ui" id="floatingUi">
     <button class="mobile-ui-toggle" id="mobileUiToggle" type="button" onclick="toggleMobileUi()">
       <span class="mobile-ui-toggle-main">
@@ -2695,7 +2695,8 @@
           <button class="action-btn secondary" onclick="toggleAllLogsPanel(true)">View All Logs</button>
           <button class="action-btn secondary" onclick="toggleDeleteHistoryPanel(true)">Delete from History</button>
           <button class="action-btn secondary" onclick="exportClearLogHtml()">Export Clear Log</button>
-          <button class="action-btn secondary" onclick="exportClearLogCsv()">Export CSV Log</button>
+          <button class="action-btn secondary" onclick="exportClearLogCsv()">Export Cleared Log CSV</button>
+          <button class="action-btn secondary" onclick="exportAllPinDataCsv()">Export All Pin Data CSV</button>
           <button class="action-btn secondary" onclick="toggleAllLogsPanel(true); setTimeout(printAllLogs, 150);">Printable Preview</button>
           <button class="action-btn secondary" onclick="toggleSignInLogPanel(true)">View Sign-In Log</button>
         </div>
@@ -3502,7 +3503,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.11-AN";
+    const APP_VERSION = "2026.07.11-AP";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const DEPARTMENT_SHARE_CONFIG_KEY = "department_share_links";
@@ -10030,7 +10031,6 @@ function resetPinForm() {
             '<div><strong>Item ID:</strong> ' + escapeHtml(String(pin.id || "")) + '</div>' +
           '</div>' +
           (pin.description && compactDisplayText(pin.description) ? '<div class="mini-report-detail"><strong>Location and service details:</strong><br>' + escapeHtml(compactDisplayText(pin.description)) + '</div>' : '') +
-          '<div style="margin-top:10px;"><strong>Map link:</strong><br><a href="' + escapeHtml(buildAppUrl({ pin: pin.id })) + '" target="_blank" rel="noopener">Open this item on the map</a></div>' +
           mapSnapshotHtml +
           (reportedPhotos ? '<div style="margin-top:12px;">' + reportedPhotos + '</div>' : '') +
           (clearPhotos ? '<div style="margin-top:12px;">' + clearPhotos + '</div>' : '') +
@@ -10620,57 +10620,103 @@ function closeSmsFallbackModal() {
         return;
       }
 
-      setStatus("Preparing CSV log export...");
+      setStatus("Preparing complete CSV log export...");
 
+      // Keep Report ID first so exported records can be matched back to the app.
       const headers = [
+        "report_id",
         "title",
         "description",
-        "category",
+        "status",
+        "department",
         "map_id",
+        "map_name",
         "location_type",
+        "latitude",
+        "longitude",
         "x_percent",
         "y_percent",
         "reported_by",
+        "original_reported_by",
+        "created_by_user_name",
+        "created_by_department",
+        "created_device_id",
+        "created_device_label",
+        "created_user_agent",
+        "created_at",
+        "install_date",
+        "removal_date",
         "cleared_by",
+        "cleared_from",
+        "cleared_device_id",
+        "cleared_device_label",
+        "cleared_user_agent",
+        "cleared_at",
         "time_to_clear_hours",
         "time_to_clear_display",
         "clear_comment",
-        "lat",
-        "lng",
-        "created_at",
-        "cleared_at",
-        "install_date",
-        "removal_date",
+        "last_action",
+        "last_action_by",
+        "last_action_device_id",
+        "last_action_device_label",
+        "last_action_user_agent",
         "photo_url",
         "photo_urls",
-        "clear_photo_urls"
+        "clear_photo_urls",
+        "map_snapshot_url"
       ];
 
       const lines = [
         headers.join(","),
-        ...logPins.map(pin => [
-          csvEscape(pin.title),
-          csvEscape(pin.description || ""),
-          csvEscape(pin.category || "general"),
-          csvEscape(getPinMapId(pin)),
-          csvEscape(pin.location_type || "gps"),
-          csvEscape(pin.x_percent ?? ""),
-          csvEscape(pin.y_percent ?? ""),
-          csvEscape(pin.reported_by || ""),
-          csvEscape(pin.cleared_by || ""),
-          csvEscape(getCompletionHours(pin) == null ? "" : getCompletionHours(pin).toFixed(2)),
-          csvEscape(formatTimeToClear(pin)),
-          csvEscape(pin.clear_comment || ""),
-          csvEscape(Number(pin.lat).toFixed(6)),
-          csvEscape(Number(pin.lng).toFixed(6)),
-          csvEscape(pin.created_at ? new Date(pin.created_at).toISOString() : ""),
-          csvEscape(pin.cleared_at ? new Date(pin.cleared_at).toISOString() : ""),
-          csvEscape(pin.install_date || ""),
-          csvEscape(pin.removal_date || ""),
-          csvEscape(pin.photo_url || ""),
-          csvEscape(JSON.stringify(getPinPhotos(pin))),
-          csvEscape(JSON.stringify(getClearPhotos(pin)))
-        ].join(","))
+        ...logPins.map(pin => {
+          const lat = Number(pin.lat);
+          const lng = Number(pin.lng);
+          const mapId = getPinMapId(pin);
+          const mapView = getMapView(mapId);
+          const completionHours = getCompletionHours(pin);
+          return [
+            csvEscape(pin.id ?? ""),
+            csvEscape(pin.title || ""),
+            csvEscape(pin.description || ""),
+            csvEscape(getPinStatus(pin)),
+            csvEscape(pin.category || "general"),
+            csvEscape(mapId),
+            csvEscape(mapView && mapView.name ? mapView.name : ""),
+            csvEscape(pin.location_type || "gps"),
+            csvEscape(Number.isFinite(lat) ? lat.toFixed(6) : ""),
+            csvEscape(Number.isFinite(lng) ? lng.toFixed(6) : ""),
+            csvEscape(pin.x_percent ?? ""),
+            csvEscape(pin.y_percent ?? ""),
+            csvEscape(pin.reported_by || ""),
+            csvEscape(pin.original_reported_by || ""),
+            csvEscape(pin.created_by_user_name || ""),
+            csvEscape(pin.created_by_department || ""),
+            csvEscape(pin.created_device_id || ""),
+            csvEscape(pin.created_device_label || ""),
+            csvEscape(pin.created_user_agent || ""),
+            csvEscape(pin.created_at ? new Date(pin.created_at).toISOString() : ""),
+            csvEscape(pin.install_date || ""),
+            csvEscape(pin.removal_date || ""),
+            csvEscape(getClosedByValue(pin) || pin.cleared_by || ""),
+            csvEscape(getClosedFromValue(pin) || ""),
+            csvEscape(pin.cleared_device_id || ""),
+            csvEscape(pin.cleared_device_label || ""),
+            csvEscape(pin.cleared_user_agent || ""),
+            csvEscape(pin.cleared_at ? new Date(pin.cleared_at).toISOString() : ""),
+            csvEscape(completionHours == null ? "" : completionHours.toFixed(2)),
+            csvEscape(formatTimeToClear(pin)),
+            csvEscape(pin.clear_comment || ""),
+            csvEscape(pin.last_action || ""),
+            csvEscape(pin.last_action_by || ""),
+            csvEscape(pin.last_action_device_id || ""),
+            csvEscape(pin.last_action_device_label || ""),
+            csvEscape(pin.last_action_user_agent || ""),
+            csvEscape(pin.photo_url || ""),
+            csvEscape(JSON.stringify(getPinPhotos(pin))),
+            csvEscape(JSON.stringify(getClearPhotos(pin))),
+            csvEscape(pin.map_snapshot_url || "")
+          ].join(",");
+        })
       ];
 
       const csv = "\uFEFF" + lines.join("\n");
@@ -10679,12 +10725,138 @@ function closeSmsFallbackModal() {
       const a = document.createElement("a");
       const stamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-");
       a.href = url;
-      a.download = `cne-clear-log-${stamp}.csv`;
+      a.download = `cne-clear-log-complete-${stamp}.csv`;
       document.body.appendChild(a);
       a.click();
       a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-      setStatus("CSV log exported.");
+      setStatus("Complete CSV log exported.");
+    }
+
+
+    function exportAllPinDataCsv() {
+      const exportPins = Array.isArray(allPins) ? allPins.slice() : [];
+      if (!exportPins.length) {
+        alert("There are no pin records to export yet.");
+        return;
+      }
+
+      setStatus("Preparing complete all-status CSV export...");
+
+      const headers = [
+        "report_id",
+        "title",
+        "description",
+        "status",
+        "department",
+        "map_id",
+        "map_name",
+        "location_type",
+        "latitude",
+        "longitude",
+        "x_percent",
+        "y_percent",
+        "reported_by",
+        "original_reported_by",
+        "created_by_user_name",
+        "created_by_department",
+        "created_device_id",
+        "created_device_label",
+        "created_user_agent",
+        "created_at",
+        "install_date",
+        "removal_date",
+        "cleared_by",
+        "cleared_from",
+        "cleared_device_id",
+        "cleared_device_label",
+        "cleared_user_agent",
+        "cleared_at",
+        "time_to_clear_hours",
+        "time_to_clear_display",
+        "clear_comment",
+        "last_action",
+        "last_action_by",
+        "last_action_device_id",
+        "last_action_device_label",
+        "last_action_user_agent",
+        "photo_url",
+        "photo_urls",
+        "clear_photo_urls",
+        "map_snapshot_url"
+      ];
+
+      const sortedPins = exportPins.sort((a, b) => {
+        const aTime = new Date(a.created_at || 0).getTime() || 0;
+        const bTime = new Date(b.created_at || 0).getTime() || 0;
+        return aTime - bTime;
+      });
+
+      const lines = [
+        headers.join(","),
+        ...sortedPins.map(pin => {
+          const lat = Number(pin.lat);
+          const lng = Number(pin.lng);
+          const mapId = getPinMapId(pin);
+          const mapView = getMapView(mapId);
+          const completionHours = getCompletionHours(pin);
+          return [
+            csvEscape(pin.id ?? ""),
+            csvEscape(pin.title || ""),
+            csvEscape(pin.description || ""),
+            csvEscape(getPinStatus(pin)),
+            csvEscape(pin.category || "general"),
+            csvEscape(mapId),
+            csvEscape(mapView && mapView.name ? mapView.name : ""),
+            csvEscape(pin.location_type || "gps"),
+            csvEscape(Number.isFinite(lat) ? lat.toFixed(6) : ""),
+            csvEscape(Number.isFinite(lng) ? lng.toFixed(6) : ""),
+            csvEscape(pin.x_percent ?? ""),
+            csvEscape(pin.y_percent ?? ""),
+            csvEscape(pin.reported_by || ""),
+            csvEscape(pin.original_reported_by || ""),
+            csvEscape(pin.created_by_user_name || ""),
+            csvEscape(pin.created_by_department || ""),
+            csvEscape(pin.created_device_id || ""),
+            csvEscape(pin.created_device_label || ""),
+            csvEscape(pin.created_user_agent || ""),
+            csvEscape(pin.created_at ? new Date(pin.created_at).toISOString() : ""),
+            csvEscape(pin.install_date || ""),
+            csvEscape(pin.removal_date || ""),
+            csvEscape(getClosedByValue(pin) || pin.cleared_by || ""),
+            csvEscape(getClosedFromValue(pin) || ""),
+            csvEscape(pin.cleared_device_id || ""),
+            csvEscape(pin.cleared_device_label || ""),
+            csvEscape(pin.cleared_user_agent || ""),
+            csvEscape(pin.cleared_at ? new Date(pin.cleared_at).toISOString() : ""),
+            csvEscape(completionHours == null ? "" : completionHours.toFixed(2)),
+            csvEscape(formatTimeToClear(pin)),
+            csvEscape(pin.clear_comment || ""),
+            csvEscape(pin.last_action || ""),
+            csvEscape(pin.last_action_by || ""),
+            csvEscape(pin.last_action_device_id || ""),
+            csvEscape(pin.last_action_device_label || ""),
+            csvEscape(pin.last_action_user_agent || ""),
+            csvEscape(pin.photo_url || ""),
+            csvEscape(JSON.stringify(getPinPhotos(pin))),
+            csvEscape(JSON.stringify(getClearPhotos(pin))),
+            csvEscape(pin.map_snapshot_url || "")
+          ].join(",");
+        })
+      ];
+
+      const csv = "\uFEFF" + lines.join("\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const stamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-");
+      a.href = url;
+      a.download = `cne-all-pin-data-${stamp}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setStatus(`All pin data exported (${sortedPins.length} records).`);
     }
 
     async function exportClearLogHtml() {
@@ -11121,6 +11293,7 @@ ${rows.map(pin => `
     window.printActiveLogs = printActiveLogs;
     window.printClearedLogs = printClearedLogs;
     window.exportClearLogCsv = exportClearLogCsv;
+    window.exportAllPinDataCsv = exportAllPinDataCsv;
 
     window.addEventListener("resize", function() { positionFloorPopup(); updateDesktopTextNotificationNotice(); });
     window.addEventListener("orientationchange", function() {
