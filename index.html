@@ -3665,7 +3665,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.15-BP";
+    const APP_VERSION = "2026.07.16-BQ";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const DEPARTMENT_SHARE_CONFIG_KEY = "department_share_links";
@@ -7443,6 +7443,7 @@
       updateCurrentViewDisplay();
       closeDepartmentViewPrompt();
       buildDepartmentViewOptions();
+      populateDepartmentDropdowns(getSingleSelectedDepartment() || (pinCategoryInput ? pinCategoryInput.value : ""));
       buildLegend();
       applyFilters();
     }
@@ -7510,8 +7511,22 @@
     }
 
     function getDepartmentsAvailableForNewPins() {
-      // Do not show unchecked/deleted departments in the Add Pin dropdown.
-      return departments.filter(dept => dept && dept.availableForPins !== false);
+      // Only offer active departments that are part of the user's currently selected
+      // department view. This keeps the Add Pin list concise for admin/all-access users,
+      // while still respecting the departments allowed by the sign-in profile.
+      let available = departments.filter(dept => dept && dept.availableForPins !== false);
+
+      if (!currentUserCanViewAllDepartments()) {
+        const allowed = getAllowedDepartmentKeys();
+        available = available.filter(dept => allowed.includes(dept.key));
+      }
+
+      const selectedViewKeys = parseDepartmentViewKeys();
+      if (selectedViewKeys.length) {
+        available = available.filter(dept => selectedViewKeys.includes(dept.key));
+      }
+
+      return sortByNameAscending(available);
     }
 
     function isDepartmentAvailableForNewPin(key) {
