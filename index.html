@@ -3621,7 +3621,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.15-BM";
+    const APP_VERSION = "2026.07.15-BN";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const DEPARTMENT_SHARE_CONFIG_KEY = "department_share_links";
@@ -3673,6 +3673,7 @@
     const DEFAULT_MAP_VIEWS = [
       { id: "outdoor_site", name: "Outdoor Site Map - With Overlay", type: "outdoor", image: null },
       { id: "outdoor_gps_plain", name: "Outdoor GPS Map - No Overlay", type: "outdoor", image: null },
+      { id: "outdoor_terrain", name: "Outdoor Terrain / Topographic Map", type: "outdoor", image: null },
       { id: "food_building_main", name: "Food Building - Main Floor", type: "floorplan", image: "./floor-plan-food-building.png" }
     ];
     // No built-in departments. Departments should come only from Supabase / Admin Menu settings.
@@ -3859,6 +3860,18 @@
           image: null
         });
       }
+
+      if (!normalized.some(view => view.id === "outdoor_terrain")) {
+        const plainIndex = normalized.findIndex(view => view.id === "outdoor_gps_plain");
+        const outdoorIndex = normalized.findIndex(view => view.id === "outdoor_site");
+        const insertAt = plainIndex >= 0 ? plainIndex + 1 : (outdoorIndex >= 0 ? outdoorIndex + 1 : 1);
+        normalized.splice(insertAt, 0, {
+          id: "outdoor_terrain",
+          name: "Outdoor Terrain / Topographic Map",
+          type: "outdoor",
+          image: null
+        });
+      }
       return normalized;
     }
 
@@ -3925,7 +3938,7 @@
 
       // The overlay and plain GPS views represent the same outdoor site,
       // so they intentionally share all outdoor pins.
-      const sharedOutdoorMapIds = new Set(["outdoor_site", "outdoor_gps_plain"]);
+      const sharedOutdoorMapIds = new Set(["outdoor_site", "outdoor_gps_plain", "outdoor_terrain"]);
       if (sharedOutdoorMapIds.has(String(mapId || "")) &&
           sharedOutdoorMapIds.has(String(pinMap || "outdoor_site"))) {
         return true;
@@ -4144,7 +4157,7 @@
 
       // Backward compatibility: access to either outdoor view grants access
       // to the alternate outdoor view because both show the same site/pins.
-      const outdoorIds = new Set(["outdoor_site", "outdoor_gps_plain"]);
+      const outdoorIds = new Set(["outdoor_site", "outdoor_gps_plain", "outdoor_terrain"]);
       return outdoorIds.has(requested) && allowed.some(id => outdoorIds.has(String(id || "")));
     }
 
@@ -7649,10 +7662,16 @@
       maxZoom: 22
     }).setView([43.6326, -79.4148], 17);
 
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    const standardMapLayer = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 22,
       attribution: "&copy; OpenStreetMap contributors"
     }).addTo(map);
+
+    const terrainMapLayer = L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", {
+      maxNativeZoom: 17,
+      maxZoom: 22,
+      attribution: "Map data &copy; OpenStreetMap contributors, SRTM | Map style &copy; OpenTopoMap"
+    });
 
     const p1 = L.latLng(43.634936, -79.426124);
     const p2 = L.latLng(43.638072, -79.410371);
@@ -7665,10 +7684,25 @@
 
     function updateOutdoorOverlayForCurrentView() {
       if (!map || !sitePlanOverlay) return;
-      const showOverlay = currentMapId !== "outdoor_gps_plain";
+
+      const useTerrain = currentMapId === "outdoor_terrain";
+      const showOverlay = currentMapId === "outdoor_site";
+
+      if (useTerrain) {
+        if (map.hasLayer(standardMapLayer)) map.removeLayer(standardMapLayer);
+        if (!map.hasLayer(terrainMapLayer)) terrainMapLayer.addTo(map);
+      } else {
+        if (map.hasLayer(terrainMapLayer)) map.removeLayer(terrainMapLayer);
+        if (!map.hasLayer(standardMapLayer)) standardMapLayer.addTo(map);
+      }
+
       const overlayIsVisible = map.hasLayer(sitePlanOverlay);
       if (showOverlay && !overlayIsVisible) sitePlanOverlay.addTo(map);
       if (!showOverlay && overlayIsVisible) map.removeLayer(sitePlanOverlay);
+
+      // Keep pins and the site overlay above whichever base map is active.
+      if (showOverlay && typeof sitePlanOverlay.bringToFront === "function") sitePlanOverlay.bringToFront();
+      if (userPinsLayer && typeof userPinsLayer.bringToFront === "function") userPinsLayer.bringToFront();
     }
 
     const userPinsLayer = L.layerGroup().addTo(map);
