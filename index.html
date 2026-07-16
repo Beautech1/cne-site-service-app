@@ -2307,6 +2307,49 @@
       padding-top: 7px;
     }
 
+    .pin-change-history-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .pin-change-admin-actions {
+      display: inline-flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .pin-change-delete-btn {
+      border: 1px solid #c62828;
+      border-radius: 6px;
+      background: #fff;
+      color: #b91c1c;
+      padding: 4px 7px;
+      font-size: 10px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .pin-change-delete-btn.clear-all {
+      background: #c62828;
+      color: #fff;
+    }
+
+    .pin-change-delete-btn:hover {
+      opacity: 0.9;
+    }
+
+    .pin-change-row-heading {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
     .pin-change-badge {
       display: inline-block;
       padding: 2px 7px;
@@ -3053,6 +3096,7 @@
           <label class="permission-option"><input type="checkbox" id="permViewAdmin"><span>Open Admin menu<small>Still requires the secure Supabase admin login.</small></span></label>
           <label class="permission-option"><input type="checkbox" id="permOwnPinsOutsidePrimary"><span>Additional departments: own profile pins only<small>For departments beyond the profile’s primary department, only show pins created by this profile.</small></span></label>
           <label class="permission-option"><input type="checkbox" id="permShowMarkerDirectionOptions"><span>Show marker and direction options when adding pins<small>Off by default. When unchecked, new pins use the standard dot with no direction arrow.</small></span></label>
+          <label class="permission-option"><input type="checkbox" id="permShowInstallRemovalDates"><span>Show install and removal date fields<small>Off by default. Enable only for profiles that need scheduling dates when adding or editing pins.</small></span></label>
         </div>
       </div>
       <div class="admin-menu-section">
@@ -3378,7 +3422,7 @@
           <small style="color:#607084;font-weight:normal;">Shows the facing direction.</small>
         </label>
       </div>
-      <div class="optional-date-grid">
+      <div class="optional-date-grid" id="pinInstallRemovalDateOptions">
         <label>Install date (optional)
           <input type="date" id="pinInstallDateInput">
         </label>
@@ -3523,7 +3567,7 @@
           <button class="action-btn secondary desktop-text-tool-row desktop-copy-button" type="button" onclick="openCopyTextForEditPin()">Open/Copy Text Message Now</button>
         </div>
       </div>
-      <div class="optional-date-grid">
+      <div class="optional-date-grid" id="editPinInstallRemovalDateOptions">
         <label>Install date (optional)
           <input type="date" id="editPinInstallDateInput">
         </label>
@@ -3621,7 +3665,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.15-BN";
+    const APP_VERSION = "2026.07.15-BP";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const DEPARTMENT_SHARE_CONFIG_KEY = "department_share_links";
@@ -4107,7 +4151,8 @@
       printReports: true,
       viewAdmin: true,
       ownPinsOutsidePrimary: false,
-      showMarkerDirectionOptions: false
+      showMarkerDirectionOptions: false,
+      showInstallRemovalDates: false
     });
 
     function normalizeUserPermissions(value) {
@@ -4126,7 +4171,8 @@
         printReports: read("printReports", "can_print_reports", true),
         viewAdmin: read("viewAdmin", "can_view_admin", true),
         ownPinsOutsidePrimary: read("ownPinsOutsidePrimary", "own_pins_outside_primary", false),
-        showMarkerDirectionOptions: read("showMarkerDirectionOptions", "show_marker_direction_options", false)
+        showMarkerDirectionOptions: read("showMarkerDirectionOptions", "show_marker_direction_options", false),
+        showInstallRemovalDates: read("showInstallRemovalDates", "show_install_removal_dates", false)
       };
     }
 
@@ -4927,7 +4973,8 @@
       viewActive: "permViewActive", viewCleared: "permViewCleared", addPins: "permAddPins",
       editPins: "permEditPins", clearPins: "permClearPins", printReports: "permPrintReports", viewAdmin: "permViewAdmin",
       ownPinsOutsidePrimary: "permOwnPinsOutsidePrimary",
-      showMarkerDirectionOptions: "permShowMarkerDirectionOptions"
+      showMarkerDirectionOptions: "permShowMarkerDirectionOptions",
+      showInstallRemovalDates: "permShowInstallRemovalDates"
     };
 
     function setPermissionEditorValues(permissions) {
@@ -4942,9 +4989,9 @@
     }
 
     function applyPermissionPreset(name) {
-      if(name === "readonly") setPermissionEditorValues({viewActive:true,viewCleared:true,addPins:false,editPins:false,clearPins:false,printReports:true,viewAdmin:false,ownPinsOutsidePrimary:false,showMarkerDirectionOptions:false});
-      else if(name === "readonly-clear") setPermissionEditorValues({viewActive:true,viewCleared:true,addPins:false,editPins:false,clearPins:true,printReports:true,viewAdmin:false,ownPinsOutsidePrimary:false,showMarkerDirectionOptions:false});
-      else if(name === "operations") setPermissionEditorValues({viewActive:true,viewCleared:true,addPins:true,editPins:true,clearPins:true,printReports:true,viewAdmin:false,ownPinsOutsidePrimary:false,showMarkerDirectionOptions:false});
+      if(name === "readonly") setPermissionEditorValues({viewActive:true,viewCleared:true,addPins:false,editPins:false,clearPins:false,printReports:true,viewAdmin:false,ownPinsOutsidePrimary:false,showMarkerDirectionOptions:false,showInstallRemovalDates:false});
+      else if(name === "readonly-clear") setPermissionEditorValues({viewActive:true,viewCleared:true,addPins:false,editPins:false,clearPins:true,printReports:true,viewAdmin:false,ownPinsOutsidePrimary:false,showMarkerDirectionOptions:false,showInstallRemovalDates:false});
+      else if(name === "operations") setPermissionEditorValues({viewActive:true,viewCleared:true,addPins:true,editPins:true,clearPins:true,printReports:true,viewAdmin:false,ownPinsOutsidePrimary:false,showMarkerDirectionOptions:false,showInstallRemovalDates:false});
       else setPermissionEditorValues(DEFAULT_USER_PERMISSIONS);
     }
 
@@ -5197,7 +5244,8 @@
         "Print reports",
         "Open Admin menu",
         "Additional departments: own profile pins only",
-        "Show marker/direction options when adding pins"
+        "Show marker/direction options when adding pins",
+        "Show install/removal date fields"
       ];
 
       const rows = entries.map(([code, profile]) => {
@@ -5246,7 +5294,8 @@
           yesNo(permissions.printReports),
           yesNo(permissions.viewAdmin),
           yesNo(permissions.ownPinsOutsidePrimary),
-          yesNo(permissions.showMarkerDirectionOptions)
+          yesNo(permissions.showMarkerDirectionOptions),
+          yesNo(permissions.showInstallRemovalDates)
         ];
       });
 
@@ -6948,6 +6997,11 @@
       populateEditSmsGroupCheckboxes();
       if (editNotifySmsNowInput) editNotifySmsNowInput.checked = shouldDefaultSmsOpen();
       if (editPinDescriptionInput) editPinDescriptionInput.value = pin.description || "";
+
+      const editInstallRemovalDateOptions = document.getElementById("editPinInstallRemovalDateOptions");
+      const canShowInstallRemovalDates = userHasPermission("showInstallRemovalDates");
+      if (editInstallRemovalDateOptions) editInstallRemovalDateOptions.style.display = canShowInstallRemovalDates ? "grid" : "none";
+
       if (editPinInstallDateInput) editPinInstallDateInput.value = pin.install_date ? String(pin.install_date).slice(0, 10) : "";
       if (editPinRemovalDateInput) editPinRemovalDateInput.value = pin.removal_date ? String(pin.removal_date).slice(0, 10) : "";
       const editMarkerStyleInput = document.getElementById("editPinMarkerStyleInput");
@@ -9865,6 +9919,11 @@ function resetPinForm() {
   const markerDirectionOptions = document.getElementById("pinMarkerDirectionOptions");
   const canShowMarkerDirectionOptions = userHasPermission("showMarkerDirectionOptions");
   if (markerDirectionOptions) markerDirectionOptions.style.display = canShowMarkerDirectionOptions ? "grid" : "none";
+
+  const installRemovalDateOptions = document.getElementById("pinInstallRemovalDateOptions");
+  const canShowInstallRemovalDates = userHasPermission("showInstallRemovalDates");
+  if (installRemovalDateOptions) installRemovalDateOptions.style.display = canShowInstallRemovalDates ? "grid" : "none";
+
   if (pinInstallDateInput) pinInstallDateInput.value = "";
   if (pinRemovalDateInput) pinRemovalDateInput.value = "";
   const pinMarkerStyleInput = document.getElementById("pinMarkerStyleInput");
@@ -10639,10 +10698,19 @@ function resetPinForm() {
     }
 
     function buildPinChangeHistoryHtml(rows, title = "Service order change history") {
-      if (!rows || !rows.length) {
-        return '<div class="pin-change-history"><strong>' + escapeHtml(title) + '</strong><div class="panel-note" style="padding:6px 0 0;">No reassignment or edit history has been recorded yet.</div></div>';
+      const safeRows = Array.isArray(rows) ? rows : [];
+      const pinId = safeRows.length ? safeRows[0].pin_id : "";
+      const canRequestAdminActions = userHasPermission("viewAdmin");
+      const clearAllButton = canRequestAdminActions && pinId
+        ? '<div class="pin-change-admin-actions"><button type="button" class="pin-change-delete-btn clear-all" onclick="deleteAllPinChangeHistory(\'' + escapeHtml(String(pinId)) + '\')">Clear all history</button></div>'
+        : "";
+      const header = '<div class="pin-change-history-header"><strong>' + escapeHtml(title) + '</strong>' + clearAllButton + '</div>';
+
+      if (!safeRows.length) {
+        return '<div class="pin-change-history">' + header + '<div class="panel-note" style="padding:6px 0 0;">No reassignment or edit history has been recorded yet.</div></div>';
       }
-      const items = rows.map(row => {
+
+      const items = safeRows.map(row => {
         const changes = row.changes && typeof row.changes === "object" ? row.changes : {};
         const detailHtml = Object.entries(changes).map(([key, change]) => {
           const label = change && change.label ? change.label : key;
@@ -10651,10 +10719,13 @@ function resetPinForm() {
           return '<div><strong>' + escapeHtml(label) + ':</strong> ' + escapeHtml(fromValue) + ' &rarr; ' + escapeHtml(toValue) + '</div>';
         }).join("");
         const actionLabel = String(row.action || "updated").replace(/_/g, " ");
-        return '<div class="pin-change-row"><div><span class="pin-change-badge">' + escapeHtml(actionLabel.toUpperCase()) + '</span><strong>' + escapeHtml(formatDateTime(row.created_at)) + '</strong></div>' +
+        const deleteButton = canRequestAdminActions
+          ? '<button type="button" class="pin-change-delete-btn" onclick="deletePinChangeHistoryEntry(\'' + escapeHtml(String(row.id || "")) + '\',\'' + escapeHtml(String(row.pin_id || "")) + '\')">Delete entry</button>'
+          : "";
+        return '<div class="pin-change-row"><div class="pin-change-row-heading"><div><span class="pin-change-badge">' + escapeHtml(actionLabel.toUpperCase()) + '</span><strong>' + escapeHtml(formatDateTime(row.created_at)) + '</strong></div>' + deleteButton + '</div>' +
           '<div>Changed by: ' + escapeHtml(row.changed_by || "Unknown user") + (row.device_label ? ' &bull; ' + escapeHtml(row.device_label) : '') + '</div>' + detailHtml + '</div>';
       }).join("");
-      return '<div class="pin-change-history"><strong>' + escapeHtml(title) + '</strong>' + items + '</div>';
+      return '<div class="pin-change-history">' + header + items + '</div>';
     }
 
     async function loadPinChangeHistory(pinId) {
@@ -10677,6 +10748,81 @@ function resetPinForm() {
       const rows = await loadPinChangeHistory(pinId);
       const html = buildPinChangeHistoryHtml(rows);
       targets.forEach(target => { target.innerHTML = html; });
+    }
+
+    async function deletePinChangeHistoryEntry(historyId, pinId) {
+      if (!historyId || !pinId) {
+        alert("The selected history entry could not be identified.");
+        return;
+      }
+      if (!userHasPermission("viewAdmin")) {
+        return denyPermission("Only an administrator can delete service history.");
+      }
+      if (!(await requireAdminAuth())) return;
+
+      const confirmed = window.confirm(
+        "Delete this individual service-history entry?\n\n" +
+        "This will not delete the service item or its main report. This action cannot be undone."
+      );
+      if (!confirmed) return;
+
+      setStatus("Deleting history entry...");
+      const { error } = await supabaseClient
+        .from(PIN_CHANGE_LOG_TABLE)
+        .delete()
+        .eq("id", historyId)
+        .eq("pin_id", pinId);
+
+      if (error) {
+        console.error("Could not delete service-history entry.", error);
+        alert("Could not delete the history entry. Check the Supabase delete policy for " + PIN_CHANGE_LOG_TABLE + ".");
+        setStatus("History deletion failed.");
+        return;
+      }
+
+      await refreshPinChangeHistoryForPin(pinId);
+      setStatus("Service-history entry deleted.");
+    }
+
+    async function deleteAllPinChangeHistory(pinId) {
+      if (!pinId) {
+        alert("The service item could not be identified.");
+        return;
+      }
+      if (!userHasPermission("viewAdmin")) {
+        return denyPermission("Only an administrator can clear service history.");
+      }
+      if (!(await requireAdminAuth())) return;
+
+      const firstConfirm = window.confirm(
+        "Clear ALL service-order change history for this item?\n\n" +
+        "The service item, photos and main report will remain. This cannot be undone."
+      );
+      if (!firstConfirm) return;
+
+      const typed = window.prompt(
+        'For confirmation, type DELETE HISTORY to permanently clear all change-history entries for this item.'
+      );
+      if (String(typed || "").trim().toUpperCase() !== "DELETE HISTORY") {
+        alert("History was not deleted.");
+        return;
+      }
+
+      setStatus("Clearing item history...");
+      const { error } = await supabaseClient
+        .from(PIN_CHANGE_LOG_TABLE)
+        .delete()
+        .eq("pin_id", pinId);
+
+      if (error) {
+        console.error("Could not clear service history.", error);
+        alert("Could not clear the service history. Check the Supabase delete policy for " + PIN_CHANGE_LOG_TABLE + ".");
+        setStatus("History deletion failed.");
+        return;
+      }
+
+      await refreshPinChangeHistoryForPin(pinId);
+      setStatus("All service history for this item was deleted.");
     }
 
     function buildMiniReportHtml(pin, options = {}) {
@@ -10878,7 +11024,7 @@ function resetPinForm() {
       const accessRows = await fetchReportAccessRows(pin.id, 20);
       const accessHistoryHtml = buildReportAccessHistoryHtml(accessRows);
       const changeHistoryHtml = buildPinChangeHistoryHtml(await loadPinChangeHistory(pin.id));
-      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Item Report ${escapeHtml(String(pin.id || ""))}</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#1f2933;font-size:13px}.mini-report-card{border:1px solid #d9e0e6;border-radius:10px;padding:14px;line-height:1.45;font-size:13px}.mini-report-card h2{font-size:17px;line-height:1.25}.mini-report-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;font-size:13px}.mini-report-detail{margin-top:7px;white-space:pre-line;line-height:1.32}.compact-pin-description{margin-top:5px;white-space:pre-line;line-height:1.28}.report-map-photo,.log-photo,.print-report-photo{display:block;margin:8px 0;max-width:460px;max-height:330px;object-fit:contain;border:1px solid #d9e0e6;border-radius:8px;background:#f8fafc}.photo-gallery{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start}.photo-gallery img{width:460px;max-width:100%;height:auto;max-height:330px;object-fit:contain;border:1px solid #d9e0e6;border-radius:8px;background:#f8fafc}.photo-section-title{display:block;font-weight:bold;margin-top:10px;font-size:13px}.report-access-history{border:1px solid #d9e0e6;border-radius:8px;padding:10px;margin-top:12px;background:#f8fbfe}.report-access-row{border-top:1px solid #e6edf3;padding-top:6px;margin-top:6px}.pin-change-history{border:1px solid #d9e0e6;border-radius:8px;padding:10px;margin-top:12px;background:#fffdf6}.pin-change-row{border-top:1px solid #e6edf3;padding-top:7px;margin-top:7px}.pin-change-badge{display:inline-block;padding:2px 7px;border-radius:999px;background:#e7f3ff;border:1px solid #b7d7ef;font-size:10px;font-weight:bold;margin-right:5px}.preview-actions{position:sticky;top:0;display:flex;gap:8px;padding:8px 0;background:#fff;z-index:10}.preview-actions button{border:0;border-radius:6px;padding:9px 13px;background:#005a9c;color:#fff;font-weight:700;cursor:pointer}@media print{.preview-actions,button{display:none!important}}</style></head><body><div class="preview-actions"><button onclick="window.print()">Print</button><button onclick="window.close()">Close Preview</button></div><h1>Item Report</h1>${buildMiniReportHtml(pin, { print: true, accessHistoryHtml, changeHistoryHtml })}</body></html>`;
+      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Item Report ${escapeHtml(String(pin.id || ""))}</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#1f2933;font-size:13px}.mini-report-card{border:1px solid #d9e0e6;border-radius:10px;padding:14px;line-height:1.45;font-size:13px}.mini-report-card h2{font-size:17px;line-height:1.25}.mini-report-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;font-size:13px}.mini-report-detail{margin-top:7px;white-space:pre-line;line-height:1.32}.compact-pin-description{margin-top:5px;white-space:pre-line;line-height:1.28}.report-map-photo,.log-photo,.print-report-photo{display:block;margin:8px 0;max-width:460px;max-height:330px;object-fit:contain;border:1px solid #d9e0e6;border-radius:8px;background:#f8fafc}.photo-gallery{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start}.photo-gallery img{width:460px;max-width:100%;height:auto;max-height:330px;object-fit:contain;border:1px solid #d9e0e6;border-radius:8px;background:#f8fafc}.photo-section-title{display:block;font-weight:bold;margin-top:10px;font-size:13px}.report-access-history{border:1px solid #d9e0e6;border-radius:8px;padding:10px;margin-top:12px;background:#f8fbfe}.report-access-row{border-top:1px solid #e6edf3;padding-top:6px;margin-top:6px}.pin-change-history{border:1px solid #d9e0e6;border-radius:8px;padding:10px;margin-top:12px;background:#fffdf6}.pin-change-row{border-top:1px solid #e6edf3;padding-top:7px;margin-top:7px}.pin-change-badge{display:inline-block;padding:2px 7px;border-radius:999px;background:#e7f3ff;border:1px solid #b7d7ef;font-size:10px;font-weight:bold;margin-right:5px}.pin-change-admin-actions,.pin-change-delete-btn{display:none!important}.preview-actions{position:sticky;top:0;display:flex;gap:8px;padding:8px 0;background:#fff;z-index:10}.preview-actions button{border:0;border-radius:6px;padding:9px 13px;background:#005a9c;color:#fff;font-weight:700;cursor:pointer}@media print{.preview-actions,button{display:none!important}}</style></head><body><div class="preview-actions"><button onclick="window.print()">Print</button><button onclick="window.close()">Close Preview</button></div><h1>Item Report</h1>${buildMiniReportHtml(pin, { print: true, accessHistoryHtml, changeHistoryHtml })}</body></html>`;
       const win = window.open("", "_blank");
       if (!win) {
         alert("Popup blocked. Please allow popups to print the report.");
