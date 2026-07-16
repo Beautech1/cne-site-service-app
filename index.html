@@ -3621,7 +3621,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.15-BL";
+    const APP_VERSION = "2026.07.15-BM";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const DEPARTMENT_SHARE_CONFIG_KEY = "department_share_links";
@@ -3671,7 +3671,8 @@
     const ADMIN_USERS_TABLE = "app_admin_users";
     let cachedAdminUser = null;
     const DEFAULT_MAP_VIEWS = [
-      { id: "outdoor_site", name: "Outdoor Site Map", type: "outdoor", image: null },
+      { id: "outdoor_site", name: "Outdoor Site Map - With Overlay", type: "outdoor", image: null },
+      { id: "outdoor_gps_plain", name: "Outdoor GPS Map - No Overlay", type: "outdoor", image: null },
       { id: "food_building_main", name: "Food Building - Main Floor", type: "floorplan", image: "./floor-plan-food-building.png" }
     ];
     // No built-in departments. Departments should come only from Supabase / Admin Menu settings.
@@ -3845,6 +3846,19 @@
       if (!normalized.some(view => view.type === "outdoor")) {
         normalized.unshift({ ...DEFAULT_MAP_VIEWS[0] });
       }
+
+      // Built-in alternate outdoor view. Existing installations receive it
+      // automatically even when their map list was saved before this version.
+      if (!normalized.some(view => view.id === "outdoor_gps_plain")) {
+        const outdoorIndex = normalized.findIndex(view => view.id === "outdoor_site");
+        const insertAt = outdoorIndex >= 0 ? outdoorIndex + 1 : 1;
+        normalized.splice(insertAt, 0, {
+          id: "outdoor_gps_plain",
+          name: "Outdoor GPS Map - No Overlay",
+          type: "outdoor",
+          image: null
+        });
+      }
       return normalized;
     }
 
@@ -3908,6 +3922,15 @@
       const aliases = getMapAliases(mapId);
       const pinMap = getPinMapId(pin);
       const pinMapNormalized = normalizeComparableMapId(pinMap);
+
+      // The overlay and plain GPS views represent the same outdoor site,
+      // so they intentionally share all outdoor pins.
+      const sharedOutdoorMapIds = new Set(["outdoor_site", "outdoor_gps_plain"]);
+      if (sharedOutdoorMapIds.has(String(mapId || "")) &&
+          sharedOutdoorMapIds.has(String(pinMap || "outdoor_site"))) {
+        return true;
+      }
+
       if (aliases.has(String(pinMap)) || aliases.has(pinMapNormalized)) return true;
 
       // Older floor-plan pins may have been saved before the map_id was stable.
@@ -4116,7 +4139,13 @@
 
     function userCanAccessMap(mapId) {
       const allowed = getAllowedMapIdsForCurrentUser();
-      return !allowed.length || allowed.includes(String(mapId || ""));
+      const requested = String(mapId || "");
+      if (!allowed.length || allowed.includes(requested)) return true;
+
+      // Backward compatibility: access to either outdoor view grants access
+      // to the alternate outdoor view because both show the same site/pins.
+      const outdoorIds = new Set(["outdoor_site", "outdoor_gps_plain"]);
+      return outdoorIds.has(requested) && allowed.some(id => outdoorIds.has(String(id || "")));
     }
 
     function denyPermission(message) {
@@ -6144,6 +6173,7 @@
       } else {
         floorPlanView.style.display = "none";
         document.getElementById("map").style.display = "block";
+        updateOutdoorOverlayForCurrentView();
         setTimeout(() => map.invalidateSize(), 80);
       }
       applyFilters();
@@ -7628,10 +7658,18 @@
     const p2 = L.latLng(43.638072, -79.410371);
     const p3 = L.latLng(43.629324, -79.423991);
 
-    L.imageOverlay.rotated("./site-plan.png", p1, p2, p3, {
+    const sitePlanOverlay = L.imageOverlay.rotated("./site-plan.png", p1, p2, p3, {
       opacity: 0.68,
       interactive: true
     }).addTo(map);
+
+    function updateOutdoorOverlayForCurrentView() {
+      if (!map || !sitePlanOverlay) return;
+      const showOverlay = currentMapId !== "outdoor_gps_plain";
+      const overlayIsVisible = map.hasLayer(sitePlanOverlay);
+      if (showOverlay && !overlayIsVisible) sitePlanOverlay.addTo(map);
+      if (!showOverlay && overlayIsVisible) map.removeLayer(sitePlanOverlay);
+    }
 
     const userPinsLayer = L.layerGroup().addTo(map);
 
