@@ -1388,6 +1388,49 @@
     }
 
 
+    /* Mobile map pin popup: keep the full report reachable on Samsung/Android screens. */
+    @media (max-width: 640px), (max-height: 760px) {
+      .leaflet-popup {
+        max-width: calc(100vw - 16px) !important;
+      }
+      .leaflet-popup-content-wrapper {
+        width: min(350px, calc(100vw - 20px)) !important;
+        max-width: calc(100vw - 20px) !important;
+        max-height: min(72dvh, 560px) !important;
+        overflow: hidden !important;
+        box-sizing: border-box;
+      }
+      .leaflet-popup-content {
+        width: auto !important;
+        min-width: 0 !important;
+        max-width: none !important;
+        max-height: calc(min(72dvh, 560px) - 22px) !important;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+        margin: 10px 10px 12px !important;
+        padding-right: 3px;
+        box-sizing: border-box;
+      }
+      .leaflet-popup-content .pin-popup-actions-row {
+        gap: 6px;
+      }
+      .leaflet-popup-content .pin-popup-actions-row .action-btn {
+        flex: 1 1 100%;
+        min-height: 36px;
+      }
+      .leaflet-popup-content .popup-direction-buttons {
+        grid-template-columns: 1fr;
+      }
+      .leaflet-popup-content .popup-direction-remove {
+        grid-column: auto;
+      }
+      .leaflet-popup-tip-container {
+        display: none;
+      }
+    }
+
     @media (max-width: 640px) {
       .mini-report-grid {
         grid-template-columns: 1fr;
@@ -3009,6 +3052,7 @@
           <label class="permission-option"><input type="checkbox" id="permPrintReports"><span>Print reports<small>Print or save active and cleared reports.</small></span></label>
           <label class="permission-option"><input type="checkbox" id="permViewAdmin"><span>Open Admin menu<small>Still requires the secure Supabase admin login.</small></span></label>
           <label class="permission-option"><input type="checkbox" id="permOwnPinsOutsidePrimary"><span>Additional departments: own profile pins only<small>For departments beyond the profile’s primary department, only show pins created by this profile.</small></span></label>
+          <label class="permission-option"><input type="checkbox" id="permShowMarkerDirectionOptions"><span>Show marker and direction options when adding pins<small>Off by default. When unchecked, new pins use the standard dot with no direction arrow.</small></span></label>
         </div>
       </div>
       <div class="admin-menu-section">
@@ -3321,7 +3365,7 @@
       <label>Location and service details <span style="color:#b71c1c;">*</span>
         <textarea id="pinDescriptionInput" placeholder="Required. Example: west washroom, beside sink. Add any issue details here." required></textarea>
       </label>
-      <div class="marker-direction-grid">
+      <div class="marker-direction-grid" id="pinMarkerDirectionOptions">
         <label>Marker (optional)
           <select id="pinMarkerStyleInput"><option value="dot">Standard dot</option><option value="info">Info / notes</option></select>
           <small style="color:#607084;font-weight:normal;">Optional marker type.</small>
@@ -3577,7 +3621,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.12-BK";
+    const APP_VERSION = "2026.07.15-BL";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const DEPARTMENT_SHARE_CONFIG_KEY = "department_share_links";
@@ -4026,7 +4070,8 @@
       clearPins: true,
       printReports: true,
       viewAdmin: true,
-      ownPinsOutsidePrimary: false
+      ownPinsOutsidePrimary: false,
+      showMarkerDirectionOptions: false
     });
 
     function normalizeUserPermissions(value) {
@@ -4044,7 +4089,8 @@
         clearPins: read("clearPins", "can_clear_pins", true),
         printReports: read("printReports", "can_print_reports", true),
         viewAdmin: read("viewAdmin", "can_view_admin", true),
-        ownPinsOutsidePrimary: read("ownPinsOutsidePrimary", "own_pins_outside_primary", false)
+        ownPinsOutsidePrimary: read("ownPinsOutsidePrimary", "own_pins_outside_primary", false),
+        showMarkerDirectionOptions: read("showMarkerDirectionOptions", "show_marker_direction_options", false)
       };
     }
 
@@ -4838,7 +4884,8 @@
     const PERMISSION_FIELD_IDS = {
       viewActive: "permViewActive", viewCleared: "permViewCleared", addPins: "permAddPins",
       editPins: "permEditPins", clearPins: "permClearPins", printReports: "permPrintReports", viewAdmin: "permViewAdmin",
-      ownPinsOutsidePrimary: "permOwnPinsOutsidePrimary"
+      ownPinsOutsidePrimary: "permOwnPinsOutsidePrimary",
+      showMarkerDirectionOptions: "permShowMarkerDirectionOptions"
     };
 
     function setPermissionEditorValues(permissions) {
@@ -4853,9 +4900,9 @@
     }
 
     function applyPermissionPreset(name) {
-      if(name === "readonly") setPermissionEditorValues({viewActive:true,viewCleared:true,addPins:false,editPins:false,clearPins:false,printReports:true,viewAdmin:false,ownPinsOutsidePrimary:false});
-      else if(name === "readonly-clear") setPermissionEditorValues({viewActive:true,viewCleared:true,addPins:false,editPins:false,clearPins:true,printReports:true,viewAdmin:false,ownPinsOutsidePrimary:false});
-      else if(name === "operations") setPermissionEditorValues({viewActive:true,viewCleared:true,addPins:true,editPins:true,clearPins:true,printReports:true,viewAdmin:false,ownPinsOutsidePrimary:false});
+      if(name === "readonly") setPermissionEditorValues({viewActive:true,viewCleared:true,addPins:false,editPins:false,clearPins:false,printReports:true,viewAdmin:false,ownPinsOutsidePrimary:false,showMarkerDirectionOptions:false});
+      else if(name === "readonly-clear") setPermissionEditorValues({viewActive:true,viewCleared:true,addPins:false,editPins:false,clearPins:true,printReports:true,viewAdmin:false,ownPinsOutsidePrimary:false,showMarkerDirectionOptions:false});
+      else if(name === "operations") setPermissionEditorValues({viewActive:true,viewCleared:true,addPins:true,editPins:true,clearPins:true,printReports:true,viewAdmin:false,ownPinsOutsidePrimary:false,showMarkerDirectionOptions:false});
       else setPermissionEditorValues(DEFAULT_USER_PERMISSIONS);
     }
 
@@ -5107,7 +5154,8 @@
         "Clear active pins",
         "Print reports",
         "Open Admin menu",
-        "Additional departments: own profile pins only"
+        "Additional departments: own profile pins only",
+        "Show marker/direction options when adding pins"
       ];
 
       const rows = entries.map(([code, profile]) => {
@@ -5155,7 +5203,8 @@
           yesNo(permissions.clearPins),
           yesNo(permissions.printReports),
           yesNo(permissions.viewAdmin),
-          yesNo(permissions.ownPinsOutsidePrimary)
+          yesNo(permissions.ownPinsOutsidePrimary),
+          yesNo(permissions.showMarkerDirectionOptions)
         ];
       });
 
@@ -9741,6 +9790,9 @@
 
 function resetPinForm() {
   pinDescriptionInput.value = "";
+  const markerDirectionOptions = document.getElementById("pinMarkerDirectionOptions");
+  const canShowMarkerDirectionOptions = userHasPermission("showMarkerDirectionOptions");
+  if (markerDirectionOptions) markerDirectionOptions.style.display = canShowMarkerDirectionOptions ? "grid" : "none";
   if (pinInstallDateInput) pinInstallDateInput.value = "";
   if (pinRemovalDateInput) pinRemovalDateInput.value = "";
   const pinMarkerStyleInput = document.getElementById("pinMarkerStyleInput");
