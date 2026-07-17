@@ -4307,7 +4307,8 @@
     }
 
     function normalizeSignInCodes(value) {
-      const source = value && typeof value === "object" ? value : DEFAULT_SIGN_IN_CODES;
+      const hasExplicitObject = !!value && typeof value === "object" && !Array.isArray(value);
+      const source = hasExplicitObject ? value : DEFAULT_SIGN_IN_CODES;
       const normalized = {};
       Object.entries(source).forEach(([code, access]) => {
         const normalizedCode = normalizeAccessCode(code);
@@ -4329,7 +4330,9 @@
           expiresAt: normalizeProfileExpiryDate(access.expiresAt || access.expires_at || access.expiryDate || access.expiry_date)
         };
       });
-      return Object.keys(normalized).length ? normalized : { ...DEFAULT_SIGN_IN_CODES };
+      // An explicitly saved empty object means the administrator intentionally
+      // removed every sign-in code. Do not silently restore the starter defaults.
+      return Object.keys(normalized).length ? normalized : (hasExplicitObject ? {} : { ...DEFAULT_SIGN_IN_CODES });
     }
 
     async function loadSignInCodesFromSupabase() {
@@ -5383,10 +5386,18 @@
         return;
       }
       if (!window.confirm("Delete sign-in code " + code + "?\n\nUsers with this code will need another valid code after refresh.")) return;
+      const previousCodes = { ...SIGN_IN_CODES };
       delete SIGN_IN_CODES[code];
-      await saveSettingToSupabase("sign_in_codes", SIGN_IN_CODES);
+      const saved = await saveSettingToSupabase("sign_in_codes", SIGN_IN_CODES);
+      if (!saved) {
+        SIGN_IN_CODES = previousCodes;
+        populateSignInCodeEditor(code);
+        alert("The sign-in code could not be deleted from Supabase. Check the app_settings table permissions and try again.");
+        return;
+      }
       populateSignInCodeEditor();
-      setStatus("Sign-in code deleted.");
+      setStatus("Sign-in code deleted from all devices.");
+      alert("Sign-in code deleted.");
     }
 
     async function resetSignInCodesToDefaults() {
@@ -7299,7 +7310,7 @@
     }
 
     async function saveSettingToSupabase(configKey, settingsValue) {
-      if (!supabaseClient) return;
+      if (!supabaseClient) return false;
       try {
         const { error } = await supabaseClient
           .from(SETTINGS_TABLE)
@@ -7311,10 +7322,14 @@
 
         if (error) {
           console.warn("Could not save central setting:", configKey, error);
-          setStatus("Saved locally, but central Supabase settings were not updated. Run the settings SQL if needed.");
+          setStatus("Central Supabase settings were not updated. Check the app_settings table and RLS policy.");
+          return false;
         }
+        return true;
       } catch (error) {
         console.warn("Central setting save failed:", configKey, error);
+        setStatus("Central Supabase settings were not updated.");
+        return false;
       }
     }
 
@@ -7956,11 +7971,13 @@
         gpsAccuracyCircle.setLatLng(latlng).setRadius(accuracy);
       }
 
-      if (firstFix) {
+      const gpsModalOpen = !!document.querySelector('.modal.open, .panel.open, #itemReportModal.open, #pinModal.open, #clearModal.open, #editPinModal.open');
+      if (firstFix && !gpsModalOpen) {
         map.flyTo(latlng, Math.max(map.getZoom(), 18), { animate: true, duration: 0.8 });
-      } else if (gpsTrackingActive) {
-        map.panTo(latlng, { animate: true, duration: 0.35 });
       }
+      // Keep updating the live-location marker, but do not continuously recenter
+      // the map. This lets the user pan around, inspect a pin, and read a report
+      // without GPS pulling the screen back to their position.
 
       gpsLocationMarker.bindPopup("Your live location" + (accuracy ? "<br><small>Accuracy: about " + Math.round(accuracy) + " m</small>" : ""));
       setGpsButtonState("active", "Live GPS tracking is on. Tap again to stop.");
@@ -9446,14 +9463,15 @@
           clear_photo_urls: clearPhotoUrls
         })
         .eq("id", clearingPinId)
-        .eq("status", "active")
+        // Some older active pins have a blank/null legacy status. The definitive
+        // active-state check is that the row has not already been cleared.
         .eq("is_cleared", false)
         .select("id, title, description, lat, lng, photo_url, photo_urls, clear_photo_urls, map_snapshot_url, category, is_cleared, created_at, cleared_at, install_date, removal_date, reported_by, original_reported_by, created_by_user_name, created_by_department, cleared_by, clear_comment, status, map_id, location_type, x_percent, y_percent, direction_angle, marker_style, created_device_id, created_device_label, created_user_agent, cleared_device_id, cleared_device_label, cleared_user_agent, last_action, last_action_by, last_action_device_id, last_action_device_label, last_action_user_agent")
         .maybeSingle();
 
       if (error) {
         console.error(error);
-        alert("Could not clear pin. Make sure the cleared_by column exists in Supabase and check your update policy.");
+        alert("Could not clear this pin. The database rejected the update. Check the Supabase update policy for department users and confirm the cleared fields are writable.");
         setStatus("Clear failed.");
         clearSubmissionInProgress = false;
         activeClearRequests.delete(clearingPinKey);
