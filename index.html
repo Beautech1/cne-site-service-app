@@ -132,6 +132,46 @@
       padding: 5px 7px;
     }
 
+    .overlay-opacity-control {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 7px;
+      border: 1px solid #b7c5d4;
+      border-radius: 8px;
+      background: #ffffff;
+      color: #243447;
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .overlay-opacity-control input[type="range"] {
+      width: 105px;
+      margin: 0;
+      accent-color: #005a9c;
+      cursor: pointer;
+    }
+
+    .overlay-opacity-value {
+      min-width: 34px;
+      text-align: right;
+      color: #003f70;
+      font-weight: 800;
+    }
+
+    @media (max-width: 640px) {
+      .overlay-opacity-control {
+        width: 100%;
+        justify-content: center;
+        box-sizing: border-box;
+      }
+
+      .overlay-opacity-control input[type="range"] {
+        width: min(190px, 45vw);
+      }
+    }
+
     .map-view-title,
     .current-view-title {
       display: inline-flex;
@@ -2763,7 +2803,7 @@
 </head>
 <body>
 
-  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.12-BK</button>
+  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.16-BT</button>
   <div class="floating-ui" id="floatingUi">
     <button class="mobile-ui-toggle" id="mobileUiToggle" type="button" onclick="toggleMobileUi()">
       <span class="mobile-ui-toggle-main">
@@ -2848,6 +2888,30 @@
           <button class="action-btn secondary" onclick="toggleSignInCodesPanel(true)">Manage Sign-In Codes</button>
           <button class="action-btn secondary" onclick="toggleShareAccessPanel(true)">Share App Access</button>
           <button class="action-btn secondary" onclick="toggleDepartmentSharePanel(true)">Department View-Only Links</button>
+        </div>
+
+        <div class="availability-card" style="margin-top:10px;">
+          <h4 style="margin:0 0 6px;color:#243447;">Outdoor Site Map Overlay</h4>
+          <div class="panel-note" style="padding:0 0 8px;">
+            Adjust the transparency of <strong>site-plan.png</strong>. This control is available only after opening the secure Admin Menu.
+          </div>
+          <label class="overlay-opacity-control" id="overlayOpacityControl" title="Adjust the visibility of the outdoor site-plan overlay" style="width:100%;justify-content:center;box-sizing:border-box;">
+            <span>Transparency</span>
+            <input
+              type="range"
+              id="overlayOpacitySlider"
+              min="0"
+              max="100"
+              step="1"
+              value="68"
+              oninput="setSitePlanOpacity(this.value)"
+              aria-label="Outdoor site map transparency"
+            >
+            <span class="overlay-opacity-value" id="overlayOpacityValue">68%</span>
+          </label>
+          <div class="panel-note" style="padding:7px 0 0;">
+            0% hides the overlay. 100% makes it fully visible. The setting is saved on this browser.
+          </div>
         </div>
       </div>
       <div class="admin-menu-section">
@@ -3665,7 +3729,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.16-BQ";
+    const APP_VERSION = "2026.07.16-BT";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const DEPARTMENT_SHARE_CONFIG_KEY = "department_share_links";
@@ -7742,14 +7806,47 @@
       attribution: "Map data &copy; OpenStreetMap contributors, SRTM | Map style &copy; OpenTopoMap"
     });
 
-    const p1 = L.latLng(43.634936, -79.426124);
-    const p2 = L.latLng(43.638072, -79.410371);
-    const p3 = L.latLng(43.629324, -79.423991);
+    // Full Exhibition Place site-plan.png alignment.
+    // p1 = image top-left, p2 = image top-right, p3 = image bottom-left.
+    const p1 = L.latLng(43.635752, -79.431849);
+    const p2 = L.latLng(43.640322, -79.408890);
+    const p3 = L.latLng(43.624449, -79.427580);
+
+    const SITE_PLAN_OPACITY_KEY = "cne_site_plan_opacity";
+    const DEFAULT_SITE_PLAN_OPACITY = 68;
+
+    function getSavedSitePlanOpacityPercent() {
+      const saved = Number(localStorage.getItem(SITE_PLAN_OPACITY_KEY));
+      return Number.isFinite(saved) && saved >= 0 && saved <= 100
+        ? Math.round(saved)
+        : DEFAULT_SITE_PLAN_OPACITY;
+    }
 
     const sitePlanOverlay = L.imageOverlay.rotated("./site-plan.png", p1, p2, p3, {
-      opacity: 0.68,
+      opacity: getSavedSitePlanOpacityPercent() / 100,
       interactive: true
     }).addTo(map);
+
+    function setSitePlanOpacity(value, savePreference = true) {
+      let percent = Number(value);
+      if (!Number.isFinite(percent)) percent = DEFAULT_SITE_PLAN_OPACITY;
+      percent = Math.max(0, Math.min(100, Math.round(percent)));
+
+      sitePlanOverlay.setOpacity(percent / 100);
+
+      const slider = document.getElementById("overlayOpacitySlider");
+      const valueLabel = document.getElementById("overlayOpacityValue");
+      if (slider && Number(slider.value) !== percent) slider.value = String(percent);
+      if (valueLabel) valueLabel.textContent = `${percent}%`;
+
+      if (savePreference) {
+        localStorage.setItem(SITE_PLAN_OPACITY_KEY, String(percent));
+      }
+    }
+
+    function initializeSitePlanOpacityControl() {
+      setSitePlanOpacity(getSavedSitePlanOpacityPercent(), false);
+    }
 
     function updateOutdoorOverlayForCurrentView() {
       if (!map || !sitePlanOverlay) return;
@@ -12070,6 +12167,7 @@ ${rows.map(pin => `
       }
     }
 
+    initializeSitePlanOpacityControl();
     document.title = `CNE Service App — v${APP_VERSION}`;
     const versionBadge = document.getElementById("appVersionBadge");
     if (versionBadge) versionBadge.textContent = `Version ${APP_VERSION}`;
