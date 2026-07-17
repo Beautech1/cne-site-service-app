@@ -2803,7 +2803,7 @@
 </head>
 <body>
 
-  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.16-BT</button>
+  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.16-BS</button>
   <div class="floating-ui" id="floatingUi">
     <button class="mobile-ui-toggle" id="mobileUiToggle" type="button" onclick="toggleMobileUi()">
       <span class="mobile-ui-toggle-main">
@@ -2828,6 +2828,20 @@
               <option value="reported">Reports</option>
               <option value="all">All</option>
             </select>
+          </label>
+          <label class="overlay-opacity-control" id="overlayOpacityControl" title="Adjust the visibility of the site-plan overlay">
+            <span>Site Map</span>
+            <input
+              type="range"
+              id="overlayOpacitySlider"
+              min="0"
+              max="100"
+              step="1"
+              value="68"
+              oninput="setSitePlanOpacity(this.value)"
+              aria-label="Site map transparency"
+            >
+            <span class="overlay-opacity-value" id="overlayOpacityValue">68%</span>
           </label>
           <button class="toolbar-btn secondary" onclick="openDepartmentViewPrompt(false); closeMobileUiAfterAction();">Change Department Default View</button>
           <button class="toolbar-btn" onclick="loadPins(true); closeMobileUiAfterAction();">Refresh</button>
@@ -2888,30 +2902,6 @@
           <button class="action-btn secondary" onclick="toggleSignInCodesPanel(true)">Manage Sign-In Codes</button>
           <button class="action-btn secondary" onclick="toggleShareAccessPanel(true)">Share App Access</button>
           <button class="action-btn secondary" onclick="toggleDepartmentSharePanel(true)">Department View-Only Links</button>
-        </div>
-
-        <div class="availability-card" style="margin-top:10px;">
-          <h4 style="margin:0 0 6px;color:#243447;">Outdoor Site Map Overlay</h4>
-          <div class="panel-note" style="padding:0 0 8px;">
-            Adjust the transparency of <strong>site-plan.png</strong>. This control is available only after opening the secure Admin Menu.
-          </div>
-          <label class="overlay-opacity-control" id="overlayOpacityControl" title="Adjust the visibility of the outdoor site-plan overlay" style="width:100%;justify-content:center;box-sizing:border-box;">
-            <span>Transparency</span>
-            <input
-              type="range"
-              id="overlayOpacitySlider"
-              min="0"
-              max="100"
-              step="1"
-              value="68"
-              oninput="setSitePlanOpacity(this.value)"
-              aria-label="Outdoor site map transparency"
-            >
-            <span class="overlay-opacity-value" id="overlayOpacityValue">68%</span>
-          </label>
-          <div class="panel-note" style="padding:7px 0 0;">
-            0% hides the overlay. 100% makes it fully visible. The setting is saved on this browser.
-          </div>
         </div>
       </div>
       <div class="admin-menu-section">
@@ -3729,7 +3719,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.16-BT";
+    const APP_VERSION = "2026.07.16-BS";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const DEPARTMENT_SHARE_CONFIG_KEY = "department_share_links";
