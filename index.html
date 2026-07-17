@@ -3719,7 +3719,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.16-BT";
+    const APP_VERSION = "2026.07.16-BU";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const DEPARTMENT_SHARE_CONFIG_KEY = "department_share_links";
@@ -8162,11 +8162,11 @@
       const closeButton = '<div class="popup-close-row"><button class="popup-close-btn" onclick="closeAllMapPopups()" title="Close">&times;</button></div>';
 
       const canClearOrCancel = pinStatus === "active";
-      const editButton = pin.id
+      const editButton = pin.id && userHasPermission("editPins")
         ? '<button class="action-btn secondary" onclick="openEditPinModalFromReport(' + pin.id + ')">' + (pinStatus === "cleared" ? 'Admin edit cleared pin' : 'Edit / Reassign / Cancel Pin') + '</button>'
         : "";
 
-      const clearButton = canClearOrCancel
+      const clearButton = canClearOrCancel && userHasPermission("clearPins")
         ? (pin.id ? '<button class="action-btn clear-btn" onclick="clearPinFromReport(' + pin.id + ')">Clear pin</button>' : "")
         : "";
 
@@ -10956,11 +10956,16 @@ function resetPinForm() {
       const reportViewOnly = options.viewOnly || isReportViewOnlyMode();
       // Do not show the View Service Order button inside the report itself.
       // For text/report links, the separate gate screen records the timestamp before the report is displayed.
-      const reportActionRow = (!options.print && pin.id && !reportViewOnly)
-        ? '<div style="margin-top:12px; display:flex; gap:12px; flex-wrap:wrap; align-items:center; justify-content:flex-start;">' +
-            (pinStatusForActions === "active" ? '<button class="action-btn clear-btn" onclick="clearPinFromReport(' + pin.id + ')">Clear Pin</button>' : '') +
-            '<button class="action-btn secondary" onclick="openEditPinModalFromReport(' + pin.id + ')">' + (pinStatusForActions === "cleared" ? 'Admin Edit Cleared Pin' : 'Edit / Reassign / Cancel Pin') + '</button>' +
-          '</div>'
+      const reportActionButtons = (!options.print && pin.id && !reportViewOnly)
+        ? ((pinStatusForActions === "active" && userHasPermission("clearPins")
+            ? '<button class="action-btn clear-btn" onclick="clearPinFromReport(' + pin.id + ')">Clear Pin</button>'
+            : '') +
+          (userHasPermission("editPins")
+            ? '<button class="action-btn secondary" onclick="openEditPinModalFromReport(' + pin.id + ')">' + (pinStatusForActions === "cleared" ? 'Admin Edit Cleared Pin' : 'Edit / Reassign / Cancel Pin') + '</button>'
+            : ''))
+        : '';
+      const reportActionRow = reportActionButtons
+        ? '<div style="margin-top:12px; display:flex; gap:12px; flex-wrap:wrap; align-items:center; justify-content:flex-start;">' + reportActionButtons + '</div>'
         : '';
       return (
         '<div class="mini-report-card">' +
