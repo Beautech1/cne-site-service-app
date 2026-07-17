@@ -3719,7 +3719,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.16-BU";
+    const APP_VERSION = "2026.07.17-BV";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const DEPARTMENT_SHARE_CONFIG_KEY = "department_share_links";
@@ -8450,8 +8450,14 @@
       const mapId = document.getElementById(prefix + 'MapFilter')?.value || 'all';
       const term = (document.getElementById(prefix + 'SearchFilter')?.value || '').trim().toLowerCase();
       const sortOrder = document.getElementById(prefix + 'SortFilter')?.value || 'asc';
-      const filtered = rows.filter(pin => dept === 'all' || String(pin.category || 'general') === dept)
-        .filter(pin => mapId === 'all' || String(getPinMapId(pin)) === mapId)
+      const selectedDepartmentKeys = parseDepartmentViewKeys();
+      const filtered = rows
+        // Always keep the Active and Cleared logs inside the departments selected
+        // in the main Department View, including multi-department views.
+        .filter(pin => selectedDepartmentKeys.includes(normalizeAccessDepartmentKey(pin.category || 'general')))
+        // The log's own department dropdown can narrow the selected view further.
+        .filter(pin => dept === 'all' || normalizeAccessDepartmentKey(pin.category || 'general') === normalizeAccessDepartmentKey(dept))
+        .filter(pin => mapId === 'all' || pinBelongsToMap(pin, mapId))
         .filter(pin => !term || operationalLogSearchText(pin).includes(term));
       return filtered.slice().sort((a, b) => {
         const aDate = prefix === 'clearedLog' ? (a.cleared_at || a.created_at) : a.created_at;
@@ -8784,36 +8790,31 @@
       if (!outstandingSummary) return;
       const activePins = getActivePinsForAllMaps();
       const selected = isValidDepartmentView(selectedDepartmentView) ? selectedDepartmentView : "all";
+      const selectedKeys = parseDepartmentViewKeys(selected);
+      const selectedPins = activePins.filter(pin => selectedKeys.includes(normalizeAccessDepartmentKey(pin.category || "general")));
+      const selectedName = getDepartmentViewName(selected);
+      const countsByMap = countActivePinsByMap(selectedPins, "all");
 
-      if (selected !== "all") {
-        const selectedDept = departments.find(dept => dept.key === selected);
-        const deptName = selectedDept ? selectedDept.name : formatCategoryLabel(selected);
-        const deptColor = selectedDept ? (selectedDept.color || "#005a9c") : "#005a9c";
-        const deptPins = activePins.filter(pin => (pin.category || "general") === selected);
-        const countsByMap = countActivePinsByMap(activePins, selected);
-        updateHeaderViewSummary(deptPins.length);
+      updateHeaderViewSummary(selectedPins.length);
 
-        outstandingSummary.innerHTML =
-          `<button type="button" class="outstanding-card active" style="border-left-color:${escapeHtml(deptColor)};" onclick="navigateOutstanding('${escapeHtml(currentMapId)}', '${escapeHtml(selected)}')"><span class="outstanding-count">${deptPins.length}</span><span class="outstanding-label">${escapeHtml(deptName)} total outstanding<br><small>Open items by map/building below</small></span></button>` +
-          buildOutstandingMapCards(countsByMap, selected);
-        return;
-      }
-
-      const total = activePins.length;
-      updateHeaderViewSummary(total);
-      const countsByMap = countActivePinsByMap(activePins, "all");
-      const countsByDept = countActivePinsByDepartment(activePins);
+      const countsByDept = countActivePinsByDepartment(selectedPins);
       const deptBreakdown = departments
+        .filter(dept => selectedKeys.includes(dept.key))
         .map(dept => ({ dept, count: countsByDept[dept.key] || 0 }))
         .filter(item => item.count > 0)
         .sort((a, b) => b.count - a.count || a.dept.name.localeCompare(b.dept.name))
-        .slice(0, 6)
         .map(item => `${escapeHtml(item.dept.name)}: ${item.count}`)
         .join(" · ");
 
+      let accentColor = "#005a9c";
+      if (selectedKeys.length === 1) {
+        const selectedDept = departments.find(dept => dept.key === selectedKeys[0]);
+        if (selectedDept && selectedDept.color) accentColor = selectedDept.color;
+      }
+
       outstandingSummary.innerHTML =
-        `<button type="button" class="outstanding-card active" style="border-left-color:#005a9c;" onclick="navigateOutstanding('${escapeHtml(currentMapId)}', 'all')"><span class="outstanding-count">${total}</span><span class="outstanding-label">All outstanding${deptBreakdown ? `<br>${deptBreakdown}` : ""}<br><small>Open items by map/building below</small></span></button>` +
-        buildOutstandingMapCards(countsByMap, "all");
+        `<button type="button" class="outstanding-card active" style="border-left-color:${escapeHtml(accentColor)};" onclick="navigateOutstanding('${escapeHtml(currentMapId)}', '${escapeHtml(selected)}')"><span class="outstanding-count">${selectedPins.length}</span><span class="outstanding-label">${escapeHtml(selectedName)} total outstanding${deptBreakdown ? `<br>${deptBreakdown}` : ""}<br><small>Open items by map/building below</small></span></button>` +
+        buildOutstandingMapCards(countsByMap, selected);
     }
 
     function updateActiveCountCheck(filteredPins, statusValue, categoryValue) {
@@ -8866,7 +8867,7 @@
         filtered.forEach(pin => addUserPin(pin, false));
       }
 
-      renderLog(allPins.filter(pin => getPinStatus(pin) === "cleared").filter(pin => pinBelongsToMap(pin, currentMapId)).filter(pin => categoryValue === "all" || (pin.category || "general") === categoryValue));
+      renderLog(allPins.filter(pin => getPinStatus(pin) === "cleared").filter(pin => pinBelongsToMap(pin, currentMapId)).filter(pin => selectedDepartmentKeys.includes(normalizeAccessDepartmentKey(pin.category || "general"))));
       updateOutstandingSummary();
       if (allLogsPanel && allLogsPanel.classList.contains("open")) renderAllLogs();
       if (activeLogPanel && activeLogPanel.classList.contains("open")) renderActiveLog();
