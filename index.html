@@ -3719,7 +3719,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.16-BS";
+    const APP_VERSION = "2026.07.16-BT";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const DEPARTMENT_SHARE_CONFIG_KEY = "department_share_links";
@@ -4274,6 +4274,14 @@
       byOnclick('printActiveLogs').forEach(btn => btn.style.display = userHasPermission('printReports') ? '' : 'none');
       byOnclick('printClearedLogs').forEach(btn => btn.style.display = userHasPermission('printReports') ? '' : 'none');
       document.querySelectorAll('.clear-btn').forEach(btn => btn.style.display = userHasPermission('clearPins') ? '' : 'none');
+
+      // Read-only users can still open existing pins, but empty map/floor-plan
+      // clicks should behave like a normal background tap with no target or popup.
+      const canAddPins = userHasPermission('addPins');
+      const mapContainer = map && map.getContainer ? map.getContainer() : document.getElementById('map');
+      if (mapContainer) mapContainer.classList.toggle('add-pin-ready', canAddPins);
+      if (floorPlanStage) floorPlanStage.classList.toggle('add-pin-ready', canAddPins);
+
       populateMapSelector();
     }
 
@@ -11961,6 +11969,7 @@ ${rows.map(pin => `
         movePinToGpsLocation(e.latlng);
         return;
       }
+      if (!userHasPermission("addPins")) return;
       pendingLatLng = {
         lat: e.latlng.lat,
         lng: e.latlng.lng,
@@ -11984,10 +11993,11 @@ ${rows.map(pin => `
         movePinToFloorLocationFromEvent(event);
         return;
       }
+      if (!userHasPermission("addPins")) return;
       setPendingFloorLocationFromEvent(event);
     });
-    if (map && map.getContainer) map.getContainer().classList.add("add-pin-ready");
-    if (floorPlanStage) floorPlanStage.classList.add("add-pin-ready");
+    if (map && map.getContainer) map.getContainer().classList.toggle("add-pin-ready", userHasPermission("addPins"));
+    if (floorPlanStage) floorPlanStage.classList.toggle("add-pin-ready", userHasPermission("addPins"));
     if (floorPlanView) {
       floorPlanView.addEventListener("touchstart", handleFloorPinchStart, { passive: false });
       floorPlanView.addEventListener("touchmove", handleFloorPinchMove, { passive: false });
