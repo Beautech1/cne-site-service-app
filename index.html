@@ -2844,7 +2844,7 @@
 </head>
 <body>
 
-  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.18-CH</button>
+  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.18-CW</button>
   <div class="floating-ui" id="floatingUi">
     <button class="mobile-ui-toggle" id="mobileUiToggle" type="button" onclick="toggleMobileUi()">
       <span class="mobile-ui-toggle-main">
@@ -3570,6 +3570,11 @@
       </label>
       <label>Title
         <select id="pinTitleInput"></select>
+        <small style="color:#607084;font-weight:normal;">Choose a preset title, or enter a custom title below.</small>
+      </label>
+      <label>Custom title (optional)
+        <input type="text" id="pinCustomTitleInput" placeholder="Type a custom pin title..." maxlength="160">
+        <small style="color:#607084;font-weight:normal;">When filled in, this replaces the preset title above.</small>
       </label>
       <label>Location and service details <span style="color:#b71c1c;">*</span>
         <textarea id="pinDescriptionInput" placeholder="Required. Example: west washroom, beside sink. Add any issue details here." required></textarea>
@@ -3685,6 +3690,11 @@
       </label>
       <label>Title
         <select id="editPinTitleInput"></select>
+        <small style="color:#607084;font-weight:normal;">Choose a preset title, or enter a custom title below.</small>
+      </label>
+      <label>Custom title (optional)
+        <input type="text" id="editPinCustomTitleInput" placeholder="Type a custom pin title..." maxlength="160">
+        <small style="color:#607084;font-weight:normal;">When filled in, this replaces the preset title above.</small>
       </label>
       <label>Location and service details
         <textarea id="editPinDescriptionInput" placeholder="Example: west washroom, beside sink. Add any issue details here."></textarea>
@@ -3831,8 +3841,8 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.18-CV";
-    const APP_VERSION_SUMMARY = "Kept Outdoor Fence Plan visible, removed No Overlay and Topographic map options, and refreshed fence image loading";
+    const APP_VERSION = "2026.07.18-CW";
+    const APP_VERSION_SUMMARY = "Added custom title fields to Add New Pin and Edit Pin while preserving preset title dropdowns";
     const customReportSelectedPinIds = new Set();
     const allLogsSelectedDeletePinIds = new Set();
     let customReportMapMode = false;
@@ -3978,6 +3988,7 @@
     const departmentViewModal = document.getElementById("departmentViewModal");
     const departmentViewOptions = document.getElementById("departmentViewOptions");
     const pinTitleInput = document.getElementById("pinTitleInput");
+    const pinCustomTitleInput = document.getElementById("pinCustomTitleInput");
     const pinDescriptionInput = document.getElementById("pinDescriptionInput");
     const pinCategoryInput = document.getElementById("pinCategoryInput");
     const pinReportedByInput = document.getElementById("pinReportedByInput");
@@ -4015,6 +4026,7 @@
     const editPinLocationNote = document.getElementById("editPinLocationNote");
     const editPinCategoryInput = document.getElementById("editPinCategoryInput");
     const editPinTitleInput = document.getElementById("editPinTitleInput");
+    const editPinCustomTitleInput = document.getElementById("editPinCustomTitleInput");
     const editSmsSection = document.getElementById("editSmsSection");
     const editSmsGroupCheckboxes = document.getElementById("editSmsGroupCheckboxes");
     const editNotifySmsNowInput = document.getElementById("editNotifySmsNowInput");
@@ -7022,10 +7034,11 @@
     function populateEditTitleDropdown(previousTitle) {
       if (!editPinTitleInput || !editPinCategoryInput) return;
       const dept = getDepartment(editPinCategoryInput.value);
-      const titles = [...dept.titles];
-      if (previousTitle && !titles.includes(previousTitle)) titles.unshift(previousTitle);
-      editPinTitleInput.innerHTML = titles.map(title => `<option value="${escapeHtml(title)}">${escapeHtml(title)}</option>`).join("");
-      if (previousTitle) editPinTitleInput.value = previousTitle;
+      const titles = Array.isArray(dept.titles) ? [...dept.titles] : [];
+      const isPresetTitle = !!previousTitle && titles.includes(previousTitle);
+      editPinTitleInput.innerHTML = '<option value="">Select a preset title...</option>' + titles.map(title => `<option value="${escapeHtml(title)}">${escapeHtml(title)}</option>`).join("");
+      editPinTitleInput.value = isPresetTitle ? previousTitle : "";
+      if (editPinCustomTitleInput) editPinCustomTitleInput.value = previousTitle && !isPresetTitle ? previousTitle : "";
     }
 
     function updateSmsGroupSelectionCount(mode) {
@@ -7242,7 +7255,8 @@
       if (!pin) return;
 
       const category = editPinCategoryInput.value || "general";
-      const title = editPinTitleInput.value || "General request";
+      const customTitle = editPinCustomTitleInput ? editPinCustomTitleInput.value.trim() : "";
+      const title = customTitle || editPinTitleInput.value || "General request";
       const description = editPinDescriptionInput.value.trim();
       const reportedBy = editPinReportedByInput.value.trim();
       rememberUserNameFromInput(editPinReportedByInput);
@@ -7793,11 +7807,7 @@
       if (!pinTitleInput) return;
       const dept = getDepartment(pinCategoryInput ? pinCategoryInput.value : "");
       const titles = Array.isArray(dept.titles) ? dept.titles : [];
-      if (!titles.length) {
-        pinTitleInput.innerHTML = '<option value="">No title options configured</option>';
-        return;
-      }
-      pinTitleInput.innerHTML = titles.map(title => `<option value="${escapeHtml(title)}">${escapeHtml(title)}</option>`).join("");
+      pinTitleInput.innerHTML = '<option value="">Select a preset title...</option>' + titles.map(title => `<option value="${escapeHtml(title)}">${escapeHtml(title)}</option>`).join("");
     }
 
     function populateSmsGroupCheckboxes() {
@@ -10939,10 +10949,12 @@ function resetPinForm() {
         return;
       }
 
-      const title = pinTitleInput.value.trim();
+      const customTitle = pinCustomTitleInput ? pinCustomTitleInput.value.trim() : "";
+      const title = customTitle || pinTitleInput.value.trim();
       if (!title) {
-        alert("Pin title is required.");
-        pinTitleInput.focus();
+        alert("Choose a preset title or enter a custom title.");
+        if (pinCustomTitleInput) pinCustomTitleInput.focus();
+        else pinTitleInput.focus();
         return;
       }
 
