@@ -2844,7 +2844,7 @@
 </head>
 <body>
 
-  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.18-CH</button>
+  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.18-CV</button>
   <div class="floating-ui" id="floatingUi">
     <button class="mobile-ui-toggle" id="mobileUiToggle" type="button" onclick="toggleMobileUi()">
       <span class="mobile-ui-toggle-main">
@@ -3568,8 +3568,10 @@
       <label>Department
         <select id="pinCategoryInput" onchange="onPinDepartmentChange()"></select>
       </label>
-      <label>Title
-        <select id="pinTitleInput"></select>
+      <label>Title <span style="color:#b71c1c;">*</span>
+        <select id="pinTitleInput" onchange="onPinTitleSelectionChange()"></select>
+        <input type="text" id="pinCustomTitleInput" placeholder="Type a custom title..." maxlength="140" style="display:none; margin-top:6px;" aria-label="Custom pin title">
+        <small style="color:#607084;font-weight:normal;">Choose a preset title or select Custom title to type your own.</small>
       </label>
       <label>Location and service details <span style="color:#b71c1c;">*</span>
         <textarea id="pinDescriptionInput" placeholder="Required. Example: west washroom, beside sink. Add any issue details here." required></textarea>
@@ -3831,8 +3833,8 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.18-CU";
-    const APP_VERSION_SUMMARY = "Fixed Outdoor Fence Plan GPS pin placement and relocation so pins remain assigned to the selected map";
+    const APP_VERSION = "2026.07.18-CV";
+    const APP_VERSION_SUMMARY = "Adds preset-or-custom title entry and fixes the visible app version badge";
     const customReportSelectedPinIds = new Set();
     const allLogsSelectedDeletePinIds = new Set();
     let customReportMapMode = false;
@@ -3888,7 +3890,9 @@
     let cachedAdminUser = null;
     const DEFAULT_MAP_VIEWS = [
       { id: "outdoor_site", name: "Outdoor Site Map - With Overlay", type: "outdoor", image: null },
-      { id: "outdoor_fence_plan", name: "Outdoor Fence Plan (GPS)", type: "outdoor", image: "./cne-fence-plan.png" },
+      { id: "outdoor_gps_plain", name: "Outdoor GPS Map - No Overlay", type: "outdoor", image: null },
+      { id: "outdoor_terrain", name: "Outdoor Terrain / Topographic Map", type: "outdoor", image: null },
+      { id: "fence", name: "CNE Fence Plan", type: "outdoor", image: "./cne-fence-plan.png" },
       { id: "food_building_main", name: "Food Building - Main Floor", type: "floorplan", image: "./floor-plan-food-building.png" }
     ];
     // No built-in departments. Departments should come only from Supabase / Admin Menu settings.
@@ -3978,6 +3982,7 @@
     const departmentViewModal = document.getElementById("departmentViewModal");
     const departmentViewOptions = document.getElementById("departmentViewOptions");
     const pinTitleInput = document.getElementById("pinTitleInput");
+    const pinCustomTitleInput = document.getElementById("pinCustomTitleInput");
     const pinDescriptionInput = document.getElementById("pinDescriptionInput");
     const pinCategoryInput = document.getElementById("pinCategoryInput");
     const pinReportedByInput = document.getElementById("pinReportedByInput");
@@ -4054,7 +4059,6 @@
     function normalizeMapViews(value) {
       const source = Array.isArray(value) && value.length ? value : DEFAULT_MAP_VIEWS;
       const seen = new Set();
-      const removedMapIds = new Set(["outdoor_gps_plain", "outdoor_terrain"]);
       const normalized = source.map((view, index) => {
         const name = String(view.name || view.id || `Map ${index + 1}`).trim();
         let id = normalizeMapId(view.id || name);
@@ -4065,30 +4069,52 @@
           id,
           name,
           type,
-          image: type === "floorplan"
-            ? String(view.image || "./floor-plan-food-building.png").trim()
-            : (id === "outdoor_fence_plan" ? String(view.image || "./cne-fence-plan.png").trim() : null)
+          image: type === "floorplan" ? String(view.image || "./floor-plan-food-building.png").trim() : (id === "fence" ? String(view.image || "./cne-fence-plan.png").trim() : null)
         };
-      }).filter(view => !removedMapIds.has(view.id));
+      });
       if (!normalized.some(view => view.type === "outdoor")) {
         normalized.unshift({ ...DEFAULT_MAP_VIEWS[0] });
       }
 
       // Built-in alternate outdoor view. Existing installations receive it
       // automatically even when their map list was saved before this version.
-      // Built-in Outdoor Fence Plan. It uses the same Leaflet alignment as the
-      // Outdoor Site Map but a separate cne-fence-plan.png overlay and separate pins.
-      if (!normalized.some(view => view.id === "outdoor_fence_plan")) {
+      if (!normalized.some(view => view.id === "outdoor_gps_plain")) {
         const outdoorIndex = normalized.findIndex(view => view.id === "outdoor_site");
         const insertAt = outdoorIndex >= 0 ? outdoorIndex + 1 : 1;
         normalized.splice(insertAt, 0, {
-          id: "outdoor_fence_plan",
-          name: "Outdoor Fence Plan (GPS)",
+          id: "outdoor_gps_plain",
+          name: "Outdoor GPS Map - No Overlay",
           type: "outdoor",
-          image: "./cne-fence-plan.png"
+          image: null
         });
       }
 
+      if (!normalized.some(view => view.id === "outdoor_terrain")) {
+        const plainIndex = normalized.findIndex(view => view.id === "outdoor_gps_plain");
+        const outdoorIndex = normalized.findIndex(view => view.id === "outdoor_site");
+        const insertAt = plainIndex >= 0 ? plainIndex + 1 : (outdoorIndex >= 0 ? outdoorIndex + 1 : 1);
+        normalized.splice(insertAt, 0, {
+          id: "outdoor_terrain",
+          name: "Outdoor Terrain / Topographic Map",
+          type: "outdoor",
+          image: null
+        });
+      }
+
+      // Separate built-in GPS/Leaflet layout for fence operations.
+      // It deliberately does not share pins with the regular outdoor views.
+      if (!normalized.some(view => view.id === "fence")) {
+        const terrainIndex = normalized.findIndex(view => view.id === "outdoor_terrain");
+        normalized.splice(terrainIndex >= 0 ? terrainIndex + 1 : 1, 0, {
+          id: "fence",
+          name: "CNE Fence Plan",
+          type: "outdoor",
+          image: "./cne-fence-plan.png"
+        });
+      } else {
+        const fenceView = normalized.find(view => view.id === "fence");
+        if (fenceView) fenceView.image = String(fenceView.image || "./cne-fence-plan.png").trim();
+      }
       return normalized;
     }
 
@@ -4155,7 +4181,7 @@
 
       // The overlay and plain GPS views represent the same outdoor site,
       // so they intentionally share all outdoor pins.
-      const sharedOutdoorMapIds = new Set(["outdoor_site"]);
+      const sharedOutdoorMapIds = new Set(["outdoor_site", "outdoor_gps_plain", "outdoor_terrain"]);
       if (sharedOutdoorMapIds.has(String(mapId || "")) &&
           sharedOutdoorMapIds.has(String(pinMap || "outdoor_site"))) {
         return true;
@@ -4376,7 +4402,7 @@
 
       // Backward compatibility: access to either outdoor view grants access
       // to the alternate outdoor view because both show the same site/pins.
-      const outdoorIds = new Set(["outdoor_site"]);
+      const outdoorIds = new Set(["outdoor_site", "outdoor_gps_plain", "outdoor_terrain"]);
       return outdoorIds.has(requested) && allowed.some(id => outdoorIds.has(String(id || "")));
     }
 
@@ -6806,7 +6832,7 @@
       }
       let id = normalizeMapId(manageMapId.value || name);
       const type = manageMapType.value === "outdoor" ? "outdoor" : "floorplan";
-      const image = type === "floorplan" ? (manageMapImage.value || "./floor-plan-food-building.png").trim() : null;
+      const image = type === "floorplan" ? (manageMapImage.value || "./floor-plan-food-building.png").trim() : (id === "fence" ? (manageMapImage.value || "./cne-fence-plan.png").trim() : null);
       const existingIndex = mapViews.findIndex(view => view.id === previousId);
       const duplicate = mapViews.find((view, index) => view.id === id && index !== existingIndex);
       if (duplicate) {
@@ -7782,13 +7808,22 @@
 
     function populateTitleDropdown() {
       if (!pinTitleInput) return;
+      const previousValue = pinTitleInput.value;
       const dept = getDepartment(pinCategoryInput ? pinCategoryInput.value : "");
       const titles = Array.isArray(dept.titles) ? dept.titles : [];
-      if (!titles.length) {
-        pinTitleInput.innerHTML = '<option value="">No title options configured</option>';
-        return;
-      }
-      pinTitleInput.innerHTML = titles.map(title => `<option value="${escapeHtml(title)}">${escapeHtml(title)}</option>`).join("");
+      const presetOptions = titles.map(title => `<option value="${escapeHtml(title)}">${escapeHtml(title)}</option>`).join("");
+      pinTitleInput.innerHTML = presetOptions + '<option value="__custom__">Custom title...</option>';
+      if (previousValue && titles.includes(previousValue)) pinTitleInput.value = previousValue;
+      else if (!titles.length) pinTitleInput.value = "__custom__";
+      onPinTitleSelectionChange();
+    }
+
+    function onPinTitleSelectionChange() {
+      if (!pinTitleInput || !pinCustomTitleInput) return;
+      const isCustom = pinTitleInput.value === "__custom__";
+      pinCustomTitleInput.style.display = isCustom ? "block" : "none";
+      pinCustomTitleInput.required = isCustom;
+      if (!isCustom) pinCustomTitleInput.value = "";
     }
 
     function populateSmsGroupCheckboxes() {
@@ -7949,8 +7984,16 @@
 
     const SITE_PLAN_WEBP_URL = "./site-plan.webp";
     const SITE_PLAN_PNG_URL = "./site-plan.png";
+
+    // CNE Fence Plan uses a separate image and separate GPS layout ID.
+    // Place cne-fence-plan.png beside this HTML file, or update the Fence map image path in Manage Map Views.
+    // These alignment points initially match the existing site plan and can be fine-tuned here if the fence PNG has different edges.
+    const fenceP1 = L.latLng(43.635752, -79.431849);
+    const fenceP2 = L.latLng(43.640322, -79.408890);
+    const fenceP3 = L.latLng(43.624449, -79.427580);
     const FENCE_PLAN_PNG_URL = "./cne-fence-plan.png";
     let resolvedSitePlanUrlPromise = null;
+    let resolvedFencePlanUrlPromise = null;
 
     function resolveSitePlanImageUrl() {
       if (resolvedSitePlanUrlPromise) return resolvedSitePlanUrlPromise;
@@ -7963,10 +8006,19 @@
       return resolvedSitePlanUrlPromise;
     }
 
-    function resolveOutdoorOverlayImageUrl(mapId = currentMapId) {
-      return String(mapId || "") === "outdoor_fence_plan"
-        ? Promise.resolve(FENCE_PLAN_PNG_URL)
-        : resolveSitePlanImageUrl();
+    function resolveFencePlanImageUrl() {
+      const configured = String((getMapView("fence") || {}).image || FENCE_PLAN_PNG_URL).trim();
+      if (configured !== FENCE_PLAN_PNG_URL) return Promise.resolve(configured);
+      if (resolvedFencePlanUrlPromise) return resolvedFencePlanUrlPromise;
+      resolvedFencePlanUrlPromise = Promise.resolve(FENCE_PLAN_PNG_URL);
+      return resolvedFencePlanUrlPromise;
+    }
+
+    function getOutdoorOverlayConfig(mapId = currentMapId) {
+      if (String(mapId) === "fence") {
+        return { p1: fenceP1, p2: fenceP2, p3: fenceP3, resolveUrl: resolveFencePlanImageUrl, label: "CNE Fence Plan" };
+      }
+      return { p1, p2, p3, resolveUrl: resolveSitePlanImageUrl, label: "Outdoor Site Map" };
     }
 
     const SITE_PLAN_OPACITY_KEY = "cne_site_plan_opacity";
@@ -7985,8 +8037,7 @@
       errorOverlayUrl: SITE_PLAN_PNG_URL
     }).addTo(map);
 
-    // Exact duplicate alignment of Outdoor Site Map, using the fence plan image.
-    const fencePlanOverlay = L.imageOverlay.rotated(FENCE_PLAN_PNG_URL, p1, p2, p3, {
+    const fencePlanOverlay = L.imageOverlay.rotated(FENCE_PLAN_PNG_URL, fenceP1, fenceP2, fenceP3, {
       opacity: getSavedSitePlanOpacityPercent() / 100,
       interactive: true
     });
@@ -7997,7 +8048,7 @@
       percent = Math.max(0, Math.min(100, Math.round(percent)));
 
       sitePlanOverlay.setOpacity(percent / 100);
-      fencePlanOverlay.setOpacity(percent / 100);
+      if (fencePlanOverlay) fencePlanOverlay.setOpacity(percent / 100);
 
       const slider = document.getElementById("overlayOpacitySlider");
       const valueLabel = document.getElementById("overlayOpacityValue");
@@ -8018,7 +8069,7 @@
 
       const useTerrain = currentMapId === "outdoor_terrain";
       const showSiteOverlay = currentMapId === "outdoor_site";
-      const showFenceOverlay = currentMapId === "outdoor_fence_plan";
+      const showFenceOverlay = currentMapId === "fence";
 
       if (useTerrain) {
         if (map.hasLayer(standardMapLayer)) map.removeLayer(standardMapLayer);
@@ -8028,14 +8079,11 @@
         if (!map.hasLayer(standardMapLayer)) standardMapLayer.addTo(map);
       }
 
-      const siteOverlayIsVisible = map.hasLayer(sitePlanOverlay);
-      const fenceOverlayIsVisible = map.hasLayer(fencePlanOverlay);
-      if (showSiteOverlay && !siteOverlayIsVisible) sitePlanOverlay.addTo(map);
-      if (!showSiteOverlay && siteOverlayIsVisible) map.removeLayer(sitePlanOverlay);
-      if (showFenceOverlay && !fenceOverlayIsVisible) fencePlanOverlay.addTo(map);
-      if (!showFenceOverlay && fenceOverlayIsVisible) map.removeLayer(fencePlanOverlay);
+      if (showSiteOverlay && !map.hasLayer(sitePlanOverlay)) sitePlanOverlay.addTo(map);
+      if (!showSiteOverlay && map.hasLayer(sitePlanOverlay)) map.removeLayer(sitePlanOverlay);
+      if (showFenceOverlay && !map.hasLayer(fencePlanOverlay)) fencePlanOverlay.addTo(map);
+      if (!showFenceOverlay && map.hasLayer(fencePlanOverlay)) map.removeLayer(fencePlanOverlay);
 
-      // Keep pins and the selected overlay above whichever base map is active.
       if (showSiteOverlay && typeof sitePlanOverlay.bringToFront === "function") sitePlanOverlay.bringToFront();
       if (showFenceOverlay && typeof fencePlanOverlay.bringToFront === "function") fencePlanOverlay.bringToFront();
       if (userPinsLayer && typeof userPinsLayer.bringToFront === "function") userPinsLayer.bringToFront();
@@ -9314,7 +9362,8 @@
     }
 
     async function buildPrintableOutdoorOverlayImage(pins) {
-      const sourceUrl = await resolveOutdoorOverlayImageUrl(currentMapId);
+      const overlayConfig = getOutdoorOverlayConfig(currentMapId);
+      const sourceUrl = await overlayConfig.resolveUrl();
       const imageSrc = await fetchImageAsDataUrl(sourceUrl) || sourceUrl;
       const img = await loadImageForCanvas(imageSrc || sourceUrl);
       const sw = Math.max(1, img.naturalWidth || img.width || 1600), sh = Math.max(1, img.naturalHeight || img.height || 900);
@@ -9567,7 +9616,7 @@
       modal.innerHTML = '<div class="modal-header">Select Pins and Map Style to Print</div>' +
         '<div class="modal-body"><div class="panel-note" style="padding:0;">Choose one or more statuses. The print will still follow the current department access and selected map.</div>' +
         statuses.map(([value,label]) => '<label class="settings-check"><input type="checkbox" data-status value="'+value+'" '+(defaults.includes(value)?'checked':'')+'><span>'+label+'</span></label>').join('') +
-        (outdoorView ? '<div style="margin-top:6px;padding-top:10px;border-top:1px solid #d9e0e6;"><b style="font-size:12px;color:#243447;">Outdoor map background</b><label class="settings-check" style="margin-top:7px;"><input type="radio" name="printMapBackground" value="overlay" checked><span><b>Site-plan overlay</b><br><small>Print the aligned CNE site-plan image with the selected pins.</small></span></label><label class="settings-check"><input type="radio" name="printMapBackground" value="base"><span><b>GPS base map only — no overlay</b><br><small>Print the standard street map with the selected pins.</small></span></label></div>' : '') +
+        (outdoorView ? '<div style="margin-top:6px;padding-top:10px;border-top:1px solid #d9e0e6;"><b style="font-size:12px;color:#243447;">Outdoor map background</b><label class="settings-check" style="margin-top:7px;"><input type="radio" name="printMapBackground" value="overlay" checked><span><b>Selected map overlay</b><br><small>Print the aligned overlay for the current GPS layout with the selected pins.</small></span></label><label class="settings-check"><input type="radio" name="printMapBackground" value="base"><span><b>GPS base map only — no overlay</b><br><small>Print the standard street map with the selected pins.</small></span></label></div>' : '') +
         '</div><div class="modal-actions"><button class="action-btn secondary" data-cancel>Cancel</button><button class="action-btn" data-print>Prepare Print</button></div>';
       const close = () => { modal.remove(); backdrop.remove(); };
       backdrop.onclick = close;
@@ -9645,7 +9694,7 @@
     async function buildPrintableOutdoorBaseMapImage(pins) {
       const previousCenter = map.getCenter();
       const previousZoom = map.getZoom();
-      const siteOverlayWasVisible = map.hasLayer(sitePlanOverlay);
+      const overlayWasVisible = map.hasLayer(sitePlanOverlay);
       const fenceOverlayWasVisible = map.hasLayer(fencePlanOverlay);
       const terrainWasVisible = map.hasLayer(terrainMapLayer);
       const ui = document.querySelector('.floating-ui');
@@ -9688,7 +9737,7 @@
           if (map.hasLayer(standardMapLayer)) map.removeLayer(standardMapLayer);
           if (!map.hasLayer(terrainMapLayer)) terrainMapLayer.addTo(map);
         }
-        if (siteOverlayWasVisible && !map.hasLayer(sitePlanOverlay)) sitePlanOverlay.addTo(map);
+        if (overlayWasVisible && !map.hasLayer(sitePlanOverlay)) sitePlanOverlay.addTo(map);
         if (fenceOverlayWasVisible && !map.hasLayer(fencePlanOverlay)) fencePlanOverlay.addTo(map);
         if (ui) ui.style.display = previousUiDisplay;
         applyFilters();
@@ -9723,7 +9772,7 @@
       } catch (error) {
         console.error("Map print failed", error);
         hidePrintProgress();
-        alert("The outdoor GPS print preview could not be created. Check that the selected overlay image (site-plan.webp/site-plan.png or cne-fence-plan.png) is beside this HTML file, then try again.");
+        alert("The outdoor GPS print preview could not be created. Check that the selected overlay image is beside this HTML file or its configured URL is available, then try again.");
       }
     }
 
@@ -10844,6 +10893,7 @@ function resetPinForm() {
     pinCategoryInput.disabled = true;
   }
   if (pinReportedByInput) pinReportedByInput.value = getDefaultUserName();
+  if (pinCustomTitleInput) pinCustomTitleInput.value = "";
   populateTitleDropdown();
   populateSmsGroupCheckboxes();
   pinPhotoFileInput.value = "";
@@ -10922,10 +10972,14 @@ function resetPinForm() {
         return;
       }
 
-      const title = pinTitleInput.value.trim();
+      const selectedTitleValue = String(pinTitleInput.value || "").trim();
+      const title = selectedTitleValue === "__custom__"
+        ? String(pinCustomTitleInput ? pinCustomTitleInput.value : "").trim()
+        : selectedTitleValue;
       if (!title) {
-        alert("Pin title is required.");
-        pinTitleInput.focus();
+        alert("Pin title is required. Choose a preset title or enter a custom title.");
+        if (selectedTitleValue === "__custom__" && pinCustomTitleInput) pinCustomTitleInput.focus();
+        else pinTitleInput.focus();
         return;
       }
 
@@ -11084,13 +11138,15 @@ function resetPinForm() {
       ctx.restore();
     }
 
-    function calculateOutdoorImagePosition(pin) {
+    function calculateOutdoorImagePosition(pin, mapId = getPinMapId(pin)) {
       const lat = Number(pin.lat);
       const lng = Number(pin.lng);
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) return { u: 0.5, v: 0.5 };
-      const a = { x: p1.lng, y: p1.lat };
-      const b = { x: p2.lng - p1.lng, y: p2.lat - p1.lat };
-      const c = { x: p3.lng - p1.lng, y: p3.lat - p1.lat };
+      const config = getOutdoorOverlayConfig(mapId);
+      const q1 = config.p1, q2 = config.p2, q3 = config.p3;
+      const a = { x: q1.lng, y: q1.lat };
+      const b = { x: q2.lng - q1.lng, y: q2.lat - q1.lat };
+      const c = { x: q3.lng - q1.lng, y: q3.lat - q1.lat };
       const d = { x: lng - a.x, y: lat - a.y };
       const det = b.x * c.y - b.y * c.x;
       if (Math.abs(det) < 1e-12) return { u: 0.5, v: 0.5 };
@@ -11102,9 +11158,7 @@ function resetPinForm() {
     async function createMapSnapshotBlob(pin) {
       const view = getMapView(getPinMapId(pin));
       const isFloor = (pin.location_type || "gps") === "floorplan" || view.type === "floorplan";
-      const imageSrc = isFloor
-        ? (view.image || "./floor-plan-food-building.png")
-        : await resolveOutdoorOverlayImageUrl(view.id);
+      const imageSrc = isFloor ? (view.image || "./floor-plan-food-building.png") : await getOutdoorOverlayConfig(getPinMapId(pin)).resolveUrl();
       const img = await loadImageForCanvas(imageSrc);
       const sourceWidth = img.naturalWidth || img.width;
       const sourceHeight = img.naturalHeight || img.height;
