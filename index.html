@@ -2906,6 +2906,13 @@
       <div class="admin-menu-section">
         <h3>Settings</h3>
         <div class="panel-note" style="padding-top:0;">Use the access buttons below to see/edit sign-in codes, current device details, and signed-in devices instead of using hidden prompt boxes.</div>
+        <div class="availability-card" style="margin-bottom:10px;">
+          <label class="settings-check">
+            <input id="adminShareReportFileOnNewPin" type="checkbox" onchange="saveReportNotificationSettingsFromAdmin()">
+            <span><b>Share report file when a new pin is saved</b><br><small>When enabled, the Add Pin notification opens the phone’s native share menu with the standalone HTML report attached instead of opening a text draft containing the app/web report link. Select Messages from the share menu to text the file.</small></span>
+          </label>
+          <div id="reportNotificationSettingStatus" class="panel-note" style="padding-bottom:0;">Current setting: send the normal web-link text message.</div>
+        </div>
         <div class="admin-menu-grid">
           <button class="action-btn secondary" onclick="toggleDepartmentPanel(true)">Manage Departments</button>
           <button class="action-btn secondary" onclick="toggleProfilesPanel(true)">Manage Profiles</button>
@@ -3756,7 +3763,7 @@
     const SUPABASE_BUCKET = "pin-photos";
     const REPORT_SHARE_BUCKET = "shared-reports";
     const REPORT_SHARE_LINK_EXPIRY_SECONDS = 60 * 60 * 24 * 30;
-    const APP_VERSION = "2026.07.18-CF";
+    const APP_VERSION = "2026.07.18-CG";
     const customReportSelectedPinIds = new Set();
     let customReportMapMode = false;
     let customReportMapIds = [];
@@ -3764,6 +3771,8 @@
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const DEPARTMENT_SHARE_CONFIG_KEY = "department_share_links";
+    const REPORT_NOTIFICATION_CONFIG_KEY = "report_notification_settings";
+    let reportNotificationSettings = { shareFileOnNewPin: false };
     let departmentShareLinks = [];
     let activeDepartmentShare = null;
     const SIGN_IN_ACCESS_TABLE = "app_sign_in_access";
@@ -7374,13 +7383,36 @@
       }
     }
 
+    function normalizeReportNotificationSettings(value) {
+      const source = value && typeof value === "object" ? value : {};
+      return { shareFileOnNewPin: source.shareFileOnNewPin === true || source.share_file_on_new_pin === true };
+    }
+
+    function syncReportNotificationAdminUi() {
+      const checkbox = document.getElementById("adminShareReportFileOnNewPin");
+      const status = document.getElementById("reportNotificationSettingStatus");
+      if (checkbox) checkbox.checked = !!reportNotificationSettings.shareFileOnNewPin;
+      if (status) status.textContent = reportNotificationSettings.shareFileOnNewPin
+        ? "Current setting: share the standalone report file after saving a new pin."
+        : "Current setting: send the normal web-link text message.";
+    }
+
+    async function saveReportNotificationSettingsFromAdmin() {
+      if (!(await requireAdminAuth())) { syncReportNotificationAdminUi(); return; }
+      const checkbox = document.getElementById("adminShareReportFileOnNewPin");
+      reportNotificationSettings = { shareFileOnNewPin: !!(checkbox && checkbox.checked) };
+      const saved = await saveSettingToSupabase(REPORT_NOTIFICATION_CONFIG_KEY, reportNotificationSettings);
+      syncReportNotificationAdminUi();
+      setStatus(saved ? "New-pin report sharing setting saved." : "The report sharing setting could not be saved centrally.");
+    }
+
     async function loadCentralSettingsFromSupabase() {
       if (!supabaseClient) return;
       try {
         const { data, error } = await supabaseClient
           .from(SETTINGS_TABLE)
           .select("config_key, settings_value")
-          .in("config_key", ["departments", "profiles", "map_views", "sign_in_codes"]);
+          .in("config_key", ["departments", "profiles", "map_views", "sign_in_codes", REPORT_NOTIFICATION_CONFIG_KEY]);
 
         if (error) {
           console.warn("Could not load central settings:", error);
@@ -7392,12 +7424,20 @@
         const profileRow = (data || []).find(row => row.config_key === "profiles");
         const mapRow = (data || []).find(row => row.config_key === "map_views");
         const signInCodesRow = (data || []).find(row => row.config_key === "sign_in_codes");
+        const reportNotificationRow = (data || []).find(row => row.config_key === REPORT_NOTIFICATION_CONFIG_KEY);
 
         if (signInCodesRow && signInCodesRow.settings_value) {
           SIGN_IN_CODES = normalizeSignInCodes(signInCodesRow.settings_value);
         } else {
           await saveSettingToSupabase("sign_in_codes", DEFAULT_SIGN_IN_CODES);
         }
+
+        if (reportNotificationRow && reportNotificationRow.settings_value) {
+          reportNotificationSettings = normalizeReportNotificationSettings(reportNotificationRow.settings_value);
+        } else {
+          await saveSettingToSupabase(REPORT_NOTIFICATION_CONFIG_KEY, reportNotificationSettings);
+        }
+        syncReportNotificationAdminUi();
 
         if (mapRow && mapRow.settings_value) {
           mapViews = normalizeMapViews(mapRow.settings_value);
@@ -10054,6 +10094,7 @@
 
     async function toggleAdminPanel(forceOpen) {
       if (!userHasPermission("viewAdmin")) return denyPermission("This sign-in code does not include Admin-menu access.");
+      syncReportNotificationAdminUi();
       const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : !adminPanel.classList.contains('open');
       if (shouldOpen) {
         if (!(await requireAdminAuth())) return;
@@ -10408,7 +10449,7 @@ function resetPinForm() {
         if (savedPin) {
           await saveMapSnapshotForPin(savedPin);
         }
-        triggerSmsNotification(savedPin);
+        await triggerSmsNotification(savedPin);
         closePinModal();
       } catch (error) {
         console.error(error);
@@ -11393,7 +11434,7 @@ function resetPinForm() {
       const accessHistoryHtml = buildReportAccessHistoryHtml(accessRows);
       const changeHistoryHtml = buildPinChangeHistoryHtml(await loadPinChangeHistory(pin.id));
       const fileName = getStandaloneReportFileName(pin);
-      const shareTitle = `CNE Report #${String(pin.id || "")}`;
+      const shareTitle = `CNE Report - ${fileName.replace(/\.html$/i, "")}`;
       const shareMessage = getStandaloneReportShareMessage(pin, fileName);
       const reportBody = buildMiniReportHtml(standalonePin, { print: true, accessHistoryHtml, changeHistoryHtml });
       return { standalonePin, accessHistoryHtml, changeHistoryHtml, fileName, shareTitle, shareMessage, reportBody };
@@ -11464,7 +11505,7 @@ ${reportUrl}`;
       return { url, title: `CNE Report #${String(pin.id || "")}`, message: buildSharedReportTextMessage(pin, reportPackage, url) };
     }
 
-    async function sharePinReportFile(pinId) {
+    async function sharePinReportFile(pinId, options = {}) {
       const pin = getPinById(pinId);
       if (!pin) return alert("Could not find this pin. Refresh the app and try again.");
       try {
@@ -11474,8 +11515,8 @@ ${reportUrl}`;
         const blob = new Blob([html], { type: "text/html;charset=utf-8" });
         const file = new File([blob], reportPackage.fileName, { type: "text/html" });
         if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
-          await navigator.share({ title: reportPackage.shareTitle, text: reportPackage.shareMessage, files: [file] });
-          setStatus("Standalone report shared.");
+          await navigator.share({ title: reportPackage.shareTitle, files: [file] });
+          setStatus(options.fromNewPin ? "Pin saved. Report share menu opened." : "Standalone report shared.");
           return;
         }
         const url = URL.createObjectURL(blob);
@@ -11486,7 +11527,9 @@ ${reportUrl}`;
         a.click();
         a.remove();
         setTimeout(() => URL.revokeObjectURL(url), 1500);
-        alert("Your browser cannot attach the report directly. The HTML report was downloaded so you can attach it to a text or email.");
+        alert(options.fromNewPin
+          ? "The pin was saved, but this browser cannot open the report-file share menu. The HTML report was downloaded so you can attach it manually to a text or email."
+          : "Your browser cannot attach the report directly. The HTML report was downloaded so you can attach it to a text or email.");
       } catch (error) {
         if (error && error.name === "AbortError") return;
         console.error("Report share failed", error);
@@ -11761,7 +11804,13 @@ function openSmsDraft(recipients, message) {
   return true;
 }
 
-function triggerSmsNotification(pin) {
+async function triggerSmsNotification(pin) {
+  if (!pin) return;
+  if (reportNotificationSettings && reportNotificationSettings.shareFileOnNewPin) {
+    await sharePinReportFile(pin.id, { fromNewPin: true });
+    return;
+  }
+
   const smsRecipients = getSelectedSmsRecipientsForDepartment(pin.category);
   const customMessage = "";
   const message = buildNotificationMessage(pin, customMessage);
@@ -12602,6 +12651,7 @@ ${rows.map(pin => `
     window.openPinModalForPending = openPinModalForPending;
     window.closePinModal = closePinModal;
     window.submitPinForm = submitPinForm;
+    window.saveReportNotificationSettingsFromAdmin = saveReportNotificationSettingsFromAdmin;
     window.changeDeviceUserProfile = changeDeviceUserProfile;
     window.retrySiteAccess = retrySiteAccess;
     window.resetSiteAccessApproval = resetSiteAccessApproval;
