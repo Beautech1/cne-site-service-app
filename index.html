@@ -3821,8 +3821,8 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.18-CL";
-    const APP_VERSION_SUMMARY = "Admin Cancelled Pin Manager with individual selection, Select All Visible, and permanent bulk deletion";
+    const APP_VERSION = "2026.07.18-CM";
+    const APP_VERSION_SUMMARY = "Print Selected Map can use the site-plan overlay or the plain GPS base map, with selected pin statuses";
     const customReportSelectedPinIds = new Set();
     let customReportMapMode = false;
     let customReportMapIds = [];
@@ -7926,10 +7926,12 @@
 
     const standardMapLayer = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 22,
+      crossOrigin: true,
       attribution: "&copy; OpenStreetMap contributors"
     }).addTo(map);
 
     const terrainMapLayer = L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", {
+      crossOrigin: true,
       maxNativeZoom: 17,
       maxZoom: 22,
       attribution: "Map data &copy; OpenStreetMap contributors, SRTM | Map style &copy; OpenTopoMap"
@@ -9522,19 +9524,22 @@
       const modal = document.createElement("div");
       modal.className = "modal open";
       modal.style.zIndex = "12510";
-      modal.innerHTML = '<div class="modal-header">Select Pin Statuses to Print</div>' +
+      const outdoorView = (getMapView(currentMapId) || {}).type !== "floorplan";
+      modal.innerHTML = '<div class="modal-header">Select Pins and Map Style to Print</div>' +
         '<div class="modal-body"><div class="panel-note" style="padding:0;">Choose one or more statuses. The print will still follow the current department access and selected map.</div>' +
-        statuses.map(([value,label]) => '<label class="settings-check"><input type="checkbox" value="'+value+'" '+(defaults.includes(value)?'checked':'')+'><span>'+label+'</span></label>').join('') +
+        statuses.map(([value,label]) => '<label class="settings-check"><input type="checkbox" data-status value="'+value+'" '+(defaults.includes(value)?'checked':'')+'><span>'+label+'</span></label>').join('') +
+        (outdoorView ? '<div style="margin-top:6px;padding-top:10px;border-top:1px solid #d9e0e6;"><b style="font-size:12px;color:#243447;">Outdoor map background</b><label class="settings-check" style="margin-top:7px;"><input type="radio" name="printMapBackground" value="overlay" checked><span><b>Site-plan overlay</b><br><small>Print the aligned CNE site-plan image with the selected pins.</small></span></label><label class="settings-check"><input type="radio" name="printMapBackground" value="base"><span><b>GPS base map only — no overlay</b><br><small>Print the standard street map with the selected pins.</small></span></label></div>' : '') +
         '</div><div class="modal-actions"><button class="action-btn secondary" data-cancel>Cancel</button><button class="action-btn" data-print>Prepare Print</button></div>';
       const close = () => { modal.remove(); backdrop.remove(); };
       backdrop.onclick = close;
       modal.querySelector('[data-cancel]').onclick = close;
       modal.querySelector('[data-print]').onclick = async () => {
-        const selected = Array.from(modal.querySelectorAll('input[type="checkbox"]:checked')).map(el => el.value);
+        const selected = Array.from(modal.querySelectorAll('input[data-status]:checked')).map(el => el.value);
+        const backgroundChoice = modal.querySelector('input[name="printMapBackground"]:checked')?.value || "overlay";
         if (!selected.length) { alert("Select at least one pin status."); return; }
         selectedPrintStatuses = selected;
         close();
-        await printCurrentMapWithSelectedPins(selected);
+        await printCurrentMapWithSelectedPins(selected, backgroundChoice);
       };
       document.body.append(backdrop, modal);
     }
@@ -9598,7 +9603,58 @@
       }
     }
 
-    async function printCurrentMapWithSelectedPins(statusesOverride) {
+    async function buildPrintableOutdoorBaseMapImage(pins) {
+      const previousCenter = map.getCenter();
+      const previousZoom = map.getZoom();
+      const overlayWasVisible = map.hasLayer(sitePlanOverlay);
+      const terrainWasVisible = map.hasLayer(terrainMapLayer);
+      const ui = document.querySelector('.floating-ui');
+      const previousUiDisplay = ui ? ui.style.display : '';
+      try {
+        if (ui) ui.style.display = 'none';
+        if (map.hasLayer(sitePlanOverlay)) map.removeLayer(sitePlanOverlay);
+        if (map.hasLayer(terrainMapLayer)) map.removeLayer(terrainMapLayer);
+        if (!map.hasLayer(standardMapLayer)) standardMapLayer.addTo(map);
+
+        userPinsLayer.clearLayers();
+        pins.forEach(pin => addUserPin(pin, false));
+        if (userPinsLayer && typeof userPinsLayer.bringToFront === 'function') userPinsLayer.bringToFront();
+
+        const latLngs = pins
+          .filter(pin => Number.isFinite(Number(pin.lat)) && Number.isFinite(Number(pin.lng)))
+          .map(pin => L.latLng(Number(pin.lat), Number(pin.lng)));
+        if (latLngs.length === 1) map.setView(latLngs[0], Math.max(18, Math.min(20, previousZoom || 18)), { animate: false });
+        else if (latLngs.length > 1) map.fitBounds(L.latLngBounds(latLngs), { padding: [70, 70], maxZoom: 19, animate: false });
+        map.invalidateSize(false);
+        await new Promise(resolve => setTimeout(resolve, 1200));
+
+        const mapCanvas = await html2canvas(map.getContainer(), {
+          useCORS: true,
+          allowTaint: false,
+          backgroundColor: '#ffffff',
+          scale: 2,
+          logging: false,
+          ignoreElements: element => element.classList && (
+            element.classList.contains('leaflet-control-container') ||
+            element.classList.contains('leaflet-popup-pane') ||
+            element.classList.contains('leaflet-tooltip-pane')
+          )
+        });
+        return `<img src="${mapCanvas.toDataURL('image/png', 1)}" alt="Outdoor GPS base map without site-plan overlay" style="display:block;max-width:100%;max-height:72vh;width:auto;height:auto">`;
+      } finally {
+        map.setView(previousCenter, previousZoom, { animate: false });
+        if (terrainWasVisible) {
+          if (map.hasLayer(standardMapLayer)) map.removeLayer(standardMapLayer);
+          if (!map.hasLayer(terrainMapLayer)) terrainMapLayer.addTo(map);
+        }
+        if (overlayWasVisible && !map.hasLayer(sitePlanOverlay)) sitePlanOverlay.addTo(map);
+        if (ui) ui.style.display = previousUiDisplay;
+        applyFilters();
+        map.invalidateSize(false);
+      }
+    }
+
+    async function printCurrentMapWithSelectedPins(statusesOverride, outdoorBackground = "overlay") {
       if (!userHasPermission("printReports")) return denyPermission("This sign-in code does not have permission to print reports.");
       showPrintProgress("Preparing print preview…");
       const pins = getPrintableSelectedPins(statusesOverride);
@@ -9615,9 +9671,13 @@
       }
       try {
         showPrintProgress("Preparing outdoor GPS print preview…");
-        const outdoorImageHtml = await buildPrintableOutdoorOverlayImage(pins);
+        const useBaseMap = outdoorBackground === "base";
+        showPrintProgress(useBaseMap ? "Preparing GPS base map without overlay…" : "Preparing site-plan overlay print preview…");
+        const outdoorImageHtml = useBaseMap
+          ? await buildPrintableOutdoorBaseMapImage(pins)
+          : await buildPrintableOutdoorOverlayImage(pins);
         hidePrintProgress();
-        openMapPrintPreview(title, outdoorImageHtml, pins, true);
+        openMapPrintPreview(useBaseMap ? title + " — GPS Base Map (No Overlay)" : title, outdoorImageHtml, pins, true);
       } catch (error) {
         console.error("Map print failed", error);
         hidePrintProgress();
