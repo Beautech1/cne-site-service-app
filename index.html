@@ -3048,6 +3048,16 @@
           <button class="action-btn" onclick="printCustomSelectedReport()">Printable Report</button>
         </div>
       </div>
+      <div class="custom-report-builder" style="border-color:#ef9a9a;background:#fff5f5;">
+        <div><b>Permanent Pin Deletion</b> — select individual pins below or select every pin currently shown by the filters.</div>
+        <div class="custom-report-count" id="allLogsDeleteSelectionCount" style="color:#b91c1c;">0 pins selected for deletion</div>
+        <div class="log-panel-actions" style="margin:0;">
+          <button class="action-btn secondary" onclick="selectAllVisiblePinsForDeletion()">Select All Visible</button>
+          <button class="action-btn secondary" onclick="clearAllLogsDeleteSelection()">Clear Selection</button>
+          <button class="action-btn clear-btn" onclick="deleteSelectedPinsFromAllLogs()">Delete Selected Pins Permanently</button>
+        </div>
+        <small style="color:#7f1d1d;">Deletion removes the selected pin records from Supabase and attempts to remove their change history, photos, completion photos, and mini-map snapshots. This cannot be undone.</small>
+      </div>
       <div class="settings-row">
         <label>Status
           <select id="allLogsStatusFilter" onchange="renderAllLogs()">
@@ -3821,9 +3831,10 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.18-CQ";
-    const APP_VERSION_SUMMARY = "Browser tab title now displays only CNE Service App while the version remains available inside the app";
+    const APP_VERSION = "2026.07.18-CR";
+    const APP_VERSION_SUMMARY = "Admin View All Logs can select individual filtered pins, Select All Visible, and permanently bulk delete selected pin records";
     const customReportSelectedPinIds = new Set();
+    const allLogsSelectedDeletePinIds = new Set();
     let customReportMapMode = false;
     let customReportMapIds = [];
     let customReportMapIndex = 0;
@@ -8683,6 +8694,7 @@
       return (
         '<div class="log-item">' +
           '<label class="custom-report-select"><input type="checkbox" class="custom-report-pin-checkbox" value="' + Number(pin.id || 0) + '" ' + (customReportSelectedPinIds.has(String(pin.id)) ? 'checked' : '') + ' onchange="toggleCustomReportPinSelection(' + Number(pin.id || 0) + ', this.checked)"><span>Select for custom map/report</span></label>' +
+          (options.adminDeleteSelector ? '<label class="custom-report-select" style="border-color:#ef9a9a;background:#fff5f5;color:#991b1b;"><input type="checkbox" class="all-logs-delete-pin-checkbox" value="' + Number(pin.id || 0) + '" ' + (allLogsSelectedDeletePinIds.has(String(pin.id)) ? 'checked' : '') + ' onchange="setAllLogsPinDeleteSelected(' + Number(pin.id || 0) + ', this.checked)"><span><b>Select this entire pin for permanent deletion</b></span></label>' : '') +
           '<div class="log-title">' + escapeHtml(pin.title || 'Untitled pin') + '</div>' +
           '<div class="log-compact-meta">' +
             '<span><b>Status:</b> ' + escapeHtml(formatPinStatus(pin)) + '</span>' +
@@ -10149,13 +10161,109 @@
 
       if (!rows.length) {
         allLogsBody.innerHTML = summaryHtml + '<div class="empty-log">No pins match these filters.</div>';
+        updateAllLogsDeleteSelectionCount();
         return;
       }
 
-      allLogsBody.innerHTML = summaryHtml + rows.map(pin => buildLogItemHtml(pin, { adminHistoryManager: true })).join('');
+      allLogsBody.innerHTML = summaryHtml + rows.map(pin => buildLogItemHtml(pin, { adminHistoryManager: true, adminDeleteSelector: true })).join('');
       updateCustomReportCount();
+      updateAllLogsDeleteSelectionCount();
       loadReportAccessHistoriesForPins(rows);
       loadAdminHistoryManagersForPins(rows);
+    }
+
+    function updateAllLogsDeleteSelectionCount() {
+      const el = document.getElementById("allLogsDeleteSelectionCount");
+      if (!el) return;
+      const count = allLogsSelectedDeletePinIds.size;
+      el.textContent = count + " pin" + (count === 1 ? "" : "s") + " selected for deletion";
+    }
+
+    function setAllLogsPinDeleteSelected(pinId, checked) {
+      const key = String(pinId);
+      if (checked) allLogsSelectedDeletePinIds.add(key);
+      else allLogsSelectedDeletePinIds.delete(key);
+      updateAllLogsDeleteSelectionCount();
+    }
+
+    function selectAllVisiblePinsForDeletion() {
+      const rows = getFilteredAllLogRows();
+      rows.forEach(pin => allLogsSelectedDeletePinIds.add(String(pin.id)));
+      renderAllLogs();
+    }
+
+    function clearAllLogsDeleteSelection() {
+      allLogsSelectedDeletePinIds.clear();
+      renderAllLogs();
+    }
+
+    async function deleteSelectedPinsFromAllLogs() {
+      if (!allLogsPanel || !allLogsPanel.classList.contains("open")) {
+        alert("Pin deletion is only available from Admin > View All Logs.");
+        return;
+      }
+      const ids = Array.from(allLogsSelectedDeletePinIds).map(Number).filter(Number.isFinite);
+      if (!ids.length) {
+        alert("Select at least one pin to delete.");
+        return;
+      }
+      const targets = allPins.filter(pin => ids.includes(Number(pin.id)));
+      if (!targets.length) {
+        alert("The selected pins are no longer available. Refresh View All Logs and try again.");
+        allLogsSelectedDeletePinIds.clear();
+        renderAllLogs();
+        return;
+      }
+      const statusCounts = targets.reduce((acc, pin) => {
+        const status = formatPinStatus(pin);
+        acc[status] = (acc[status] || 0) + 1;
+        return acc;
+      }, {});
+      const statusSummary = Object.entries(statusCounts).map(([name,count]) => name + ": " + count).join("\n");
+      const confirmed = window.confirm(
+        "Permanently delete " + targets.length + " selected pin" + (targets.length === 1 ? "" : "s") + "?\n\n" +
+        statusSummary + "\n\nThis removes the full pin records and associated stored files where possible. This cannot be undone."
+      );
+      if (!confirmed) return;
+
+      setStatus("Deleting selected pins...");
+      const targetIds = targets.map(pin => Number(pin.id));
+
+      try {
+        await supabaseClient.from(PIN_CHANGE_LOG_TABLE).delete().in("pin_id", targetIds);
+      } catch (error) {
+        console.warn("Pin change-history cleanup skipped:", error);
+      }
+
+      const { error } = await supabaseClient.from(SUPABASE_TABLE).delete().in("id", targetIds);
+      if (error) {
+        console.error(error);
+        alert("Could not delete the selected pins. Check the DELETE policy for the pins table in Supabase.");
+        setStatus("Pin deletion failed.");
+        return;
+      }
+
+      for (const pin of targets) {
+        const files = [...getPinPhotos(pin), ...getClearPhotos(pin)];
+        const mapSnapshot = pin.map_snapshot_url || pin.mini_map_url || pin.map_image_url;
+        if (mapSnapshot) files.push(mapSnapshot);
+        for (const fileUrl of Array.from(new Set(files.filter(Boolean)))) {
+          try { await removeStoredPhoto(fileUrl); }
+          catch (error) { console.warn("Stored file cleanup skipped:", fileUrl, error); }
+        }
+      }
+
+      allPins = allPins.filter(pin => !targetIds.includes(Number(pin.id)));
+      targetIds.forEach(id => {
+        allLogsSelectedDeletePinIds.delete(String(id));
+        customReportSelectedPinIds.delete(String(id));
+        if (typeof selectedCancelledPinIds !== "undefined") selectedCancelledPinIds.delete(String(id));
+      });
+      applyFilters();
+      renderAllLogs();
+      if (cancelledPinsManagerPanel && cancelledPinsManagerPanel.classList.contains("open")) renderCancelledPinsManager();
+      setStatus(targets.length + " pin" + (targets.length === 1 ? "" : "s") + " permanently deleted.");
+      alert(targets.length + " pin" + (targets.length === 1 ? "" : "s") + " permanently deleted.");
     }
 
     function getPrintableLogRows(mode) {
@@ -10300,6 +10408,7 @@
         }
         populateAllLogsFilters();
         renderAllLogs();
+        updateAllLogsDeleteSelectionCount();
         allLogsPanel.classList.add('open');
       } else {
         allLogsPanel.classList.remove('open');
