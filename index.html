@@ -2803,7 +2803,7 @@
 </head>
 <body>
 
-  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.17-CA</button>
+  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.17-BZ</button>
   <div class="floating-ui" id="floatingUi">
     <button class="mobile-ui-toggle" id="mobileUiToggle" type="button" onclick="toggleMobileUi()">
       <span class="mobile-ui-toggle-main">
@@ -3719,7 +3719,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.17-CA";
+    const APP_VERSION = "2026.07.17-BZ";
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const DEPARTMENT_SHARE_CONFIG_KEY = "department_share_links";
@@ -10995,14 +10995,11 @@ function resetPinForm() {
       const reportViewOnly = options.viewOnly || isReportViewOnlyMode();
       // Do not show the View Service Order button inside the report itself.
       // For text/report links, the separate gate screen records the timestamp before the report is displayed.
-      const reportActionButtons = (!options.print && pin.id)
-        ? ((pinStatusForActions === "active" && reportViewOnly && isDirectReportLink()
-            ? '<button class="action-btn clear-btn" onclick="signInToClearPinFromReport(' + pin.id + ')">Sign In to Clear Pin</button>'
-            : '') +
-          (!reportViewOnly && pinStatusForActions === "active" && userHasPermission("clearPins")
+      const reportActionButtons = (!options.print && pin.id && !reportViewOnly)
+        ? ((pinStatusForActions === "active" && userHasPermission("clearPins")
             ? '<button class="action-btn clear-btn" onclick="clearPinFromReport(' + pin.id + ')">Clear Pin</button>'
             : '') +
-          (!reportViewOnly && userHasPermission("editPins")
+          (userHasPermission("editPins")
             ? '<button class="action-btn secondary" onclick="openEditPinModalFromReport(' + pin.id + ')">' + (pinStatusForActions === "cleared" ? 'Admin Edit Cleared Pin' : 'Edit / Reassign / Cancel Pin') + '</button>'
             : ''))
         : '';
@@ -11106,28 +11103,6 @@ function resetPinForm() {
       currentReportPinId = null;
       // Keep the backdrop available because the next action modal will use it.
       // This prevents the text report from staying open behind Clear/Edit/Reassign.
-    }
-
-    async function signInToClearPinFromReport(pinId) {
-      const approved = ensureSiteAccess(true);
-      if (!approved) return;
-
-      document.body.classList.remove("report-view-only");
-      applyCurrentAccessToUi();
-
-      if (!userHasPermission("clearPins")) {
-        denyPermission("This sign-in code does not have permission to clear pins.");
-        await openItemReportModal(pinId, { skipServiceOrderGate: true });
-        return;
-      }
-
-      const pin = getPinById(pinId);
-      if (!pin || getPinStatus(pin) !== "active") {
-        await openItemReportModal(pinId, { skipServiceOrderGate: true });
-        return;
-      }
-
-      clearPinFromReport(pinId);
     }
 
     function clearPinFromReport(pinId) {
