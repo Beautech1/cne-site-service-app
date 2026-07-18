@@ -3821,8 +3821,8 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.18-CP";
-    const APP_VERSION_SUMMARY = "Service-history deletion controls are available only in Admin View All Logs and removed from all pin popups and shared/mobile reports";
+    const APP_VERSION = "2026.07.18-CQ";
+    const APP_VERSION_SUMMARY = "Browser tab title now displays only CNE Service App while the version remains available inside the app";
     const customReportSelectedPinIds = new Set();
     let customReportMapMode = false;
     let customReportMapIds = [];
@@ -12883,7 +12883,7 @@ ${rows.map(pin => `
     }
 
     initializeSitePlanOpacityControl();
-    document.title = `CNE Service App — v${APP_VERSION} — ${APP_VERSION_SUMMARY}`;
+    document.title = "CNE Service App";
     const versionBadge = document.getElementById("appVersionBadge");
     if (versionBadge) { versionBadge.textContent = `Version ${APP_VERSION}`; versionBadge.title = APP_VERSION_SUMMARY + " — Tap to copy version details"; }
     setTimeout(updateInformationalShareToolbar, 0);
