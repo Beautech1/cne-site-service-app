@@ -7819,11 +7819,26 @@
       attribution: "Map data &copy; OpenStreetMap contributors, SRTM | Map style &copy; OpenTopoMap"
     });
 
-    // Full Exhibition Place site-plan.png alignment.
+    // Full Exhibition Place site-plan.webp / site-plan.png alignment.
     // p1 = image top-left, p2 = image top-right, p3 = image bottom-left.
     const p1 = L.latLng(43.635752, -79.431849);
     const p2 = L.latLng(43.640322, -79.408890);
     const p3 = L.latLng(43.624449, -79.427580);
+
+    const SITE_PLAN_WEBP_URL = "./site-plan.webp";
+    const SITE_PLAN_PNG_URL = "./site-plan.png";
+    let resolvedSitePlanUrlPromise = null;
+
+    function resolveSitePlanImageUrl() {
+      if (resolvedSitePlanUrlPromise) return resolvedSitePlanUrlPromise;
+      resolvedSitePlanUrlPromise = new Promise(resolve => {
+        const testImage = new Image();
+        testImage.onload = () => resolve(SITE_PLAN_WEBP_URL);
+        testImage.onerror = () => resolve(SITE_PLAN_PNG_URL);
+        testImage.src = SITE_PLAN_WEBP_URL + "?v=" + encodeURIComponent(APP_VERSION || "1");
+      });
+      return resolvedSitePlanUrlPromise;
+    }
 
     const SITE_PLAN_OPACITY_KEY = "cne_site_plan_opacity";
     const DEFAULT_SITE_PLAN_OPACITY = 68;
@@ -7835,9 +7850,10 @@
         : DEFAULT_SITE_PLAN_OPACITY;
     }
 
-    const sitePlanOverlay = L.imageOverlay.rotated("./site-plan.png", p1, p2, p3, {
+    const sitePlanOverlay = L.imageOverlay.rotated(SITE_PLAN_WEBP_URL, p1, p2, p3, {
       opacity: getSavedSitePlanOpacityPercent() / 100,
-      interactive: true
+      interactive: true,
+      errorOverlayUrl: SITE_PLAN_PNG_URL
     }).addTo(map);
 
     function setSitePlanOpacity(value, savePreference = true) {
@@ -8958,7 +8974,7 @@
     }
 
     async function buildPrintableOutdoorOverlayImage(pins) {
-      const sourceUrl = "./site-plan.png";
+      const sourceUrl = await resolveSitePlanImageUrl();
       const imageSrc = await fetchImageAsDataUrl(sourceUrl) || sourceUrl;
       const img = await loadImageForCanvas(imageSrc || sourceUrl);
       const sw = Math.max(1, img.naturalWidth || img.width || 1600), sh = Math.max(1, img.naturalHeight || img.height || 900);
@@ -9201,7 +9217,7 @@
       } catch (error) {
         console.error("Map print failed", error);
         hidePrintProgress();
-        alert("The outdoor GPS print preview could not be created. Check that the site-plan image file is beside this HTML file, then try again.");
+        alert("The outdoor GPS print preview could not be created. Check that site-plan.webp or site-plan.png is beside this HTML file, then try again.");
       }
     }
 
@@ -10325,7 +10341,7 @@ function resetPinForm() {
     async function createMapSnapshotBlob(pin) {
       const view = getMapView(getPinMapId(pin));
       const isFloor = (pin.location_type || "gps") === "floorplan" || view.type === "floorplan";
-      const imageSrc = isFloor ? (view.image || "./floor-plan-food-building.png") : "./site-plan.png";
+      const imageSrc = isFloor ? (view.image || "./floor-plan-food-building.png") : await resolveSitePlanImageUrl();
       const img = await loadImageForCanvas(imageSrc);
       const sourceWidth = img.naturalWidth || img.width;
       const sourceHeight = img.naturalHeight || img.height;
@@ -10969,7 +10985,7 @@ function resetPinForm() {
       const clearPhotos = isCleared ? buildPhotoGalleryHtml(getClearPhotos(pin), "Clear/completion photos", photoClass, photoOptions) : "";
       const mapSnapshotHtml = pin.map_snapshot_url
         ? '<div style="margin-top:12px;"><span class="photo-section-title">Mini map / pin location</span><img class="log-photo" style="max-width:420px; max-height:300px; object-fit:contain;" src="' + escapeHtml(pin.map_snapshot_url) + '" alt="Mini map location" onerror="this.style.display=\'none\'"></div>'
-        : '<div class="panel-note" style="margin-top:12px;">Mini map snapshot is not available for this item. Run the consolidated SQL and check that the floor-plan and site-plan image files are beside this HTML file.</div>';
+        : '<div class="panel-note" style="margin-top:12px;">Mini map snapshot is not available for this item. Run the consolidated SQL and check that the floor-plan and site-plan.webp/site-plan.png image files are beside this HTML file.</div>';
       const closedByValue = getClosedByValue(pin);
       const closedFromValue = getClosedFromValue(pin);
       const reportViewOnly = options.viewOnly || isReportViewOnlyMode();
