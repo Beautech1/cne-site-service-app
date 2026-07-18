@@ -3821,8 +3821,8 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.18-CO";
-    const APP_VERSION_SUMMARY = "Shared report links hide all service-change-history delete controls, even when opened on an admin device";
+    const APP_VERSION = "2026.07.18-CP";
+    const APP_VERSION_SUMMARY = "Service-history deletion controls are available only in Admin View All Logs and removed from all pin popups and shared/mobile reports";
     const customReportSelectedPinIds = new Set();
     let customReportMapMode = false;
     let customReportMapIds = [];
@@ -8709,6 +8709,7 @@
             '<button class="action-btn secondary" onclick="openEditPinModal(' + Number(pin.id || 0) + ')">' + escapeHtml(editLabel) + '</button>' +
             (status === 'active' ? '<button class="action-btn clear-btn" onclick="openClearModal(' + Number(pin.id || 0) + ')">Clear Pin</button>' : '') +
           '</div>' +
+          (options.adminHistoryManager ? '<div data-pin-change-history="' + escapeHtml(String(pin.id || '')) + '" data-admin-history-manager="true"><div class="panel-note">Loading service order change history...</div></div>' : '') +
         '</div>'
       );
     }
@@ -10151,9 +10152,10 @@
         return;
       }
 
-      allLogsBody.innerHTML = summaryHtml + rows.map(pin => buildLogItemHtml(pin)).join('');
+      allLogsBody.innerHTML = summaryHtml + rows.map(pin => buildLogItemHtml(pin, { adminHistoryManager: true })).join('');
       updateCustomReportCount();
       loadReportAccessHistoriesForPins(rows);
+      loadAdminHistoryManagersForPins(rows);
     }
 
     function getPrintableLogRows(mode) {
@@ -11477,10 +11479,13 @@ function resetPinForm() {
       return String(value);
     }
 
-    function buildPinChangeHistoryHtml(rows, title = "Service order change history") {
+    function buildPinChangeHistoryHtml(rows, title = "Service order change history", allowAdminActions = false) {
       const safeRows = Array.isArray(rows) ? rows : [];
       const pinId = safeRows.length ? safeRows[0].pin_id : "";
-      const canRequestAdminActions = userHasPermission("viewAdmin") && !isReportViewOnlyMode();
+      // Delete controls are intentionally restricted to Admin > View All Logs.
+      // Pin popups, mobile popups, standalone reports and shared links always call
+      // this function without allowAdminActions, so they remain view-only.
+      const canRequestAdminActions = Boolean(allowAdminActions) && userHasPermission("viewAdmin") && !isReportViewOnlyMode();
       const clearAllButton = canRequestAdminActions && pinId
         ? '<div class="pin-change-admin-actions"><button type="button" class="pin-change-delete-btn clear-all" onclick="deleteAllPinChangeHistory(\'' + escapeHtml(String(pinId)) + '\')">Clear all history</button></div>'
         : "";
@@ -11526,8 +11531,20 @@ function resetPinForm() {
       const targets = document.querySelectorAll('[data-pin-change-history="' + String(pinId) + '"]');
       if (!targets.length) return;
       const rows = await loadPinChangeHistory(pinId);
-      const html = buildPinChangeHistoryHtml(rows);
-      targets.forEach(target => { target.innerHTML = html; });
+      targets.forEach(target => {
+        const allowAdminActions = target.getAttribute("data-admin-history-manager") === "true" && allLogsPanel && allLogsPanel.classList.contains("open");
+        target.innerHTML = buildPinChangeHistoryHtml(rows, "Service order change history", allowAdminActions);
+      });
+    }
+
+    async function loadAdminHistoryManagersForPins(pins) {
+      const safePins = Array.isArray(pins) ? pins : [];
+      await Promise.all(safePins.map(async pin => {
+        const target = document.querySelector('[data-admin-history-manager="true"][data-pin-change-history="' + String(pin.id) + '"]');
+        if (!target) return;
+        const rows = await loadPinChangeHistory(pin.id);
+        target.innerHTML = buildPinChangeHistoryHtml(rows, "Service order change history", true);
+      }));
     }
 
     async function deletePinChangeHistoryEntry(historyId, pinId) {
@@ -11537,6 +11554,10 @@ function resetPinForm() {
       }
       if (!userHasPermission("viewAdmin")) {
         return denyPermission("Only an administrator can delete service history.");
+      }
+      if (!allLogsPanel || !allLogsPanel.classList.contains("open")) {
+        alert("Service-history entries can only be deleted from Admin > View All Logs.");
+        return;
       }
       if (!(await requireAdminAuth())) return;
 
@@ -11571,6 +11592,10 @@ function resetPinForm() {
       }
       if (!userHasPermission("viewAdmin")) {
         return denyPermission("Only an administrator can clear service history.");
+      }
+      if (!allLogsPanel || !allLogsPanel.classList.contains("open")) {
+        alert("Service history can only be cleared from Admin > View All Logs.");
+        return;
       }
       if (!(await requireAdminAuth())) return;
 
