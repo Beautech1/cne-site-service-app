@@ -2834,7 +2834,7 @@
 </head>
 <body>
 
-  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.18-CE</button>
+  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.18-CF</button>
   <div class="floating-ui" id="floatingUi">
     <button class="mobile-ui-toggle" id="mobileUiToggle" type="button" onclick="toggleMobileUi()">
       <span class="mobile-ui-toggle-main">
@@ -3774,7 +3774,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.18-CE";
+    const APP_VERSION = "2026.07.18-CF";
     const customReportSelectedPinIds = new Set();
     let customReportMapMode = false;
     let customReportMapIds = [];
@@ -9914,9 +9914,25 @@
     }
 
     function getPrintableLogRows(mode) {
-      if (mode === "active") return getActiveLogRows();
-      if (mode === "cleared") return getClearedPinsForDeleteList();
+      // Printable previews must use the exact same filtered rows currently
+      // displayed in the Active Pin Log or Cleared Pin Log.
+      if (mode === "active") return filterOperationalLogRows(getActiveLogRows(), "activeLog");
+      if (mode === "cleared") return filterOperationalLogRows(getClearedPinsForDeleteList(), "clearedLog");
       return getFilteredAllLogRows();
+    }
+
+    function getOperationalLogFilterTitle(prefix, defaultStatusText) {
+      const departmentEl = document.getElementById(prefix + "DepartmentFilter");
+      const selectedDepartments = departmentEl
+        ? [...departmentEl.selectedOptions].map(option => option.textContent.trim()).filter(Boolean)
+        : ["All departments"];
+      const departmentText = !selectedDepartments.length || selectedDepartments.includes("All departments")
+        ? "All departments"
+        : selectedDepartments.join(", ");
+      const mapEl = document.getElementById(prefix + "MapFilter");
+      const mapText = mapEl ? (mapEl.options[mapEl.selectedIndex]?.text || "All maps / buildings") : "All maps / buildings";
+      const searchText = (document.getElementById(prefix + "SearchFilter")?.value || "").trim();
+      return defaultStatusText + " · " + departmentText + " · " + mapText + (searchText ? " · Search: " + searchText : "");
     }
 
     function getPrintableLogTitle(mode) {
@@ -9941,9 +9957,16 @@
       }
       const printedAt = new Date().toLocaleString();
       const title = getPrintableLogTitle(mode);
-      const filterTitle = mode === "all" ? getAllLogsFilterTitle() : (mode === "active" ? "Active / outstanding items" : "Cleared / completed items");
+      const filterTitle = mode === "all"
+        ? getAllLogsFilterTitle()
+        : (mode === "active"
+          ? getOperationalLogFilterTitle("activeLog", "Active / outstanding items")
+          : getOperationalLogFilterTitle("clearedLog", "Cleared / completed items"));
       const deptValue = mode === "all" && allLogsDepartmentFilter ? allLogsDepartmentFilter.value : "all";
-      const summaryHtml = mode === "active" ? "" : buildCurrentYearHoursSummary(deptValue);
+      // The detailed rows below always match the visible filtered log. Keep the
+      // yearly hours summary only in the combined Admin log, where its filters
+      // are single-select and the summary remains unambiguous.
+      const summaryHtml = mode === "all" ? buildCurrentYearHoursSummary(deptValue) : "";
       const accessHistoryByPin = {};
       for (const pin of rows) {
         accessHistoryByPin[String(pin.id)] = await fetchReportAccessRows(pin.id, 20);
