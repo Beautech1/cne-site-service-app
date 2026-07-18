@@ -2834,7 +2834,7 @@
 </head>
 <body>
 
-  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.18-CG</button>
+  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.18-CH</button>
   <div class="floating-ui" id="floatingUi">
     <button class="mobile-ui-toggle" id="mobileUiToggle" type="button" onclick="toggleMobileUi()">
       <span class="mobile-ui-toggle-main">
@@ -2877,9 +2877,10 @@
           </label>
           <button class="toolbar-btn secondary" onclick="openDepartmentViewPrompt(false); closeMobileUiAfterAction();">Change Department Default View</button>
           <button class="toolbar-btn" onclick="loadPins(true); closeMobileUiAfterAction();">Refresh</button>
-          <button class="toolbar-btn secondary" onclick="printCurrentMapWithSelectedPins(); closeMobileUiAfterAction();">Print Selected Map</button>
-          <button class="toolbar-btn secondary" onclick="toggleActiveLogPanel(); closeMobileUiAfterAction();">Active Log</button>
-          <button class="toolbar-btn secondary" onclick="toggleLogPanel(); closeMobileUiAfterAction();">Cleared History Log</button>
+          <button class="toolbar-btn secondary" onclick="openPrintMapStatusSelector(); closeMobileUiAfterAction();">Print Selected Map</button>
+          <button id="activeLogToolbarButton" class="toolbar-btn secondary" onclick="toggleActiveLogPanel(); closeMobileUiAfterAction();">Active Log</button>
+          <button id="clearedLogToolbarButton" class="toolbar-btn secondary" onclick="toggleLogPanel(); closeMobileUiAfterAction();">Cleared History Log</button>
+          <button id="directionalLogToolbarButton" class="toolbar-btn secondary" style="display:none;" onclick="openDirectionalLog(); closeMobileUiAfterAction();">Directional Log</button>
           <button class="toolbar-btn secondary" onclick="toggleLegendPanel(); closeMobileUiAfterAction();">Legend</button>
           <button class="toolbar-btn secondary" onclick="toggleAdminPanel(); closeMobileUiAfterAction();">Admin</button>
           <input class="hidden-input" id="csvInput" type="file" accept=".csv,text/csv" onchange="handleCsvImport(event)">
@@ -3777,8 +3778,8 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.18-CG";
-    const APP_VERSION_SUMMARY = "Informational pin status + department link informational-only visibility";
+    const APP_VERSION = "2026.07.18-CH";
+    const APP_VERSION_SUMMARY = "Informational department links: Directional Log + selectable pin statuses for map printing";
     const customReportSelectedPinIds = new Set();
     let customReportMapMode = false;
     let customReportMapIds = [];
@@ -5644,6 +5645,7 @@
       const banner = document.createElement("div");
       banner.className = "department-share-banner";
       banner.textContent = (link.scope === "informational" ? "Informational view: " : (link.allowClear ? "View + clear access: " : "View only: ")) + formatDepartmentLabel(selectedDepartmentView);
+      updateInformationalShareToolbar();
       document.body.appendChild(banner);
       return true;
     }
@@ -9163,8 +9165,11 @@
       });
     }
 
-    function getPrintableSelectedPins() {
-      if (customReportMapMode) return getCustomReportSelectedPins().filter(pin => pinBelongsToMap(pin, currentMapId));
+    let selectedPrintStatuses = ["active"];
+
+    function getPrintableSelectedPins(statusesOverride) {
+      const chosenStatuses = Array.isArray(statusesOverride) && statusesOverride.length ? statusesOverride : selectedPrintStatuses;
+      if (customReportMapMode) return getCustomReportSelectedPins().filter(pin => chosenStatuses.includes(getPinStatus(pin))).filter(pin => pinBelongsToMap(pin, currentMapId));
       const categoryValue = isValidDepartmentView(selectedDepartmentView) ? selectedDepartmentView : "all";
       const selectedDepartmentKeys = parseDepartmentViewKeys(categoryValue);
       const currentView = getMapView(currentMapId);
@@ -9172,7 +9177,7 @@
       const printingFloorPlan = currentView.type === "floorplan";
       return allPins.filter(pin => {
         const pinStatus = getPinStatus(pin);
-        if (pinStatus !== "active") return false;
+        if (!chosenStatuses.includes(pinStatus)) return false;
         const categoryMatch = selectedDepartmentKeys.includes(normalizeAccessDepartmentKey(pin.category || "general"));
         if (!categoryMatch) return false;
 
@@ -9441,10 +9446,69 @@
       if (overlay) overlay.style.display = "none";
     }
 
-    async function printCurrentMapWithSelectedPins() {
+
+    function updateInformationalShareToolbar() {
+      const informationalLink = !!(activeDepartmentShare && activeDepartmentShare.scope === "informational");
+      const activeBtn = document.getElementById("activeLogToolbarButton");
+      const clearedBtn = document.getElementById("clearedLogToolbarButton");
+      const directionalBtn = document.getElementById("directionalLogToolbarButton");
+      if (activeBtn) activeBtn.style.display = informationalLink ? "none" : "inline-flex";
+      if (clearedBtn) clearedBtn.style.display = informationalLink ? "none" : "inline-flex";
+      if (directionalBtn) directionalBtn.style.display = informationalLink ? "inline-flex" : "none";
+    }
+
+    function openPrintMapStatusSelector() {
+      if (!userHasPermission("printReports")) return denyPermission("This sign-in code does not have permission to print reports.");
+      const current = statusFilter ? statusFilter.value : "active";
+      const defaults = current === "all" ? ["active", "informational", "cleared", "cancelled", "reported"] : [current];
+      const statuses = [
+        ["active", "Active"], ["informational", "Informational"], ["cleared", "Cleared"],
+        ["cancelled", "Cancelled"], ["reported", "Reports"]
+      ];
+      const backdrop = document.createElement("div");
+      backdrop.className = "modal-backdrop open";
+      backdrop.style.zIndex = "12500";
+      const modal = document.createElement("div");
+      modal.className = "modal open";
+      modal.style.zIndex = "12510";
+      modal.innerHTML = '<div class="modal-header">Select Pin Statuses to Print</div>' +
+        '<div class="modal-body"><div class="panel-note" style="padding:0;">Choose one or more statuses. The print will still follow the current department access and selected map.</div>' +
+        statuses.map(([value,label]) => '<label class="settings-check"><input type="checkbox" value="'+value+'" '+(defaults.includes(value)?'checked':'')+'><span>'+label+'</span></label>').join('') +
+        '</div><div class="modal-actions"><button class="action-btn secondary" data-cancel>Cancel</button><button class="action-btn" data-print>Prepare Print</button></div>';
+      const close = () => { modal.remove(); backdrop.remove(); };
+      backdrop.onclick = close;
+      modal.querySelector('[data-cancel]').onclick = close;
+      modal.querySelector('[data-print]').onclick = async () => {
+        const selected = Array.from(modal.querySelectorAll('input[type="checkbox"]:checked')).map(el => el.value);
+        if (!selected.length) { alert("Select at least one pin status."); return; }
+        selectedPrintStatuses = selected;
+        close();
+        await printCurrentMapWithSelectedPins(selected);
+      };
+      document.body.append(backdrop, modal);
+    }
+
+    function getDirectionalPinsForCurrentAccess() {
+      return allPins.filter(pin => Number.isFinite(Number(pin.direction_angle)))
+        .filter(pin => userCanViewPinForCurrentAccess(pin));
+    }
+
+    function openDirectionalLog() {
+      const pins = getDirectionalPinsForCurrentAccess().sort((a,b) => String(a.map_id||'').localeCompare(String(b.map_id||'')) || new Date(b.created_at||0)-new Date(a.created_at||0));
+      const win = window.open('', '_blank');
+      if (!win) { alert('Please allow pop-ups to open the Directional Log.'); return; }
+      const rows = pins.map(pin => {
+        const mapName = (getMapView(getPinMapId(pin)) || {}).name || getPinMapId(pin) || 'Map';
+        return '<tr><td>'+escapeHtml(String(pin.id||''))+'</td><td>'+escapeHtml(pin.title||'Untitled')+'</td><td>'+escapeHtml(formatDepartmentLabel(pin.category||'general'))+'</td><td>'+escapeHtml(mapName)+'</td><td>'+escapeHtml(getPinStatusLabel(pin))+'</td><td>'+Math.round(Number(pin.direction_angle)||0)+'°</td><td>'+escapeHtml(pin.description||'')+'</td></tr>';
+      }).join('');
+      win.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Directional Log</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#1f2933}h1{margin:0 0 6px;color:#003f70}.meta{margin-bottom:18px;color:#52606d}table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid #cbd5df;padding:7px;text-align:left;vertical-align:top}th{background:#e7f3ff;color:#003f70}@media print{button{display:none}body{margin:10mm}}</style></head><body><h1>Directional Pin Log</h1><div class="meta">'+escapeHtml(formatDepartmentLabel(selectedDepartmentView))+' • '+pins.length+' directional pin'+(pins.length===1?'':'s')+' • Version '+escapeHtml(APP_VERSION)+'</div><button onclick="window.print()">Print Directional Log</button><br><br><table><thead><tr><th>Report ID</th><th>Title</th><th>Department</th><th>Map</th><th>Status</th><th>Direction</th><th>Details</th></tr></thead><tbody>'+(rows||'<tr><td colspan="7">No directional pins are available for this access link.</td></tr>')+'</tbody></table></body></html>');
+      win.document.close();
+    }
+
+    async function printCurrentMapWithSelectedPins(statusesOverride) {
       if (!userHasPermission("printReports")) return denyPermission("This sign-in code does not have permission to print reports.");
       showPrintProgress("Preparing print preview…");
-      const pins = getPrintableSelectedPins();
+      const pins = getPrintableSelectedPins(statusesOverride);
       if (!pins.length && !confirm("No pins match the current map selection. Print the map without pins?")) { hidePrintProgress(); return; }
       closeAllMapPopups();
       const view = getMapView(currentMapId);
@@ -12497,6 +12561,7 @@ ${rows.map(pin => `
     document.title = `CNE Service App — v${APP_VERSION} — ${APP_VERSION_SUMMARY}`;
     const versionBadge = document.getElementById("appVersionBadge");
     if (versionBadge) { versionBadge.textContent = `Version ${APP_VERSION}`; versionBadge.title = APP_VERSION_SUMMARY + " — Tap to copy version details"; }
+    setTimeout(updateInformationalShareToolbar, 0);
 
     window.copyAppVersion = copyAppVersion;
     window.applyPermissionPreset = applyPermissionPreset;
