@@ -2608,7 +2608,7 @@
     }
 
 
-    /* Version U: clearer spacing for pin forms and safer destructive-action wording. */
+    /* Version CG: adds Informational pin status and informational-only department share links. */
     #pinModal .modal-body > label,
     #editPinModal .modal-body > label,
     #clearModal .modal-body > label {
@@ -2834,7 +2834,7 @@
 </head>
 <body>
 
-  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.18-CF</button>
+  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.18-CG</button>
   <div class="floating-ui" id="floatingUi">
     <button class="mobile-ui-toggle" id="mobileUiToggle" type="button" onclick="toggleMobileUi()">
       <span class="mobile-ui-toggle-main">
@@ -2857,6 +2857,7 @@
               <option value="cleared">Cleared</option>
               <option value="cancelled">Cancelled</option>
               <option value="reported">Reports</option>
+              <option value="informational">Informational</option>
               <option value="all">All</option>
             </select>
           </label>
@@ -3043,6 +3044,7 @@
             <option value="cleared">Cleared / completed</option>
             <option value="cancelled">Cancelled</option>
             <option value="reported">Report-only items</option>
+            <option value="informational">Informational pins</option>
           </select>
         </label>
       </div>
@@ -3285,10 +3287,10 @@
       <button class="panel-close-btn" onclick="toggleDepartmentSharePanel(false)">&times;</button>
     </div>
     <div class="panel-body">
-      <div class="panel-note">Create a secure link that opens one department without a sign-in code. The recipient is view-only by default. You may optionally allow clearing active pins; adding, editing, reassigning, and Admin remain blocked.</div>
+      <div class="panel-note">Create a secure link that opens one department without a sign-in code. The recipient is view-only by default. You may optionally allow clearing active pins; adding, editing, reassigning, and Admin remain blocked. Informational-only links display only pins marked Informational.</div>
       <div class="settings-row"><label>Link name / recipient (optional)<input id="departmentShareLabel" type="text" placeholder="Example: Allshelter supervisor"></label></div>
       <div class="settings-row"><label>Department<select id="departmentShareDepartment"></select></label></div>
-      <div class="settings-row"><label>Visible records<select id="departmentShareScope"><option value="active">Active pins only</option><option value="active_cleared">Active and cleared pins</option></select></label></div>
+      <div class="settings-row"><label>Visible records<select id="departmentShareScope"><option value="active">Active pins only</option><option value="active_cleared">Active and cleared pins</option><option value="informational">Informational pins only</option></select></label></div>
       <div class="settings-row full-row"><label class="settings-check"><input id="departmentShareAllowClear" type="checkbox"><span><b>Allow this link to clear active pins</b><br><small>The recipient can mark an active pin as cleared but still cannot add, edit, reassign, cancel, or access Admin.</small></span></label></div>
       <div class="admin-menu-section">
         <h3>Allowed map views</h3>
@@ -3695,6 +3697,7 @@
           <option value="cleared">Cleared / completed</option>
           <option value="cancelled">Cancelled</option>
           <option value="reported">Report only</option>
+          <option value="informational">Informational</option>
         </select>
       </label>
       <div id="editClearedFields">
@@ -3774,7 +3777,8 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.18-CF";
+    const APP_VERSION = "2026.07.18-CG";
+    const APP_VERSION_SUMMARY = "Informational pin status + department link informational-only visibility";
     const customReportSelectedPinIds = new Set();
     let customReportMapMode = false;
     let customReportMapIds = [];
@@ -4454,7 +4458,7 @@
           department: deptKey, canViewAll: false, allowedDepartments: [deptKey],
           permissions: normalizeUserPermissions({
             viewActive: true, viewCleared: includeCleared, addPins: false, editPins: false,
-            clearPins: !!activeDepartmentShare.allowClear, printReports: true, viewAdmin: false, ownPinsOutsidePrimary: false
+            clearPins: activeDepartmentShare.scope !== "informational" && !!activeDepartmentShare.allowClear, printReports: true, viewAdmin: false, ownPinsOutsidePrimary: false
           }),
           allowedMapIds: normalizeAllowedMapIds(activeDepartmentShare.allowedMapIds)
         };
@@ -5592,7 +5596,7 @@
         token: String(item && item.token || "").trim(),
         label: String(item && item.label || "").trim(),
         department: String(item && item.department || "").trim(),
-        scope: item && item.scope === "active_cleared" ? "active_cleared" : "active",
+        scope: item && item.scope === "active_cleared" ? "active_cleared" : (item && item.scope === "informational" ? "informational" : "active"),
         allowedMapIds: normalizeAllowedMapIds(item && (item.allowedMapIds || item.allowed_map_ids || item.maps)),
         message: String(item && item.message || "").trim(),
         allowClear: !!(item && (item.allowClear === true || item.allow_clear === true || item.canClear === true)),
@@ -5636,10 +5640,10 @@
       }
       activeDepartmentShare = link;
       selectedDepartmentView = resolveDepartmentKeyAgainstSettings(link.department);
-      if (statusFilter) statusFilter.value = "active";
+      if (statusFilter) statusFilter.value = link.scope === "informational" ? "informational" : "active";
       const banner = document.createElement("div");
       banner.className = "department-share-banner";
-      banner.textContent = (link.allowClear ? "View + clear access: " : "View only: ") + formatDepartmentLabel(selectedDepartmentView);
+      banner.textContent = (link.scope === "informational" ? "Informational view: " : (link.allowClear ? "View + clear access: " : "View only: ")) + formatDepartmentLabel(selectedDepartmentView);
       document.body.appendChild(banner);
       return true;
     }
@@ -5742,7 +5746,7 @@
         scope: String((document.getElementById("departmentShareScope") || {}).value || "active"),
         allowedMapIds,
         message: String((document.getElementById("departmentShareMessage") || {}).value || "").trim(),
-        allowClear: !!((document.getElementById("departmentShareAllowClear") || {}).checked),
+        allowClear: String((document.getElementById("departmentShareScope") || {}).value || "active") !== "informational" && !!((document.getElementById("departmentShareAllowClear") || {}).checked),
         expiresAt: String((document.getElementById("departmentShareExpires") || {}).value || ""),
         enabled: true
       };
@@ -5806,7 +5810,7 @@
         const dept = formatDepartmentLabel(resolveDepartmentKeyAgainstSettings(item.department));
         const status = !item.enabled ? "Disabled" : (isDepartmentShareExpired(item) ? "Expired" : "Active");
         const mapNames = normalizeAllowedMapIds(item.allowedMapIds).map(id => { const view = getMapView(id); return view && view.name ? view.name : id; });
-        return '<div class="share-link-card"><b>'+escapeHtml(item.label || dept)+'</b><br><span>'+escapeHtml(dept)+' · '+escapeHtml(item.scope === "active_cleared" ? "Active + cleared" : "Active only")+' · '+escapeHtml(item.allowClear ? "Can clear active pins" : "View only")+' · '+escapeHtml(status)+'</span>' +
+        return '<div class="share-link-card"><b>'+escapeHtml(item.label || dept)+'</b><br><span>'+escapeHtml(dept)+' · '+escapeHtml(item.scope === "active_cleared" ? "Active + cleared" : (item.scope === "informational" ? "Informational only" : "Active only"))+' · '+escapeHtml(item.allowClear ? "Can clear active pins" : "View only")+' · '+escapeHtml(status)+'</span>' +
           '<br><small>Maps: '+escapeHtml(mapNames.length ? mapNames.join(", ") : "All available maps")+'</small>' +
           (item.expiresAt ? '<br><small>Expires: '+escapeHtml(item.expiresAt)+'</small>' : '') +
           '<div class="share-link-card-actions"><button class="action-btn secondary" onclick="editDepartmentShareLink(\''+escapeAttr(item.token)+'\')">Edit</button><button class="action-btn secondary" onclick="copyDepartmentShareLink(\''+escapeAttr(item.token)+'\')">Copy</button><button class="action-btn" onclick="emailDepartmentShareLink(\''+escapeAttr(item.token)+'\')">Email</button><button class="action-btn" onclick="textDepartmentShareLink(\''+escapeAttr(item.token)+'\')">Text</button><button class="action-btn secondary" onclick="setDepartmentShareEnabled(\''+escapeAttr(item.token)+'\','+(!item.enabled)+')">'+(item.enabled?'Disable':'Enable')+'</button><button class="action-btn secondary" style="background:#b71c1c" onclick="deleteDepartmentShareLink(\''+escapeAttr(item.token)+'\')">Delete</button></div></div>';
@@ -8849,6 +8853,7 @@
       if (!pin) return "active";
       if (pin.status === "cancelled") return "cancelled";
       if (pin.status === "reported") return "reported";
+      if (pin.status === "informational") return "informational";
       if (pin.status === "cleared" || pin.is_cleared) return "cleared";
       return "active";
     }
@@ -8858,6 +8863,7 @@
       if (status === "cleared") return "Cleared";
       if (status === "cancelled") return "Cancelled";
       if (status === "reported") return "Report only";
+      if (status === "informational") return "Informational";
       return "Active";
     }
 
@@ -8866,6 +8872,7 @@
       if (status === "cleared") return "Cleared";
       if (status === "cancelled") return "Cancelled";
       if (status === "reported") return "Reported";
+      if (status === "informational") return "Informational";
       return "";
     }
 
@@ -9083,9 +9090,14 @@
 
     function applyFilters() {
       let statusValue = statusFilter.value;
-      if (activeDepartmentShare && activeDepartmentShare.scope !== "active_cleared") {
-        statusValue = "active";
-        if (statusFilter) statusFilter.value = "active";
+      if (activeDepartmentShare) {
+        if (activeDepartmentShare.scope === "informational") {
+          statusValue = "informational";
+          if (statusFilter) statusFilter.value = "informational";
+        } else if (activeDepartmentShare.scope !== "active_cleared") {
+          statusValue = "active";
+          if (statusFilter) statusFilter.value = "active";
+        }
       }
       const categoryValue = isValidDepartmentView(selectedDepartmentView) ? selectedDepartmentView : "all";
       const selectedDepartmentKeys = parseDepartmentViewKeys(categoryValue);
@@ -9140,7 +9152,7 @@
 
     function getCurrentlyFilteredPins() {
       let statusValue = statusFilter ? statusFilter.value : "active";
-      if (activeDepartmentShare && activeDepartmentShare.scope !== "active_cleared") statusValue = "active";
+      if (activeDepartmentShare) statusValue = activeDepartmentShare.scope === "informational" ? "informational" : (activeDepartmentShare.scope !== "active_cleared" ? "active" : statusValue);
       const categoryValue = isValidDepartmentView(selectedDepartmentView) ? selectedDepartmentView : "all";
       const selectedDepartmentKeys = parseDepartmentViewKeys(categoryValue);
       return allPins.filter(pin => {
@@ -12464,7 +12476,7 @@ ${rows.map(pin => `
     window.populateAllLogsFilters = populateAllLogsFilters;
     window.cancelPin = cancelPin;
     function copyAppVersion() {
-      const text = `CNE Service App Version ${APP_VERSION}`;
+      const text = `CNE Service App Version ${APP_VERSION} — ${APP_VERSION_SUMMARY}`;
       const badge = document.getElementById("appVersionBadge");
       const original = badge ? badge.textContent : "";
       const showCopied = function() {
@@ -12482,9 +12494,9 @@ ${rows.map(pin => `
     }
 
     initializeSitePlanOpacityControl();
-    document.title = `CNE Service App — v${APP_VERSION}`;
+    document.title = `CNE Service App — v${APP_VERSION} — ${APP_VERSION_SUMMARY}`;
     const versionBadge = document.getElementById("appVersionBadge");
-    if (versionBadge) versionBadge.textContent = `Version ${APP_VERSION}`;
+    if (versionBadge) { versionBadge.textContent = `Version ${APP_VERSION}`; versionBadge.title = APP_VERSION_SUMMARY + " — Tap to copy version details"; }
 
     window.copyAppVersion = copyAppVersion;
     window.applyPermissionPreset = applyPermissionPreset;
