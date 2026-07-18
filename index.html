@@ -776,6 +776,16 @@
       line-height: 1.45;
     }
 
+
+    .cancelled-manager-toolbar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
+    .cancelled-manager-list { display:grid; gap:9px; }
+    .cancelled-manager-item { display:grid; grid-template-columns:auto 1fr; gap:10px; align-items:flex-start; border:1px solid #d9e0e6; border-radius:9px; padding:10px; background:#fff; }
+    .cancelled-manager-item input[type="checkbox"] { width:18px; height:18px; margin-top:2px; accent-color:#b71c1c; }
+    .cancelled-manager-item-title { font-weight:800; color:#243447; margin-bottom:4px; }
+    .cancelled-manager-meta { font-size:12px; color:#55606e; line-height:1.4; }
+    .cancelled-manager-description { margin-top:6px; font-size:12px; white-space:pre-line; color:#334155; }
+    .cancelled-manager-count { font-weight:800; color:#8b1e1e; background:#fff4f4; border:1px solid #efb3b3; border-radius:999px; padding:5px 9px; display:inline-flex; align-items:center; }
+
     .legend {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -2916,6 +2926,7 @@
           <button class="action-btn secondary" onclick="toggleLogPanel(true)">View Clear Log</button>
           <button class="action-btn secondary" onclick="toggleAllLogsPanel(true)">View All Logs</button>
           <button class="action-btn secondary" onclick="toggleDeleteHistoryPanel(true)">Delete from History</button>
+          <button class="action-btn secondary" style="background:#8b1e1e;" onclick="toggleCancelledPinsManager(true)">Manage Cancelled Pins</button>
           <button class="action-btn secondary" onclick="exportClearLogHtml()">Export Clear Log</button>
           <button class="action-btn secondary" onclick="exportClearLogCsv()">Export Cleared Log CSV</button>
           <button class="action-btn secondary" onclick="exportAllPinDataCsv()">Export All Pin Data CSV</button>
@@ -3369,6 +3380,38 @@
     </div>
   </div>
 
+
+  <div class="panel" id="cancelledPinsManagerPanel">
+    <div class="panel-header">
+      <span>Cancelled Pins Manager</span>
+      <button class="panel-close-btn" onclick="toggleCancelledPinsManager(false)">&times;</button>
+    </div>
+    <div class="panel-body">
+      <div class="panel-note">Admin only. Review cancelled pins, select individual records or Select All Visible, then permanently remove them from Supabase. This cannot be undone.</div>
+      <div class="log-filter-grid">
+        <label>Department
+          <select id="cancelledManagerDepartmentFilter" onchange="renderCancelledPinsManager()"></select>
+        </label>
+        <label>Map / building
+          <select id="cancelledManagerMapFilter" onchange="renderCancelledPinsManager()"></select>
+        </label>
+        <label class="log-filter-search">Search
+          <input id="cancelledManagerSearchFilter" type="search" placeholder="Title, details, report ID..." oninput="renderCancelledPinsManager()">
+        </label>
+      </div>
+      <div class="cancelled-manager-toolbar">
+        <button class="action-btn secondary" onclick="selectAllVisibleCancelledPins()">Select All Visible</button>
+        <button class="action-btn secondary" onclick="clearCancelledPinSelection()">Clear Selection</button>
+        <button class="action-btn secondary" onclick="populateCancelledManagerFilters(); renderCancelledPinsManager()">Refresh</button>
+        <span class="cancelled-manager-count" id="cancelledManagerSelectionCount">0 selected</span>
+      </div>
+      <div id="cancelledPinsManagerBody" class="cancelled-manager-list"><div class="empty-log">No cancelled pins found.</div></div>
+      <div class="export-actions">
+        <button class="action-btn" style="background:#b71c1c;" onclick="deleteSelectedCancelledPins()">Permanently Delete Selected</button>
+      </div>
+    </div>
+  </div>
+
   <div class="panel" id="legendPanel">
     <div class="panel-header">
       <span>Legend</span>
@@ -3778,8 +3821,8 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.18-CK";
-    const APP_VERSION_SUMMARY = "Informational Pin Log renamed and enhanced with mini maps and attached images";
+    const APP_VERSION = "2026.07.18-CL";
+    const APP_VERSION_SUMMARY = "Admin Cancelled Pin Manager with individual selection, Select All Visible, and permanent bulk deletion";
     const customReportSelectedPinIds = new Set();
     let customReportMapMode = false;
     let customReportMapIds = [];
@@ -3892,6 +3935,14 @@
     const deleteHistoryPanel = document.getElementById("deleteHistoryPanel");
     const deleteHistorySelect = document.getElementById("deleteHistorySelect");
     const deleteHistoryDetails = document.getElementById("deleteHistoryDetails");
+
+    const cancelledPinsManagerPanel = document.getElementById("cancelledPinsManagerPanel");
+    const cancelledPinsManagerBody = document.getElementById("cancelledPinsManagerBody");
+    const cancelledManagerDepartmentFilter = document.getElementById("cancelledManagerDepartmentFilter");
+    const cancelledManagerMapFilter = document.getElementById("cancelledManagerMapFilter");
+    const cancelledManagerSearchFilter = document.getElementById("cancelledManagerSearchFilter");
+    const cancelledManagerSelectionCount = document.getElementById("cancelledManagerSelectionCount");
+    const selectedCancelledPinIds = new Set();
     const activeLogPanel = document.getElementById("activeLogPanel");
     const activeLogBody = document.getElementById("activeLogBody");
     const allLogsPanel = document.getElementById("allLogsPanel");
@@ -10233,6 +10284,139 @@
       applyFilters();
       if (deleteHistoryPanel && deleteHistoryPanel.classList.contains("open")) populateDeleteHistorySelect();
       setStatus("Pin deleted from history.");
+    }
+
+
+    function populateCancelledManagerFilters() {
+      if (cancelledManagerDepartmentFilter) {
+        const previous = cancelledManagerDepartmentFilter.value || "all";
+        cancelledManagerDepartmentFilter.innerHTML = '<option value="all">All departments</option>' + sortByNameAscending(departments).map(dept => `<option value="${escapeHtml(dept.key)}">${escapeHtml(dept.name)}</option>`).join('');
+        cancelledManagerDepartmentFilter.value = departments.some(dept => dept.key === previous) ? previous : "all";
+      }
+      if (cancelledManagerMapFilter) {
+        const previous = cancelledManagerMapFilter.value || "all";
+        cancelledManagerMapFilter.innerHTML = '<option value="all">All maps/buildings</option>' + sortMapViewsAscending(mapViews).map(view => `<option value="${escapeHtml(view.id)}">${escapeHtml(view.name)}</option>`).join('');
+        cancelledManagerMapFilter.value = mapViews.some(view => view.id === previous) ? previous : "all";
+      }
+    }
+
+    function getFilteredCancelledManagerPins() {
+      const dept = cancelledManagerDepartmentFilter ? cancelledManagerDepartmentFilter.value : "all";
+      const mapId = cancelledManagerMapFilter ? cancelledManagerMapFilter.value : "all";
+      const search = (cancelledManagerSearchFilter ? cancelledManagerSearchFilter.value : "").trim().toLowerCase();
+      return allPins
+        .filter(pin => getPinStatus(pin) === "cancelled")
+        .filter(pin => dept === "all" || (pin.category || "general") === dept)
+        .filter(pin => mapId === "all" || getPinMapId(pin) === mapId)
+        .filter(pin => {
+          if (!search) return true;
+          const text = [pin.id, pin.report_id, pin.title, pin.description, pin.category, pin.last_action_by, pin.created_by_user_name, pin.created_device_label].filter(Boolean).join(' ').toLowerCase();
+          return text.includes(search);
+        })
+        .slice()
+        .sort((a,b) => new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0));
+    }
+
+    function updateCancelledManagerSelectionCount() {
+      if (cancelledManagerSelectionCount) cancelledManagerSelectionCount.textContent = selectedCancelledPinIds.size + ' selected';
+    }
+
+    function setCancelledPinSelected(pinId, checked) {
+      const key = String(pinId);
+      if (checked) selectedCancelledPinIds.add(key); else selectedCancelledPinIds.delete(key);
+      updateCancelledManagerSelectionCount();
+    }
+
+    function renderCancelledPinsManager() {
+      if (!cancelledPinsManagerBody) return;
+      const rows = getFilteredCancelledManagerPins();
+      if (!rows.length) {
+        cancelledPinsManagerBody.innerHTML = '<div class="empty-log">No cancelled pins match the current filters.</div>';
+        updateCancelledManagerSelectionCount();
+        return;
+      }
+      cancelledPinsManagerBody.innerHTML = rows.map(pin => {
+        const id = String(pin.id);
+        const checked = selectedCancelledPinIds.has(id) ? ' checked' : '';
+        const mapName = getMapView(getPinMapId(pin)).name;
+        const cancelledWhen = pin.updated_at || pin.created_at;
+        return '<label class="cancelled-manager-item">' +
+          '<input type="checkbox"'+checked+' onchange="setCancelledPinSelected(\''+escapeAttr(id)+'\', this.checked)">' +
+          '<span><div class="cancelled-manager-item-title">'+escapeHtml(pin.title || 'Untitled pin')+'</div>' +
+          '<div class="cancelled-manager-meta"><b>Report ID:</b> '+escapeHtml(String(pin.report_id || pin.id || ''))+'<br><b>Department:</b> '+escapeHtml(formatDepartmentLabel(pin.category))+'<br><b>Map:</b> '+escapeHtml(mapName)+(cancelledWhen?'<br><b>Cancelled/updated:</b> '+escapeHtml(new Date(cancelledWhen).toLocaleString()):'')+(pin.last_action_by?'<br><b>Cancelled by:</b> '+escapeHtml(pin.last_action_by):'')+'</div>' +
+          (pin.description?'<div class="cancelled-manager-description">'+escapeHtml(pin.description)+'</div>':'') +
+          '</span></label>';
+      }).join('');
+      updateCancelledManagerSelectionCount();
+    }
+
+    function selectAllVisibleCancelledPins() {
+      getFilteredCancelledManagerPins().forEach(pin => selectedCancelledPinIds.add(String(pin.id)));
+      renderCancelledPinsManager();
+    }
+
+    function clearCancelledPinSelection() {
+      selectedCancelledPinIds.clear();
+      renderCancelledPinsManager();
+    }
+
+    async function toggleCancelledPinsManager(forceOpen) {
+      const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : !cancelledPinsManagerPanel.classList.contains('open');
+      if (shouldOpen) {
+        if (!adminPanel || !adminPanel.classList.contains('open')) {
+          if (!(await requireAdminAuth())) return;
+        }
+        populateCancelledManagerFilters();
+        renderCancelledPinsManager();
+        cancelledPinsManagerPanel.classList.add('open');
+      } else {
+        cancelledPinsManagerPanel.classList.remove('open');
+      }
+    }
+
+    async function deleteSelectedCancelledPins() {
+      const ids = Array.from(selectedCancelledPinIds).map(Number).filter(Number.isFinite);
+      if (!ids.length) {
+        alert('Select at least one cancelled pin to delete.');
+        return;
+      }
+      const targets = allPins.filter(pin => ids.includes(Number(pin.id)) && getPinStatus(pin) === 'cancelled');
+      if (!targets.length) {
+        alert('The selected cancelled pins are no longer available. Refresh the list and try again.');
+        return;
+      }
+      const confirmed = window.confirm('Permanently delete ' + targets.length + ' selected cancelled pin' + (targets.length === 1 ? '' : 's') + '? This removes the records and stored pin photos and cannot be undone.');
+      if (!confirmed) return;
+
+      setStatus('Deleting selected cancelled pins...');
+      const targetIds = targets.map(pin => Number(pin.id));
+
+      // Remove supporting history rows when the table is present. Errors are non-blocking because some projects use cascading foreign keys or different schemas.
+      try { await supabaseClient.from(PIN_CHANGE_LOG_TABLE).delete().in('pin_id', targetIds); } catch (e) { console.warn('Pin change-log cleanup skipped:', e); }
+
+      const { error } = await supabaseClient.from(SUPABASE_TABLE).delete().in('id', targetIds);
+      if (error) {
+        console.error(error);
+        alert('Could not delete the selected cancelled pins. Check the DELETE policy for the pins table in Supabase.');
+        setStatus('Cancelled pin deletion failed.');
+        return;
+      }
+
+      for (const pin of targets) {
+        const photosToRemove = [...getPinPhotos(pin), ...getClearPhotos(pin)];
+        const mapSnapshot = pin.map_snapshot_url || pin.mini_map_url || pin.map_image_url;
+        if (mapSnapshot) photosToRemove.push(mapSnapshot);
+        for (const photoUrl of Array.from(new Set(photosToRemove.filter(Boolean)))) {
+          try { await removeStoredPhoto(photoUrl); } catch (e) { console.warn('Stored file cleanup skipped:', photoUrl, e); }
+        }
+      }
+
+      allPins = allPins.filter(pin => !targetIds.includes(Number(pin.id)));
+      selectedCancelledPinIds.clear();
+      applyFilters();
+      renderCancelledPinsManager();
+      setStatus(targets.length + ' cancelled pin' + (targets.length === 1 ? '' : 's') + ' permanently deleted.');
+      alert(targets.length + ' cancelled pin' + (targets.length === 1 ? '' : 's') + ' deleted.');
     }
 
     async function toggleAdminPanel(forceOpen) {
