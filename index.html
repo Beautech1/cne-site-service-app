@@ -3831,8 +3831,8 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.18-CT";
-    const APP_VERSION_SUMMARY = "Added Outdoor Fence Plan (GPS) using cne-fence-plan.png with the exact Outdoor Site Map Leaflet alignment coordinates";
+    const APP_VERSION = "2026.07.18-CU";
+    const APP_VERSION_SUMMARY = "Fixed Outdoor Fence Plan GPS pin placement and relocation so pins remain assigned to the selected map";
     const customReportSelectedPinIds = new Set();
     const allLogsSelectedDeletePinIds = new Set();
     let customReportMapMode = false;
@@ -6723,7 +6723,7 @@
       updatePinLocation(pinId, {
         lat: latlng.lat,
         lng: latlng.lng,
-        map_id: "outdoor_site",
+        map_id: currentMapId,
         location_type: "gps",
         x_percent: null,
         y_percent: null
@@ -12814,7 +12814,7 @@ ${rows.map(pin => `
       pendingLatLng = {
         lat: e.latlng.lat,
         lng: e.latlng.lng,
-        map_id: "outdoor_site",
+        map_id: currentMapId,
         location_type: "gps",
         x_percent: null,
         y_percent: null
