@@ -2816,7 +2816,7 @@
 </head>
 <body>
 
-  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.17-BZ</button>
+  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.17-CC</button>
   <div class="floating-ui" id="floatingUi">
     <button class="mobile-ui-toggle" id="mobileUiToggle" type="button" onclick="toggleMobileUi()">
       <span class="mobile-ui-toggle-main">
@@ -3754,7 +3754,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.17-CA";
+    const APP_VERSION = "2026.07.17-CC";
     const customReportSelectedPinIds = new Set();
     let customReportMapMode = false;
     let customReportMapIds = [];
@@ -8663,28 +8663,58 @@
       setStatus('Custom report selection view closed.');
     }
 
-    function printCustomSelectedReport() {
+    async function printCustomSelectedReport() {
       if (!userHasPermission('printReports')) return denyPermission('This sign-in code does not have permission to print reports.');
       const rows = getCustomReportSelectedPins().slice().sort((a,b) => new Date(b.cleared_at || b.created_at || 0) - new Date(a.cleared_at || a.created_at || 0));
       if (!rows.length) { alert('Select at least one active or cleared pin first.'); return; }
+
       const title = getCustomReportName();
       const notes = getCustomReportNotes();
       const w = window.open('', '_blank');
       if (!w) { alert('Allow pop-ups to open the printable report.'); return; }
-      const cards = rows.map(pin => {
-        const status = getPinStatus(pin);
-        const photos = buildPhotoGalleryHtml(getPinPhotos(pin), 'Reported photos', 'report-photo', {collapsible:false});
-        const clearPhotos = status === 'cleared' ? buildPhotoGalleryHtml(getClearPhotos(pin), 'Clear photos', 'report-photo', {collapsible:false}) : '';
-        return '<section class="card"><h2>#'+escapeHtml(String(pin.id))+' — '+escapeHtml(pin.title || 'Untitled pin')+'</h2>'+
-          '<div><b>Status:</b> '+escapeHtml(formatPinStatus(pin))+'</div><div><b>Department:</b> '+escapeHtml(formatDepartmentLabel(pin.category))+'</div>'+
-          '<div><b>Map / building:</b> '+escapeHtml(getMapView(getPinMapId(pin)).name)+'</div>'+
-          (pin.description?'<div><b>Location/details:</b> '+escapeHtml(pin.description)+'</div>':'')+
-          (pin.created_at?'<div><b>Created:</b> '+escapeHtml(new Date(pin.created_at).toLocaleString())+'</div>':'')+
-          (pin.cleared_at?'<div><b>Cleared:</b> '+escapeHtml(new Date(pin.cleared_at).toLocaleString())+'</div>':'')+
-          (pin.clear_comment?'<div><b>Clear comments:</b> '+escapeHtml(pin.clear_comment)+'</div>':'')+photos+clearPhotos+'</section>';
-      }).join('');
-      w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>'+escapeHtml(title)+'</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#1f2933}h1{margin-bottom:4px}.notes{padding:12px;border:1px solid #b7c5d4;border-radius:8px;background:#f8fbfe;white-space:pre-wrap;margin:12px 0 18px}.card{border:1px solid #d9e2ec;border-radius:10px;padding:14px;margin-bottom:14px;page-break-inside:avoid;line-height:1.45}.card h2{margin:0 0 8px;font-size:17px}.photo-gallery{display:flex;gap:10px;flex-wrap:wrap}.photo-gallery img,.report-photo{max-width:420px;max-height:300px;object-fit:contain}.actions{position:sticky;top:0;background:#fff;padding:8px 0}.actions button{border:0;border-radius:6px;padding:9px 13px;background:#005a9c;color:#fff;font-weight:bold;margin-right:6px}@media print{.actions{display:none}body{margin:12mm}}</style></head><body><div class="actions"><button onclick="print()">Print</button><button onclick="close()">Close</button></div><h1>'+escapeHtml(title)+'</h1><div>'+rows.length+' selected pin'+(rows.length===1?'':'s')+' • Generated '+escapeHtml(new Date().toLocaleString())+'</div>'+(notes?'<div class="notes"><b>Report notes</b><br>'+escapeHtml(notes)+'</div>':'')+cards+'</body></html>');
+
+      w.document.open();
+      w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>'+escapeHtml(title)+'</title></head><body style="font-family:Arial,sans-serif;padding:24px"><h2>Preparing detailed report…</h2><p>Loading mini maps and attached images.</p></body></html>');
       w.document.close();
+
+      try {
+        // Always regenerate each selected pin's mini map before building the report.
+        // This ensures relocated pins, updated direction arrows, marker changes, and
+        // revised map coordinates are reflected instead of reusing an older snapshot.
+        setStatus('Refreshing ' + rows.length + ' mini map' + (rows.length === 1 ? '' : 's') + ' for the selected report...');
+        await Promise.all(rows.map(async pin => {
+          const previousSnapshotUrl = pin.map_snapshot_url || '';
+          const refreshedSnapshotUrl = await saveMapSnapshotForPin(pin);
+          if (!refreshedSnapshotUrl && previousSnapshotUrl) pin.map_snapshot_url = previousSnapshotUrl;
+        }));
+        setStatus('Mini maps refreshed. Preparing the printable report...');
+
+        const reportCards = rows.map((pin, index) =>
+          '<section class="selected-report-item">' +
+            buildMiniReportHtml(pin, { print: true, accessHistoryHtml: '', changeHistoryHtml: '' }) +
+          '</section>'
+        ).join('');
+
+        const html = '<!doctype html><html><head><meta charset="utf-8"><title>'+escapeHtml(title)+'</title><style>'+
+          'body{font-family:Arial,sans-serif;margin:24px;color:#1f2933;font-size:13px}'+
+          'h1{margin:0 0 5px;font-size:24px}.report-meta{color:#55606e;margin-bottom:14px}.report-notes{padding:12px;border:1px solid #b7c5d4;border-radius:8px;background:#f8fbfe;white-space:pre-wrap;margin:12px 0 18px;line-height:1.45}'+
+          '.selected-report-item{margin:0 0 18px;page-break-inside:avoid;break-inside:avoid}.selected-report-item+.selected-report-item{border-top:2px solid #9fb5c8;padding-top:18px;page-break-before:auto}'+
+          '.mini-report-card{border:1px solid #d9e0e6;border-radius:10px;padding:14px;line-height:1.45;font-size:13px;background:#fff}.mini-report-card h2{font-size:17px;line-height:1.25;margin-top:0}.mini-report-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;font-size:13px}.mini-report-detail{margin-top:7px;white-space:pre-line;line-height:1.32}.compact-pin-description{margin-top:5px;white-space:pre-line;line-height:1.28}'+
+          '.report-map-photo,.log-photo,.print-report-photo{display:block;margin:8px 0;max-width:460px;max-height:330px;object-fit:contain;border:1px solid #d9e0e6;border-radius:8px;background:#f8fafc}.photo-gallery{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start}.photo-gallery img{width:460px;max-width:100%;height:auto;max-height:330px;object-fit:contain;border:1px solid #d9e0e6;border-radius:8px;background:#f8fafc}.photo-section-title{display:block;font-weight:bold;margin-top:10px;font-size:13px}'+
+          '.report-access-history,.pin-change-history{display:none!important}.pin-change-admin-actions,.pin-change-delete-btn{display:none!important}.preview-actions{position:sticky;top:0;display:flex;gap:8px;padding:8px 0;background:#fff;z-index:10}.preview-actions button{border:0;border-radius:6px;padding:9px 13px;background:#005a9c;color:#fff;font-weight:700;cursor:pointer}'+
+          '@media(max-width:640px){.mini-report-grid{grid-template-columns:1fr}}@media print{.preview-actions,button{display:none!important}body{margin:10mm}.selected-report-item{page-break-inside:avoid;break-inside:avoid}}'+
+          '</style></head><body><div class="preview-actions"><button onclick="window.print()">Print / Save PDF</button><button onclick="window.close()">Close Preview</button></div><h1>'+escapeHtml(title)+'</h1><div class="report-meta">'+rows.length+' selected pin'+(rows.length===1?'':'s')+' • Active and cleared pins • Generated '+escapeHtml(new Date().toLocaleString())+'</div>'+(notes?'<div class="report-notes"><b>Report notes</b><br>'+escapeHtml(notes)+'</div>':'')+reportCards+'</body></html>';
+
+        w.document.open();
+        w.document.write(html);
+        w.document.close();
+        setTimeout(() => { w.focus(); }, 250);
+      } catch (error) {
+        console.error('Could not build selected pin report', error);
+        w.document.open();
+        w.document.write('<!doctype html><html><body style="font-family:Arial,sans-serif;padding:24px"><h2>Could not prepare the report</h2><p>'+escapeHtml(error && error.message ? error.message : String(error))+'</p><button onclick="window.close()">Close</button></body></html>');
+        w.document.close();
+      }
     }
 
     function renderLog(logPins) {
