@@ -3821,8 +3821,8 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.18-CN";
-    const APP_VERSION_SUMMARY = "Smaller precision-centred print markers for more accurate pin locations on site-plan, floor-plan, and GPS base-map prints";
+    const APP_VERSION = "2026.07.18-CO";
+    const APP_VERSION_SUMMARY = "Shared report links hide all service-change-history delete controls, even when opened on an admin device";
     const customReportSelectedPinIds = new Set();
     let customReportMapMode = false;
     let customReportMapIds = [];
@@ -11480,7 +11480,7 @@ function resetPinForm() {
     function buildPinChangeHistoryHtml(rows, title = "Service order change history") {
       const safeRows = Array.isArray(rows) ? rows : [];
       const pinId = safeRows.length ? safeRows[0].pin_id : "";
-      const canRequestAdminActions = userHasPermission("viewAdmin");
+      const canRequestAdminActions = userHasPermission("viewAdmin") && !isReportViewOnlyMode();
       const clearAllButton = canRequestAdminActions && pinId
         ? '<div class="pin-change-admin-actions"><button type="button" class="pin-change-delete-btn clear-all" onclick="deleteAllPinChangeHistory(\'' + escapeHtml(String(pinId)) + '\')">Clear all history</button></div>'
         : "";
