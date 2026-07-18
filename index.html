@@ -3778,8 +3778,8 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.18-CH";
-    const APP_VERSION_SUMMARY = "Informational department links: Directional Log + selectable pin statuses for map printing";
+    const APP_VERSION = "2026.07.18-CI";
+    const APP_VERSION_SUMMARY = "Directional Log fixed: reliably lists visible informational pins and identifies arrow direction";
     const customReportSelectedPinIds = new Set();
     let customReportMapMode = false;
     let customReportMapIds = [];
@@ -9489,20 +9489,39 @@
     }
 
     function getDirectionalPinsForCurrentAccess() {
-      return allPins.filter(pin => Number.isFinite(Number(pin.direction_angle)))
-        .filter(pin => userCanViewPinForCurrentAccess(pin));
+      const informationalLink = !!(activeDepartmentShare && activeDepartmentShare.scope === "informational");
+      return allPins.filter(pin => {
+        if (!userCanViewPinForCurrentAccess(pin)) return false;
+        const status = getNormalizedPinStatus(pin);
+        if (informationalLink) return status === "informational";
+        const angle = pin && pin.direction_angle;
+        return angle !== null && angle !== undefined && angle !== "" && Number.isFinite(Number(angle));
+      });
     }
 
     function openDirectionalLog() {
-      const pins = getDirectionalPinsForCurrentAccess().sort((a,b) => String(a.map_id||'').localeCompare(String(b.map_id||'')) || new Date(b.created_at||0)-new Date(a.created_at||0));
-      const win = window.open('', '_blank');
-      if (!win) { alert('Please allow pop-ups to open the Directional Log.'); return; }
-      const rows = pins.map(pin => {
-        const mapName = (getMapView(getPinMapId(pin)) || {}).name || getPinMapId(pin) || 'Map';
-        return '<tr><td>'+escapeHtml(String(pin.id||''))+'</td><td>'+escapeHtml(pin.title||'Untitled')+'</td><td>'+escapeHtml(formatDepartmentLabel(pin.category||'general'))+'</td><td>'+escapeHtml(mapName)+'</td><td>'+escapeHtml(getPinStatusLabel(pin))+'</td><td>'+Math.round(Number(pin.direction_angle)||0)+'°</td><td>'+escapeHtml(pin.description||'')+'</td></tr>';
-      }).join('');
-      win.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Directional Log</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#1f2933}h1{margin:0 0 6px;color:#003f70}.meta{margin-bottom:18px;color:#52606d}table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid #cbd5df;padding:7px;text-align:left;vertical-align:top}th{background:#e7f3ff;color:#003f70}@media print{button{display:none}body{margin:10mm}}</style></head><body><h1>Directional Pin Log</h1><div class="meta">'+escapeHtml(formatDepartmentLabel(selectedDepartmentView))+' • '+pins.length+' directional pin'+(pins.length===1?'':'s')+' • Version '+escapeHtml(APP_VERSION)+'</div><button onclick="window.print()">Print Directional Log</button><br><br><table><thead><tr><th>Report ID</th><th>Title</th><th>Department</th><th>Map</th><th>Status</th><th>Direction</th><th>Details</th></tr></thead><tbody>'+(rows||'<tr><td colspan="7">No directional pins are available for this access link.</td></tr>')+'</tbody></table></body></html>');
-      win.document.close();
+      try {
+        const pins = getDirectionalPinsForCurrentAccess().sort((a,b) => String(getPinMapId(a)||'').localeCompare(String(getPinMapId(b)||'')) || new Date(b.created_at||0)-new Date(a.created_at||0));
+        const rows = pins.map(pin => {
+          const mapId = getPinMapId(pin);
+          const mapName = (getMapView(mapId) || {}).name || mapId || 'Map';
+          const rawAngle = pin && pin.direction_angle;
+          const hasArrow = rawAngle !== null && rawAngle !== undefined && rawAngle !== "" && Number.isFinite(Number(rawAngle));
+          const directionLabel = hasArrow ? Math.round(Number(rawAngle)) + '°' : 'No arrow';
+          return '<tr><td>'+escapeHtml(String(pin.id||''))+'</td><td>'+escapeHtml(pin.title||'Untitled')+'</td><td>'+escapeHtml(formatDepartmentLabel(pin.category||'general'))+'</td><td>'+escapeHtml(mapName)+'</td><td>'+escapeHtml(getPinStatusLabel(pin))+'</td><td>'+escapeHtml(directionLabel)+'</td><td>'+escapeHtml(pin.description||'')+'</td></tr>';
+        }).join('');
+        const win = window.open('', '_blank');
+        if (!win) { alert('Please allow pop-ups to open the Directional Log.'); return; }
+        const accessLabel = activeDepartmentShare && activeDepartmentShare.label ? activeDepartmentShare.label : formatDepartmentLabel(selectedDepartmentView);
+        const html = '<!doctype html><html><head><meta charset="utf-8"><title>Directional Log</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#1f2933}h1{margin:0 0 6px;color:#003f70}.meta{margin-bottom:18px;color:#52606d}.actions{margin:0 0 16px}button{border:0;border-radius:6px;padding:8px 12px;background:#005a9c;color:#fff;font-weight:700;cursor:pointer}table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid #cbd5df;padding:7px;text-align:left;vertical-align:top}th{background:#e7f3ff;color:#003f70}.empty{padding:18px;text-align:center;color:#52606d}@media print{.actions{display:none}body{margin:10mm}}</style></head><body><h1>Directional Pin Log</h1><div class="meta">'+escapeHtml(accessLabel||'Department Access')+' • '+pins.length+' visible pin'+(pins.length===1?'':'s')+' • Version '+escapeHtml(APP_VERSION)+'</div><div class="actions"><button onclick="window.print()">Print Directional Log</button></div><table><thead><tr><th>Report ID</th><th>Title</th><th>Department</th><th>Map</th><th>Status</th><th>Direction</th><th>Details</th></tr></thead><tbody>'+(rows||'<tr><td class="empty" colspan="7">No informational pins are currently available for this access link.</td></tr>')+'</tbody></table></body></html>';
+        win.document.open();
+        win.document.write(html);
+        win.document.close();
+        try { win.focus(); } catch (_) {}
+      } catch (error) {
+        console.error('Directional Log error:', error);
+        alert('Could not open the Directional Log. Please refresh the app and try again.');
+      }
     }
 
     async function printCurrentMapWithSelectedPins(statusesOverride) {
