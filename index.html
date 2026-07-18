@@ -734,6 +734,19 @@
       .log-filter-search { grid-column: auto; }
     }
 
+    .custom-report-builder { border:1px solid #9bc7ea; border-radius:10px; padding:10px; margin:0 0 10px; background:#eef7ff; display:grid; gap:8px; }
+    .custom-report-builder-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+    .custom-report-builder label { display:grid; gap:4px; font-size:11px; font-weight:700; color:#334155; }
+    .custom-report-builder input, .custom-report-builder textarea { width:100%; box-sizing:border-box; border:1px solid #b7c5d4; border-radius:6px; padding:7px 8px; font:inherit; background:#fff; }
+    .custom-report-builder textarea { min-height:62px; resize:vertical; }
+    .custom-report-count { font-weight:800; color:#003f70; }
+    .custom-report-select { display:flex; align-items:flex-start; gap:7px; margin-bottom:7px; padding:7px; border:1px solid #d7e0ea; border-radius:7px; background:#fff; }
+    .custom-report-select input { width:17px; height:17px; margin:1px 0 0; accent-color:#005a9c; }
+    .custom-report-map-bar { position:fixed; left:50%; bottom:16px; transform:translateX(-50%); z-index:1450; display:none; align-items:center; gap:7px; flex-wrap:wrap; justify-content:center; width:min(760px,calc(100vw - 24px)); padding:8px 10px; border-radius:10px; background:rgba(0,63,112,.96); color:#fff; box-shadow:0 4px 18px rgba(0,0,0,.3); font-size:12px; }
+    .custom-report-map-bar.open { display:flex; }
+    .custom-report-map-bar button { border:0; border-radius:6px; padding:7px 9px; cursor:pointer; font-weight:800; }
+    @media (max-width:520px){ .custom-report-builder-grid{grid-template-columns:1fr;} .custom-report-map-bar{bottom:8px;} }
+
     .log-summary {
       border: 1px solid #d9e0e6;
       border-radius: 8px;
@@ -2933,8 +2946,8 @@
         </label>
         <label>Cleared date order
           <select id="clearedLogSortFilter" onchange="renderClearedLog()">
+            <option value="desc" selected>Date descending (newest first)</option>
             <option value="asc">Date ascending (oldest first)</option>
-            <option value="desc">Date descending (newest first)</option>
           </select>
         </label>
         <label class="log-filter-search">Search
@@ -2967,8 +2980,8 @@
         </label>
         <label>Created date order
           <select id="activeLogSortFilter" onchange="renderActiveLog()">
+            <option value="desc" selected>Date descending (newest first)</option>
             <option value="asc">Date ascending (oldest first)</option>
-            <option value="desc">Date descending (newest first)</option>
           </select>
         </label>
         <label class="log-filter-search">Search
@@ -2988,6 +3001,20 @@
     </div>
     <div class="panel-body">
       <div class="panel-note">Use the filters to review active, cleared, cancelled, and report records across maps and departments.</div>
+      <div class="custom-report-builder">
+        <div><b>Custom Selected Pin Report</b> — select any active or cleared pins below.</div>
+        <div class="custom-report-builder-grid">
+          <label>Report name<input id="customReportName" type="text" placeholder="Example: Food Building Follow-up Report"></label>
+          <label>Report notes<textarea id="customReportNotes" placeholder="Purpose, observations, follow-up notes..."></textarea></label>
+        </div>
+        <div class="custom-report-count" id="customReportCount">0 pins selected</div>
+        <div class="log-panel-actions" style="margin:0;">
+          <button class="action-btn secondary" onclick="selectAllVisibleReportPins()">Select All Visible</button>
+          <button class="action-btn secondary" onclick="clearCustomReportSelection()">Clear Selection</button>
+          <button class="action-btn" onclick="showCustomReportPinsOnMap()">Show Selected on Map</button>
+          <button class="action-btn" onclick="printCustomSelectedReport()">Printable Report</button>
+        </div>
+      </div>
       <div class="settings-row">
         <label>Status
           <select id="allLogsStatusFilter" onchange="renderAllLogs()">
@@ -3012,8 +3039,8 @@
       <div class="settings-row">
         <label>Date order
           <select id="allLogsSortFilter" onchange="renderAllLogs()">
+            <option value="desc" selected>Date descending (newest first)</option>
             <option value="asc">Date ascending (oldest first)</option>
-            <option value="desc">Date descending (newest first)</option>
           </select>
         </label>
       </div>
@@ -3025,6 +3052,14 @@
         <div class="empty-log">No pins found.</div>
       </div>
     </div>
+  </div>
+
+  <div class="custom-report-map-bar" id="customReportMapBar">
+    <span id="customReportMapBarText">Custom report selection</span>
+    <button onclick="customReportPreviousMap()">Previous Map</button>
+    <button onclick="customReportNextMap()">Next Map</button>
+    <button onclick="printCurrentMapWithSelectedPins()">Print This Map</button>
+    <button onclick="exitCustomReportMapMode()">Exit Selection View</button>
   </div>
 
   <div class="panel" id="signInLogPanel">
@@ -3719,7 +3754,11 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.17-BZ";
+    const APP_VERSION = "2026.07.17-CA";
+    const customReportSelectedPinIds = new Set();
+    let customReportMapMode = false;
+    let customReportMapIds = [];
+    let customReportMapIndex = 0;
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const DEPARTMENT_SHARE_CONFIG_KEY = "department_share_links";
@@ -8482,7 +8521,7 @@
       const dept = document.getElementById(prefix + 'DepartmentFilter')?.value || 'all';
       const mapId = document.getElementById(prefix + 'MapFilter')?.value || 'all';
       const term = (document.getElementById(prefix + 'SearchFilter')?.value || '').trim().toLowerCase();
-      const sortOrder = document.getElementById(prefix + 'SortFilter')?.value || 'asc';
+      const sortOrder = document.getElementById(prefix + 'SortFilter')?.value || 'desc';
       const selectedDepartmentKeys = parseDepartmentViewKeys();
       const filtered = rows
         // Always keep the Active and Cleared logs inside the departments selected
@@ -8518,6 +8557,7 @@
         : (isCancelled ? 'Cancelled<br>' : '');
       return (
         '<div class="log-item">' +
+          '<label class="custom-report-select"><input type="checkbox" class="custom-report-pin-checkbox" value="' + Number(pin.id || 0) + '" ' + (customReportSelectedPinIds.has(String(pin.id)) ? 'checked' : '') + ' onchange="toggleCustomReportPinSelection(' + Number(pin.id || 0) + ', this.checked)"><span>Select for custom map/report</span></label>' +
           '<div class="log-title">' + escapeHtml(pin.title || 'Untitled pin') + '</div>' +
           '<div class="log-compact-meta">' +
             '<span><b>Status:</b> ' + escapeHtml(formatPinStatus(pin)) + '</span>' +
@@ -8546,6 +8586,105 @@
           '</div>' +
         '</div>'
       );
+    }
+
+    function updateCustomReportCount() {
+      const el = document.getElementById("customReportCount");
+      if (el) el.textContent = customReportSelectedPinIds.size + " pin" + (customReportSelectedPinIds.size === 1 ? "" : "s") + " selected";
+    }
+
+    function toggleCustomReportPinSelection(pinId, checked) {
+      const key = String(pinId);
+      if (checked) customReportSelectedPinIds.add(key); else customReportSelectedPinIds.delete(key);
+      updateCustomReportCount();
+    }
+
+    function getCustomReportSelectedPins() {
+      return allPins.filter(pin => customReportSelectedPinIds.has(String(pin.id)) && ["active", "cleared"].includes(getPinStatus(pin)));
+    }
+
+    function selectAllVisibleReportPins() {
+      document.querySelectorAll('#allLogsBody .custom-report-pin-checkbox').forEach(cb => { cb.checked = true; customReportSelectedPinIds.add(String(cb.value)); });
+      updateCustomReportCount();
+    }
+
+    function clearCustomReportSelection() {
+      customReportSelectedPinIds.clear();
+      document.querySelectorAll('.custom-report-pin-checkbox').forEach(cb => cb.checked = false);
+      updateCustomReportCount();
+      if (customReportMapMode) exitCustomReportMapMode();
+    }
+
+    function getCustomReportName() {
+      return (document.getElementById('customReportName')?.value || '').trim() || 'Custom Selected Pin Report';
+    }
+
+    function getCustomReportNotes() {
+      return (document.getElementById('customReportNotes')?.value || '').trim();
+    }
+
+    function refreshCustomReportMapBar() {
+      const bar = document.getElementById('customReportMapBar');
+      const text = document.getElementById('customReportMapBarText');
+      if (!bar) return;
+      bar.classList.toggle('open', customReportMapMode);
+      if (text && customReportMapMode) text.textContent = getCustomReportName() + ' • ' + getCustomReportSelectedPins().length + ' selected • ' + getMapView(currentMapId).name;
+    }
+
+    function showCustomReportPinsOnMap() {
+      const pins = getCustomReportSelectedPins();
+      if (!pins.length) { alert('Select at least one active or cleared pin first.'); return; }
+      customReportMapIds = Array.from(new Set(pins.map(pin => getPinMapId(pin))));
+      customReportMapIndex = 0;
+      customReportMapMode = true;
+      if (allLogsPanel) allLogsPanel.classList.remove('open');
+      switchMapView(customReportMapIds[0]);
+      applyFilters();
+      refreshCustomReportMapBar();
+      setStatus('Showing only the selected active and cleared pins for this custom report.');
+    }
+
+    function customReportGoToMap(index) {
+      if (!customReportMapMode || !customReportMapIds.length) return;
+      customReportMapIndex = (index + customReportMapIds.length) % customReportMapIds.length;
+      switchMapView(customReportMapIds[customReportMapIndex]);
+      applyFilters();
+      refreshCustomReportMapBar();
+    }
+    function customReportPreviousMap(){ customReportGoToMap(customReportMapIndex - 1); }
+    function customReportNextMap(){ customReportGoToMap(customReportMapIndex + 1); }
+
+    function exitCustomReportMapMode() {
+      customReportMapMode = false;
+      customReportMapIds = [];
+      customReportMapIndex = 0;
+      refreshCustomReportMapBar();
+      applyFilters();
+      setStatus('Custom report selection view closed.');
+    }
+
+    function printCustomSelectedReport() {
+      if (!userHasPermission('printReports')) return denyPermission('This sign-in code does not have permission to print reports.');
+      const rows = getCustomReportSelectedPins().slice().sort((a,b) => new Date(b.cleared_at || b.created_at || 0) - new Date(a.cleared_at || a.created_at || 0));
+      if (!rows.length) { alert('Select at least one active or cleared pin first.'); return; }
+      const title = getCustomReportName();
+      const notes = getCustomReportNotes();
+      const w = window.open('', '_blank');
+      if (!w) { alert('Allow pop-ups to open the printable report.'); return; }
+      const cards = rows.map(pin => {
+        const status = getPinStatus(pin);
+        const photos = buildPhotoGalleryHtml(getPinPhotos(pin), 'Reported photos', 'report-photo', {collapsible:false});
+        const clearPhotos = status === 'cleared' ? buildPhotoGalleryHtml(getClearPhotos(pin), 'Clear photos', 'report-photo', {collapsible:false}) : '';
+        return '<section class="card"><h2>#'+escapeHtml(String(pin.id))+' — '+escapeHtml(pin.title || 'Untitled pin')+'</h2>'+
+          '<div><b>Status:</b> '+escapeHtml(formatPinStatus(pin))+'</div><div><b>Department:</b> '+escapeHtml(formatDepartmentLabel(pin.category))+'</div>'+
+          '<div><b>Map / building:</b> '+escapeHtml(getMapView(getPinMapId(pin)).name)+'</div>'+
+          (pin.description?'<div><b>Location/details:</b> '+escapeHtml(pin.description)+'</div>':'')+
+          (pin.created_at?'<div><b>Created:</b> '+escapeHtml(new Date(pin.created_at).toLocaleString())+'</div>':'')+
+          (pin.cleared_at?'<div><b>Cleared:</b> '+escapeHtml(new Date(pin.cleared_at).toLocaleString())+'</div>':'')+
+          (pin.clear_comment?'<div><b>Clear comments:</b> '+escapeHtml(pin.clear_comment)+'</div>':'')+photos+clearPhotos+'</section>';
+      }).join('');
+      w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>'+escapeHtml(title)+'</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#1f2933}h1{margin-bottom:4px}.notes{padding:12px;border:1px solid #b7c5d4;border-radius:8px;background:#f8fbfe;white-space:pre-wrap;margin:12px 0 18px}.card{border:1px solid #d9e2ec;border-radius:10px;padding:14px;margin-bottom:14px;page-break-inside:avoid;line-height:1.45}.card h2{margin:0 0 8px;font-size:17px}.photo-gallery{display:flex;gap:10px;flex-wrap:wrap}.photo-gallery img,.report-photo{max-width:420px;max-height:300px;object-fit:contain}.actions{position:sticky;top:0;background:#fff;padding:8px 0}.actions button{border:0;border-radius:6px;padding:9px 13px;background:#005a9c;color:#fff;font-weight:bold;margin-right:6px}@media print{.actions{display:none}body{margin:12mm}}</style></head><body><div class="actions"><button onclick="print()">Print</button><button onclick="close()">Close</button></div><h1>'+escapeHtml(title)+'</h1><div>'+rows.length+' selected pin'+(rows.length===1?'':'s')+' • Generated '+escapeHtml(new Date().toLocaleString())+'</div>'+(notes?'<div class="notes"><b>Report notes</b><br>'+escapeHtml(notes)+'</div>':'')+cards+'</body></html>');
+      w.document.close();
     }
 
     function renderLog(logPins) {
@@ -8877,6 +9016,15 @@
       }
       clearPendingLocationIndicators();
 
+      if (customReportMapMode) {
+        const filtered = getCustomReportSelectedPins().filter(pin => pinBelongsToMap(pin, currentMapId));
+        updateActiveCountCheck(filtered, "all", categoryValue);
+        if (isFloorPlanMap()) renderFloorPlanPins(filtered); else filtered.forEach(pin => addUserPin(pin, false));
+        refreshCustomReportMapBar();
+        setStatus(`Showing ${filtered.length} selected custom-report pin${filtered.length === 1 ? "" : "s"} on ${getMapView(currentMapId).name}.`);
+        return;
+      }
+
       const filtered = allPins.filter(pin => {
         const pinStatus = getPinStatus(pin);
         const statusMatch =
@@ -8922,6 +9070,7 @@
     }
 
     function getPrintableSelectedPins() {
+      if (customReportMapMode) return getCustomReportSelectedPins().filter(pin => pinBelongsToMap(pin, currentMapId));
       const categoryValue = isValidDepartmentView(selectedDepartmentView) ? selectedDepartmentView : "all";
       const selectedDepartmentKeys = parseDepartmentViewKeys(categoryValue);
       const currentView = getMapView(currentMapId);
@@ -9202,10 +9351,10 @@
       if (!userHasPermission("printReports")) return denyPermission("This sign-in code does not have permission to print reports.");
       showPrintProgress("Preparing print preview…");
       const pins = getPrintableSelectedPins();
-      if (!pins.length && !confirm("No active pins match the current visible map and department selection. Print the map without pins?")) { hidePrintProgress(); return; }
+      if (!pins.length && !confirm("No pins match the current map selection. Print the map without pins?")) { hidePrintProgress(); return; }
       closeAllMapPopups();
       const view = getMapView(currentMapId);
-      const title = `${view.name} — Selected Pins`;
+      const title = customReportMapMode ? `${getCustomReportName()} — ${view.name}` : `${view.name} — Selected Pins`;
       if (view.type === "floorplan") {
         showPrintProgress("Preparing floor plan print preview…");
         const floorplanImageHtml = await buildPrintableFloorPlanSvg(view, pins);
@@ -9646,7 +9795,7 @@
       const statusValue = allLogsStatusFilter ? allLogsStatusFilter.value : "all";
       const deptValue = allLogsDepartmentFilter ? allLogsDepartmentFilter.value : "all";
       const mapValue = allLogsMapFilter ? allLogsMapFilter.value : "all";
-      const sortOrder = allLogsSortFilter ? allLogsSortFilter.value : "asc";
+      const sortOrder = allLogsSortFilter ? allLogsSortFilter.value : "desc";
       return allPins
         .filter(pin => statusValue === "all" || getPinStatus(pin) === statusValue)
         .filter(pin => deptValue === "all" || (pin.category || "general") === deptValue)
@@ -9678,6 +9827,7 @@
       }
 
       allLogsBody.innerHTML = summaryHtml + rows.map(pin => buildLogItemHtml(pin)).join('');
+      updateCustomReportCount();
       loadReportAccessHistoriesForPins(rows);
     }
 
