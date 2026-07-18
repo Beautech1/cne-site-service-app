@@ -2906,13 +2906,6 @@
       <div class="admin-menu-section">
         <h3>Settings</h3>
         <div class="panel-note" style="padding-top:0;">Use the access buttons below to see/edit sign-in codes, current device details, and signed-in devices instead of using hidden prompt boxes.</div>
-        <div class="availability-card" style="margin-bottom:10px;">
-          <label class="settings-check">
-            <input id="adminShareReportFileOnNewPin" type="checkbox" onchange="saveReportNotificationSettingsFromAdmin()">
-            <span><b>Share report file when a new pin is saved</b><br><small>When enabled, the Add Pin notification opens the phone’s native share menu with the standalone HTML report attached instead of opening a text draft containing the app/web report link. Select Messages from the share menu to text the file.</small></span>
-          </label>
-          <div id="reportNotificationSettingStatus" class="panel-note" style="padding-bottom:0;">Current setting: send the normal web-link text message.</div>
-        </div>
         <div class="admin-menu-grid">
           <button class="action-btn secondary" onclick="toggleDepartmentPanel(true)">Manage Departments</button>
           <button class="action-btn secondary" onclick="toggleProfilesPanel(true)">Manage Profiles</button>
@@ -3761,9 +3754,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const REPORT_SHARE_BUCKET = "shared-reports";
-    const REPORT_SHARE_LINK_EXPIRY_SECONDS = 60 * 60 * 24 * 30;
-    const APP_VERSION = "2026.07.18-CH";
+    const APP_VERSION = "2026.07.18-CD";
     const customReportSelectedPinIds = new Set();
     let customReportMapMode = false;
     let customReportMapIds = [];
@@ -3771,8 +3762,6 @@
     const SETTINGS_TABLE = "app_settings";
     const REPORT_ACCESS_TABLE = "pin_report_access";
     const DEPARTMENT_SHARE_CONFIG_KEY = "department_share_links";
-    const REPORT_NOTIFICATION_CONFIG_KEY = "report_notification_settings";
-    let reportNotificationSettings = { shareFileOnNewPin: false };
     let departmentShareLinks = [];
     let activeDepartmentShare = null;
     const SIGN_IN_ACCESS_TABLE = "app_sign_in_access";
@@ -7383,36 +7372,13 @@
       }
     }
 
-    function normalizeReportNotificationSettings(value) {
-      const source = value && typeof value === "object" ? value : {};
-      return { shareFileOnNewPin: source.shareFileOnNewPin === true || source.share_file_on_new_pin === true };
-    }
-
-    function syncReportNotificationAdminUi() {
-      const checkbox = document.getElementById("adminShareReportFileOnNewPin");
-      const status = document.getElementById("reportNotificationSettingStatus");
-      if (checkbox) checkbox.checked = !!reportNotificationSettings.shareFileOnNewPin;
-      if (status) status.textContent = reportNotificationSettings.shareFileOnNewPin
-        ? "Current setting: share the standalone report file after saving a new pin."
-        : "Current setting: send the normal web-link text message.";
-    }
-
-    async function saveReportNotificationSettingsFromAdmin() {
-      if (!(await requireAdminAuth())) { syncReportNotificationAdminUi(); return; }
-      const checkbox = document.getElementById("adminShareReportFileOnNewPin");
-      reportNotificationSettings = { shareFileOnNewPin: !!(checkbox && checkbox.checked) };
-      const saved = await saveSettingToSupabase(REPORT_NOTIFICATION_CONFIG_KEY, reportNotificationSettings);
-      syncReportNotificationAdminUi();
-      setStatus(saved ? "New-pin report sharing setting saved." : "The report sharing setting could not be saved centrally.");
-    }
-
     async function loadCentralSettingsFromSupabase() {
       if (!supabaseClient) return;
       try {
         const { data, error } = await supabaseClient
           .from(SETTINGS_TABLE)
           .select("config_key, settings_value")
-          .in("config_key", ["departments", "profiles", "map_views", "sign_in_codes", REPORT_NOTIFICATION_CONFIG_KEY]);
+          .in("config_key", ["departments", "profiles", "map_views", "sign_in_codes"]);
 
         if (error) {
           console.warn("Could not load central settings:", error);
@@ -7424,20 +7390,12 @@
         const profileRow = (data || []).find(row => row.config_key === "profiles");
         const mapRow = (data || []).find(row => row.config_key === "map_views");
         const signInCodesRow = (data || []).find(row => row.config_key === "sign_in_codes");
-        const reportNotificationRow = (data || []).find(row => row.config_key === REPORT_NOTIFICATION_CONFIG_KEY);
 
         if (signInCodesRow && signInCodesRow.settings_value) {
           SIGN_IN_CODES = normalizeSignInCodes(signInCodesRow.settings_value);
         } else {
           await saveSettingToSupabase("sign_in_codes", DEFAULT_SIGN_IN_CODES);
         }
-
-        if (reportNotificationRow && reportNotificationRow.settings_value) {
-          reportNotificationSettings = normalizeReportNotificationSettings(reportNotificationRow.settings_value);
-        } else {
-          await saveSettingToSupabase(REPORT_NOTIFICATION_CONFIG_KEY, reportNotificationSettings);
-        }
-        syncReportNotificationAdminUi();
 
         if (mapRow && mapRow.settings_value) {
           mapViews = normalizeMapViews(mapRow.settings_value);
@@ -8288,17 +8246,9 @@
         ? '<button class="action-btn secondary" onclick="printPinPopupReport(' + pin.id + ')">Printable Preview</button>'
         : "";
 
-      const shareReportButton = pin.id
-        ? '<button class="action-btn" onclick="sharePinReportFile(' + pin.id + ')">Share Report File</button>'
-        : "";
-
-      const textReportLinkButton = pin.id
-        ? '<button class="action-btn" onclick="textPinReportLink(' + pin.id + ')">Text Report Link</button>'
-        : "";
-
       const actionRow = pin.id
         ? '<div class="pin-popup-actions">' +
-            '<div class="pin-popup-actions-row">' + printButton + shareReportButton + textReportLinkButton + editButton + '</div>' +
+            '<div class="pin-popup-actions-row">' + printButton + editButton + '</div>' +
             (clearButton ? '<div class="pin-popup-actions-row">' + clearButton + '</div>' : '') +
           '</div>'
         : "";
@@ -10094,7 +10044,6 @@
 
     async function toggleAdminPanel(forceOpen) {
       if (!userHasPermission("viewAdmin")) return denyPermission("This sign-in code does not include Admin-menu access.");
-      syncReportNotificationAdminUi();
       const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : !adminPanel.classList.contains('open');
       if (shouldOpen) {
         if (!(await requireAdminAuth())) return;
@@ -10449,7 +10398,7 @@ function resetPinForm() {
         if (savedPin) {
           await saveMapSnapshotForPin(savedPin);
         }
-        await triggerSmsNotification(savedPin);
+        triggerSmsNotification(savedPin);
         closePinModal();
       } catch (error) {
         console.error(error);
@@ -11399,29 +11348,15 @@ function resetPinForm() {
       if (currentReportPinId) focusPinOnMap(currentReportPinId);
     }
 
-    function sanitizeReportFilePart(value, fallback) {
-      const cleaned = String(value || "")
-        .trim()
-        .replace(/&/g, "and")
-        .replace(/[^a-z0-9]+/gi, "-")
-        .replace(/^-+|-+$/g, "")
-        .replace(/-+/g, "-");
-      return cleaned || fallback;
-    }
-
-    function getStandaloneReportFileName(pin) {
-      const idPart = sanitizeReportFilePart(pin && pin.id, "report");
-      const departmentPart = sanitizeReportFilePart(formatDepartmentLabel(pin && pin.category), "department");
-      const titlePart = sanitizeReportFilePart(pin && pin.title, "untitled");
-      return `${idPart}-${departmentPart}-${titlePart}.html`;
-    }
-
-    function getStandaloneReportShareMessage(pin, fileName) {
-      return `Please see the attached CNE report, ${fileName}.`;
-    }
-
-    async function buildStandaloneReportPackage(pin) {
+    async function printPinReportById(pinId) {
+      const pin = getPinById(pinId);
+      if (!pin) {
+        alert("Could not find this pin to print. Refresh the app and try again.");
+        return;
+      }
       if (!pin.map_snapshot_url) await ensureMapSnapshotForPin(pin);
+
+      setStatus("Preparing standalone item report...");
       const standalonePin = {
         ...pin,
         photo_url: null,
@@ -11430,122 +11365,14 @@ function resetPinForm() {
         clear_photo_urls: await Promise.all(getClearPhotos(pin).map(url => fetchImageAsDataUrl(url))),
         map_snapshot_url: pin.map_snapshot_url ? await fetchImageAsDataUrl(pin.map_snapshot_url) : null
       };
+
       const accessRows = await fetchReportAccessRows(pin.id, 20);
       const accessHistoryHtml = buildReportAccessHistoryHtml(accessRows);
       const changeHistoryHtml = buildPinChangeHistoryHtml(await loadPinChangeHistory(pin.id));
-      const fileName = getStandaloneReportFileName(pin);
-      const shareTitle = `CNE Report - ${fileName.replace(/\.html$/i, "")}`;
-      const shareMessage = getStandaloneReportShareMessage(pin, fileName);
-      const reportBody = buildMiniReportHtml(standalonePin, { print: true, accessHistoryHtml, changeHistoryHtml });
-      return { standalonePin, accessHistoryHtml, changeHistoryHtml, fileName, shareTitle, shareMessage, reportBody };
-    }
-
-    function buildStandaloneReportDocument(reportPackage, includePreviewControls) {
-      const { fileName, shareTitle, shareMessage, reportBody } = reportPackage;
-      const controls = includePreviewControls
-        ? '<div class="preview-actions"><button onclick="window.print()">Print / Save PDF</button><button onclick="shareStandaloneReportLink()">Share Report Link</button><button class="secondary" onclick="downloadStandaloneReport()">Download Report</button><button class="secondary" onclick="window.close()">Close Preview</button></div><div class="share-note">Share Report Link uploads only this standalone report and creates a temporary browser link. The recipient does not receive access to the CNE Service App.</div>'
-        : '';
-      return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(fileName.replace(/\.html$/i, ""))}</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#1f2933;font-size:13px}.mini-report-card{border:1px solid #d9e0e6;border-radius:10px;padding:14px;line-height:1.45;font-size:13px}.mini-report-card h2{font-size:17px;line-height:1.25}.mini-report-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;font-size:13px}.mini-report-detail{margin-top:7px;white-space:pre-line;line-height:1.32}.compact-pin-description{margin-top:5px;white-space:pre-line;line-height:1.28}.report-map-photo,.log-photo,.print-report-photo{display:block;margin:8px 0;max-width:460px;max-height:330px;object-fit:contain;border:1px solid #d9e0e6;border-radius:8px;background:#f8fafc}.photo-gallery{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start}.photo-gallery img{width:460px;max-width:100%;height:auto;max-height:330px;object-fit:contain;border:1px solid #d9e0e6;border-radius:8px;background:#f8fafc}.photo-section-title{display:block;font-weight:bold;margin-top:10px;font-size:13px}.report-access-history{border:1px solid #d9e0e6;border-radius:8px;padding:10px;margin-top:12px;background:#f8fbfe}.report-access-row{border-top:1px solid #e6edf3;padding-top:6px;margin-top:6px}.pin-change-history{border:1px solid #d9e0e6;border-radius:8px;padding:10px;margin-top:12px;background:#fffdf6}.pin-change-row{border-top:1px solid #e6edf3;padding-top:7px;margin-top:7px}.pin-change-badge{display:inline-block;padding:2px 7px;border-radius:999px;background:#e7f3ff;border:1px solid #b7d7ef;font-size:10px;font-weight:bold;margin-right:5px}.pin-change-admin-actions,.pin-change-delete-btn{display:none!important}.preview-actions{position:sticky;top:0;display:flex;gap:8px;flex-wrap:wrap;padding:10px 0;background:#fff;z-index:10}.preview-actions button{border:0;border-radius:6px;padding:11px 15px;background:#005a9c;color:#fff;font-weight:700;cursor:pointer;min-height:44px}.preview-actions .secondary{background:#5f6b7a}.share-note{margin:0 0 12px;padding:9px 11px;border:1px solid #b7d7ef;border-radius:8px;background:#eef7ff;color:#334155;font-size:12px}@media(max-width:640px){body{margin:12px}.mini-report-grid{grid-template-columns:1fr}.preview-actions button{flex:1 1 140px}}@media print{.preview-actions,.share-note,button{display:none!important}body{margin:10mm}}</style></head><body>${controls}<h1>CNE Item Report</h1>${reportBody}${includePreviewControls ? `<script>const REPORT_FILE_NAME=${JSON.stringify(fileName)};const REPORT_SHARE_TITLE=${JSON.stringify(shareTitle)};const REPORT_SHARE_MESSAGE=${JSON.stringify(shareMessage)};const REPORT_PIN_ID=${JSON.stringify(String(reportPackage.standalonePin && reportPackage.standalonePin.id || ""))};function buildStandaloneReportBlob(){const clone=document.documentElement.cloneNode(true);clone.querySelectorAll('.preview-actions,.share-note').forEach(el=>el.remove());clone.querySelectorAll('script').forEach(el=>el.remove());return new Blob(['<!DOCTYPE html>'+clone.outerHTML],{type:'text/html;charset=utf-8'});}function downloadStandaloneReport(){const blob=buildStandaloneReportBlob();const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=REPORT_FILE_NAME;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);}async function shareStandaloneReportLink(){try{if(!window.opener||typeof window.opener.createSharedReportLinkFromPreview!=='function'){alert('Keep the CNE Service App open behind this preview, then try again.');return;}const clone=document.documentElement.cloneNode(true);clone.querySelectorAll('.preview-actions,.share-note').forEach(el=>el.remove());clone.querySelectorAll('script').forEach(el=>el.remove());const html='<!DOCTYPE html>'+clone.outerHTML;const result=await window.opener.createSharedReportLinkFromPreview(REPORT_PIN_ID,html,REPORT_FILE_NAME);if(navigator.share){await navigator.share({title:result.title,text:result.message});return;}location.href='sms:?body='+encodeURIComponent(result.message);}catch(error){if(error&&error.name==='AbortError')return;console.error(error);alert('The report link could not be created. Confirm the shared-reports Supabase bucket and policies are installed.');}}<\/script>` : ''}</body></html>`;
-    }
-
-    function getSharedReportStoragePath(pin, fileName) {
-      const idPart = sanitizeReportFilePart(pin && pin.id, "report");
-      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-      return `pin-${idPart}/${stamp}-${fileName}`;
-    }
-
-    async function uploadStandaloneReportAndCreateLink(pin, reportPackage, htmlOverride) {
-      if (!supabaseClient) throw new Error("Supabase is not connected.");
-      const html = htmlOverride || buildStandaloneReportDocument(reportPackage, false);
-      const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-      const storagePath = getSharedReportStoragePath(pin, reportPackage.fileName);
-      const { error: uploadError } = await supabaseClient.storage.from(REPORT_SHARE_BUCKET).upload(storagePath, blob, {
-        contentType: "text/html; charset=utf-8", upsert: false, cacheControl: "3600"
-      });
-      if (uploadError) throw uploadError;
-      const { data, error: signError } = await supabaseClient.storage.from(REPORT_SHARE_BUCKET)
-        .createSignedUrl(storagePath, REPORT_SHARE_LINK_EXPIRY_SECONDS, { download: false });
-      if (signError || !data || !data.signedUrl) throw signError || new Error("No signed URL returned.");
-      return data.signedUrl;
-    }
-
-    function buildSharedReportTextMessage(pin, reportPackage, reportUrl) {
-      return `Please see CNE report ${reportPackage.fileName}:
-${reportUrl}`;
-    }
-
-    async function textPinReportLink(pinId) {
-      const pin = getPinById(pinId);
-      if (!pin) return alert("Could not find this pin. Refresh the app and try again.");
-      try {
-        setStatus("Creating standalone report link...");
-        const reportPackage = await buildStandaloneReportPackage(pin);
-        const reportUrl = await uploadStandaloneReportAndCreateLink(pin, reportPackage);
-        const message = buildSharedReportTextMessage(pin, reportPackage, reportUrl);
-        const recipients = uniqueSmsRecipients(getAllSmsRecipientsForDepartment(pin.category).concat(getPopupCustomSmsRecipients(pinId)));
-        if (isLikelyMobileSmsDevice() && recipients.length) {
-          openSmsDraft(recipients, message);
-          setStatus("Text draft opened with report link.");
-        } else {
-          showSmsFallbackModal(recipients, message, "The standalone report link is ready. Copy or send the prepared message below.");
-          setStatus("Standalone report link created.");
-        }
-      } catch (error) {
-        console.error("Report link creation failed", error);
-        alert("The report link could not be created. Create the private Supabase Storage bucket named shared-reports and install the required policies.\n\n" + (error && error.message ? error.message : ""));
-        setStatus("Report link creation failed.");
-      }
-    }
-
-    async function createSharedReportLinkFromPreview(pinId, html, fileName) {
-      const pin = getPinById(pinId);
-      if (!pin) throw new Error("The report pin is no longer available.");
-      const reportPackage = { fileName: fileName || getStandaloneReportFileName(pin) };
-      const url = await uploadStandaloneReportAndCreateLink(pin, reportPackage, html);
-      return { url, title: `CNE Report #${String(pin.id || "")}`, message: buildSharedReportTextMessage(pin, reportPackage, url) };
-    }
-
-    async function sharePinReportFile(pinId, options = {}) {
-      const pin = getPinById(pinId);
-      if (!pin) return alert("Could not find this pin. Refresh the app and try again.");
-      try {
-        setStatus("Preparing standalone report file...");
-        const reportPackage = await buildStandaloneReportPackage(pin);
-        const html = buildStandaloneReportDocument(reportPackage, false);
-        const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-        const file = new File([blob], reportPackage.fileName, { type: "text/html" });
-        if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
-          await navigator.share({ title: reportPackage.shareTitle, text: reportPackage.shareTitle, files: [file] });
-          setStatus(options.fromNewPin ? "Pin saved. Report share menu opened." : "Standalone report shared.");
-          return;
-        }
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = reportPackage.fileName;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 1500);
-        alert(options.fromNewPin
-          ? "The pin was saved, but this browser cannot open the report-file share menu. The HTML report was downloaded so you can attach it manually to a text or email."
-          : "Your browser cannot attach the report directly. The HTML report was downloaded so you can attach it to a text or email.");
-      } catch (error) {
-        if (error && error.name === "AbortError") return;
-        console.error("Report share failed", error);
-        alert("The report could not be shared. Please try Printable Preview and use Share Report.");
-      }
-    }
-
-    async function printPinReportById(pinId) {
-      const pin = getPinById(pinId);
-      if (!pin) {
-        alert("Could not find this pin to print. Refresh the app and try again.");
-        return;
-      }
-      setStatus("Preparing standalone item report...");
-      const reportPackage = await buildStandaloneReportPackage(pin);
-      const html = buildStandaloneReportDocument(reportPackage, true);
+      const safeItemId = String(pin.id || "report").replace(/[^a-z0-9_-]+/gi, "-");
+      const fileName = `CNE-Item-Report-${safeItemId}.html`;
+      const shareTitle = `CNE Item Report ${escapeHtml(String(pin.id || ""))}`;
+      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Item Report ${escapeHtml(String(pin.id || ""))}</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#1f2933;font-size:13px}.mini-report-card{border:1px solid #d9e0e6;border-radius:10px;padding:14px;line-height:1.45;font-size:13px}.mini-report-card h2{font-size:17px;line-height:1.25}.mini-report-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;font-size:13px}.mini-report-detail{margin-top:7px;white-space:pre-line;line-height:1.32}.compact-pin-description{margin-top:5px;white-space:pre-line;line-height:1.28}.report-map-photo,.log-photo,.print-report-photo{display:block;margin:8px 0;max-width:460px;max-height:330px;object-fit:contain;border:1px solid #d9e0e6;border-radius:8px;background:#f8fafc}.photo-gallery{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start}.photo-gallery img{width:460px;max-width:100%;height:auto;max-height:330px;object-fit:contain;border:1px solid #d9e0e6;border-radius:8px;background:#f8fafc}.photo-section-title{display:block;font-weight:bold;margin-top:10px;font-size:13px}.report-access-history{border:1px solid #d9e0e6;border-radius:8px;padding:10px;margin-top:12px;background:#f8fbfe}.report-access-row{border-top:1px solid #e6edf3;padding-top:6px;margin-top:6px}.pin-change-history{border:1px solid #d9e0e6;border-radius:8px;padding:10px;margin-top:12px;background:#fffdf6}.pin-change-row{border-top:1px solid #e6edf3;padding-top:7px;margin-top:7px}.pin-change-badge{display:inline-block;padding:2px 7px;border-radius:999px;background:#e7f3ff;border:1px solid #b7d7ef;font-size:10px;font-weight:bold;margin-right:5px}.pin-change-admin-actions,.pin-change-delete-btn{display:none!important}.preview-actions{position:sticky;top:0;display:flex;gap:8px;flex-wrap:wrap;padding:10px 0;background:#fff;z-index:10}.preview-actions button{border:0;border-radius:6px;padding:11px 15px;background:#005a9c;color:#fff;font-weight:700;cursor:pointer;min-height:44px}.preview-actions .secondary{background:#5f6b7a}.share-note{margin:0 0 12px;padding:9px 11px;border:1px solid #b7d7ef;border-radius:8px;background:#eef7ff;color:#334155;font-size:12px}@media(max-width:640px){body{margin:12px}.mini-report-grid{grid-template-columns:1fr}.preview-actions button{flex:1 1 140px}}@media print{.preview-actions,.share-note,button{display:none!important}body{margin:10mm}}</style></head><body><div class="preview-actions"><button onclick="window.print()">Print / Save PDF</button><button onclick="shareStandaloneReport()">Share Report</button><button class="secondary" onclick="downloadStandaloneReport()">Download Report</button><button class="secondary" onclick="window.close()">Close Preview</button></div><div class="share-note">Share Report sends this standalone HTML report as an attachment through your phone's share menu. The recipient receives only this report and does not receive access to the CNE Service App.</div><h1>Item Report</h1>${buildMiniReportHtml(standalonePin, { print: true, accessHistoryHtml, changeHistoryHtml })}<script>const REPORT_FILE_NAME=${JSON.stringify(fileName)};const REPORT_SHARE_TITLE=${JSON.stringify(shareTitle)};function buildStandaloneReportBlob(){const clone=document.documentElement.cloneNode(true);clone.querySelectorAll('.preview-actions,.share-note').forEach(el=>el.remove());clone.querySelectorAll('script').forEach(el=>el.remove());const output='<!DOCTYPE html>'+clone.outerHTML;return new Blob([output],{type:'text/html;charset=utf-8'});}function downloadStandaloneReport(){const blob=buildStandaloneReportBlob();const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=REPORT_FILE_NAME;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);}async function shareStandaloneReport(){try{const blob=buildStandaloneReportBlob();const file=new File([blob],REPORT_FILE_NAME,{type:'text/html'});if(navigator.share&&(!navigator.canShare||navigator.canShare({files:[file]}))){await navigator.share({title:REPORT_SHARE_TITLE,text:'Standalone CNE item report attached.',files:[file]});return;}downloadStandaloneReport();alert('Direct sharing is not supported by this browser. The standalone report was downloaded so you can attach it to a text message or email.');}catch(error){if(error&&error.name==='AbortError')return;console.error(error);downloadStandaloneReport();alert('Direct sharing was unavailable. The standalone report was downloaded instead.');}}<\/script></body></html>`;
       const win = window.open("", "_blank");
       if (!win) {
         alert("Popup blocked. Please allow popups to open the report preview.");
@@ -11804,13 +11631,7 @@ function openSmsDraft(recipients, message) {
   return true;
 }
 
-async function triggerSmsNotification(pin) {
-  if (!pin) return;
-  if (reportNotificationSettings && reportNotificationSettings.shareFileOnNewPin) {
-    await sharePinReportFile(pin.id, { fromNewPin: true });
-    return;
-  }
-
+function triggerSmsNotification(pin) {
   const smsRecipients = getSelectedSmsRecipientsForDepartment(pin.category);
   const customMessage = "";
   const message = buildNotificationMessage(pin, customMessage);
@@ -12651,7 +12472,6 @@ ${rows.map(pin => `
     window.openPinModalForPending = openPinModalForPending;
     window.closePinModal = closePinModal;
     window.submitPinForm = submitPinForm;
-    window.saveReportNotificationSettingsFromAdmin = saveReportNotificationSettingsFromAdmin;
     window.changeDeviceUserProfile = changeDeviceUserProfile;
     window.retrySiteAccess = retrySiteAccess;
     window.resetSiteAccessApproval = resetSiteAccessApproval;
