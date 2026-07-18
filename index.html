@@ -3778,8 +3778,8 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.18-CI";
-    const APP_VERSION_SUMMARY = "Directional Log fixed: reliably lists visible informational pins and identifies arrow direction";
+    const APP_VERSION = "2026.07.18-CJ";
+    const APP_VERSION_SUMMARY = "Directional Log function error fixed; informational pins now open and print correctly";
     const customReportSelectedPinIds = new Set();
     let customReportMapMode = false;
     let customReportMapIds = [];
@@ -9492,7 +9492,7 @@
       const informationalLink = !!(activeDepartmentShare && activeDepartmentShare.scope === "informational");
       return allPins.filter(pin => {
         if (!userCanViewPinForCurrentAccess(pin)) return false;
-        const status = getNormalizedPinStatus(pin);
+        const status = getPinStatus(pin);
         if (informationalLink) return status === "informational";
         const angle = pin && pin.direction_angle;
         return angle !== null && angle !== undefined && angle !== "" && Number.isFinite(Number(angle));
@@ -9508,7 +9508,7 @@
           const rawAngle = pin && pin.direction_angle;
           const hasArrow = rawAngle !== null && rawAngle !== undefined && rawAngle !== "" && Number.isFinite(Number(rawAngle));
           const directionLabel = hasArrow ? Math.round(Number(rawAngle)) + '°' : 'No arrow';
-          return '<tr><td>'+escapeHtml(String(pin.id||''))+'</td><td>'+escapeHtml(pin.title||'Untitled')+'</td><td>'+escapeHtml(formatDepartmentLabel(pin.category||'general'))+'</td><td>'+escapeHtml(mapName)+'</td><td>'+escapeHtml(getPinStatusLabel(pin))+'</td><td>'+escapeHtml(directionLabel)+'</td><td>'+escapeHtml(pin.description||'')+'</td></tr>';
+          return '<tr><td>'+escapeHtml(String(pin.id||''))+'</td><td>'+escapeHtml(pin.title||'Untitled')+'</td><td>'+escapeHtml(formatDepartmentLabel(pin.category||'general'))+'</td><td>'+escapeHtml(mapName)+'</td><td>'+escapeHtml(formatPinStatus(pin))+'</td><td>'+escapeHtml(directionLabel)+'</td><td>'+escapeHtml(pin.description||'')+'</td></tr>';
         }).join('');
         const win = window.open('', '_blank');
         if (!win) { alert('Please allow pop-ups to open the Directional Log.'); return; }
