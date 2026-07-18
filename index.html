@@ -3754,7 +3754,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.17-CC";
+    const APP_VERSION = "2026.07.18-CD";
     const customReportSelectedPinIds = new Set();
     let customReportMapMode = false;
     let customReportMapIds = [];
@@ -11355,18 +11355,33 @@ function resetPinForm() {
         return;
       }
       if (!pin.map_snapshot_url) await ensureMapSnapshotForPin(pin);
+
+      setStatus("Preparing standalone item report...");
+      const standalonePin = {
+        ...pin,
+        photo_url: null,
+        photo_urls: await Promise.all(getPinPhotos(pin).map(url => fetchImageAsDataUrl(url))),
+        clear_photo_url: null,
+        clear_photo_urls: await Promise.all(getClearPhotos(pin).map(url => fetchImageAsDataUrl(url))),
+        map_snapshot_url: pin.map_snapshot_url ? await fetchImageAsDataUrl(pin.map_snapshot_url) : null
+      };
+
       const accessRows = await fetchReportAccessRows(pin.id, 20);
       const accessHistoryHtml = buildReportAccessHistoryHtml(accessRows);
       const changeHistoryHtml = buildPinChangeHistoryHtml(await loadPinChangeHistory(pin.id));
-      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Item Report ${escapeHtml(String(pin.id || ""))}</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#1f2933;font-size:13px}.mini-report-card{border:1px solid #d9e0e6;border-radius:10px;padding:14px;line-height:1.45;font-size:13px}.mini-report-card h2{font-size:17px;line-height:1.25}.mini-report-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;font-size:13px}.mini-report-detail{margin-top:7px;white-space:pre-line;line-height:1.32}.compact-pin-description{margin-top:5px;white-space:pre-line;line-height:1.28}.report-map-photo,.log-photo,.print-report-photo{display:block;margin:8px 0;max-width:460px;max-height:330px;object-fit:contain;border:1px solid #d9e0e6;border-radius:8px;background:#f8fafc}.photo-gallery{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start}.photo-gallery img{width:460px;max-width:100%;height:auto;max-height:330px;object-fit:contain;border:1px solid #d9e0e6;border-radius:8px;background:#f8fafc}.photo-section-title{display:block;font-weight:bold;margin-top:10px;font-size:13px}.report-access-history{border:1px solid #d9e0e6;border-radius:8px;padding:10px;margin-top:12px;background:#f8fbfe}.report-access-row{border-top:1px solid #e6edf3;padding-top:6px;margin-top:6px}.pin-change-history{border:1px solid #d9e0e6;border-radius:8px;padding:10px;margin-top:12px;background:#fffdf6}.pin-change-row{border-top:1px solid #e6edf3;padding-top:7px;margin-top:7px}.pin-change-badge{display:inline-block;padding:2px 7px;border-radius:999px;background:#e7f3ff;border:1px solid #b7d7ef;font-size:10px;font-weight:bold;margin-right:5px}.pin-change-admin-actions,.pin-change-delete-btn{display:none!important}.preview-actions{position:sticky;top:0;display:flex;gap:8px;padding:8px 0;background:#fff;z-index:10}.preview-actions button{border:0;border-radius:6px;padding:9px 13px;background:#005a9c;color:#fff;font-weight:700;cursor:pointer}@media print{.preview-actions,button{display:none!important}}</style></head><body><div class="preview-actions"><button onclick="window.print()">Print</button><button onclick="window.close()">Close Preview</button></div><h1>Item Report</h1>${buildMiniReportHtml(pin, { print: true, accessHistoryHtml, changeHistoryHtml })}</body></html>`;
+      const safeItemId = String(pin.id || "report").replace(/[^a-z0-9_-]+/gi, "-");
+      const fileName = `CNE-Item-Report-${safeItemId}.html`;
+      const shareTitle = `CNE Item Report ${escapeHtml(String(pin.id || ""))}`;
+      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Item Report ${escapeHtml(String(pin.id || ""))}</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#1f2933;font-size:13px}.mini-report-card{border:1px solid #d9e0e6;border-radius:10px;padding:14px;line-height:1.45;font-size:13px}.mini-report-card h2{font-size:17px;line-height:1.25}.mini-report-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;font-size:13px}.mini-report-detail{margin-top:7px;white-space:pre-line;line-height:1.32}.compact-pin-description{margin-top:5px;white-space:pre-line;line-height:1.28}.report-map-photo,.log-photo,.print-report-photo{display:block;margin:8px 0;max-width:460px;max-height:330px;object-fit:contain;border:1px solid #d9e0e6;border-radius:8px;background:#f8fafc}.photo-gallery{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start}.photo-gallery img{width:460px;max-width:100%;height:auto;max-height:330px;object-fit:contain;border:1px solid #d9e0e6;border-radius:8px;background:#f8fafc}.photo-section-title{display:block;font-weight:bold;margin-top:10px;font-size:13px}.report-access-history{border:1px solid #d9e0e6;border-radius:8px;padding:10px;margin-top:12px;background:#f8fbfe}.report-access-row{border-top:1px solid #e6edf3;padding-top:6px;margin-top:6px}.pin-change-history{border:1px solid #d9e0e6;border-radius:8px;padding:10px;margin-top:12px;background:#fffdf6}.pin-change-row{border-top:1px solid #e6edf3;padding-top:7px;margin-top:7px}.pin-change-badge{display:inline-block;padding:2px 7px;border-radius:999px;background:#e7f3ff;border:1px solid #b7d7ef;font-size:10px;font-weight:bold;margin-right:5px}.pin-change-admin-actions,.pin-change-delete-btn{display:none!important}.preview-actions{position:sticky;top:0;display:flex;gap:8px;flex-wrap:wrap;padding:10px 0;background:#fff;z-index:10}.preview-actions button{border:0;border-radius:6px;padding:11px 15px;background:#005a9c;color:#fff;font-weight:700;cursor:pointer;min-height:44px}.preview-actions .secondary{background:#5f6b7a}.share-note{margin:0 0 12px;padding:9px 11px;border:1px solid #b7d7ef;border-radius:8px;background:#eef7ff;color:#334155;font-size:12px}@media(max-width:640px){body{margin:12px}.mini-report-grid{grid-template-columns:1fr}.preview-actions button{flex:1 1 140px}}@media print{.preview-actions,.share-note,button{display:none!important}body{margin:10mm}}</style></head><body><div class="preview-actions"><button onclick="window.print()">Print / Save PDF</button><button onclick="shareStandaloneReport()">Share Report</button><button class="secondary" onclick="downloadStandaloneReport()">Download Report</button><button class="secondary" onclick="window.close()">Close Preview</button></div><div class="share-note">Share Report sends this standalone HTML report as an attachment through your phone's share menu. The recipient receives only this report and does not receive access to the CNE Service App.</div><h1>Item Report</h1>${buildMiniReportHtml(standalonePin, { print: true, accessHistoryHtml, changeHistoryHtml })}<script>const REPORT_FILE_NAME=${JSON.stringify(fileName)};const REPORT_SHARE_TITLE=${JSON.stringify(shareTitle)};function buildStandaloneReportBlob(){const clone=document.documentElement.cloneNode(true);clone.querySelectorAll('.preview-actions,.share-note').forEach(el=>el.remove());clone.querySelectorAll('script').forEach(el=>el.remove());const output='<!DOCTYPE html>'+clone.outerHTML;return new Blob([output],{type:'text/html;charset=utf-8'});}function downloadStandaloneReport(){const blob=buildStandaloneReportBlob();const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=REPORT_FILE_NAME;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);}async function shareStandaloneReport(){try{const blob=buildStandaloneReportBlob();const file=new File([blob],REPORT_FILE_NAME,{type:'text/html'});if(navigator.share&&(!navigator.canShare||navigator.canShare({files:[file]}))){await navigator.share({title:REPORT_SHARE_TITLE,text:'Standalone CNE item report attached.',files:[file]});return;}downloadStandaloneReport();alert('Direct sharing is not supported by this browser. The standalone report was downloaded so you can attach it to a text message or email.');}catch(error){if(error&&error.name==='AbortError')return;console.error(error);downloadStandaloneReport();alert('Direct sharing was unavailable. The standalone report was downloaded instead.');}}<\/script></body></html>`;
       const win = window.open("", "_blank");
       if (!win) {
-        alert("Popup blocked. Please allow popups to print the report.");
+        alert("Popup blocked. Please allow popups to open the report preview.");
         return;
       }
       win.document.open();
       win.document.write(html);
       win.document.close();
+      setStatus("Standalone item report is ready.");
       setTimeout(() => { win.focus(); }, 250);
     }
 
