@@ -2880,7 +2880,7 @@
           <button class="toolbar-btn secondary" onclick="openPrintMapStatusSelector(); closeMobileUiAfterAction();">Print Selected Map</button>
           <button id="activeLogToolbarButton" class="toolbar-btn secondary" onclick="toggleActiveLogPanel(); closeMobileUiAfterAction();">Active Log</button>
           <button id="clearedLogToolbarButton" class="toolbar-btn secondary" onclick="toggleLogPanel(); closeMobileUiAfterAction();">Cleared History Log</button>
-          <button id="directionalLogToolbarButton" class="toolbar-btn secondary" style="display:none;" onclick="openDirectionalLog(); closeMobileUiAfterAction();">Directional Log</button>
+          <button id="directionalLogToolbarButton" class="toolbar-btn secondary" style="display:none;" onclick="openDirectionalLog(); closeMobileUiAfterAction();">Informational Pin Log</button>
           <button class="toolbar-btn secondary" onclick="toggleLegendPanel(); closeMobileUiAfterAction();">Legend</button>
           <button class="toolbar-btn secondary" onclick="toggleAdminPanel(); closeMobileUiAfterAction();">Admin</button>
           <input class="hidden-input" id="csvInput" type="file" accept=".csv,text/csv" onchange="handleCsvImport(event)">
@@ -3778,8 +3778,8 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.18-CJ";
-    const APP_VERSION_SUMMARY = "Directional Log function error fixed; informational pins now open and print correctly";
+    const APP_VERSION = "2026.07.18-CK";
+    const APP_VERSION_SUMMARY = "Informational Pin Log renamed and enhanced with mini maps and attached images";
     const customReportSelectedPinIds = new Set();
     let customReportMapMode = false;
     let customReportMapIds = [];
@@ -9499,28 +9499,51 @@
       });
     }
 
-    function openDirectionalLog() {
+    async function openDirectionalLog() {
+      const win = window.open('', '_blank');
+      if (!win) { alert('Please allow pop-ups to open the Informational Pin Log.'); return; }
       try {
+        win.document.open();
+        win.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Preparing Informational Pin Log</title><style>body{font-family:Arial,sans-serif;margin:30px;color:#1f2933}.loading{padding:20px;border:1px solid #cbd5df;border-radius:10px;background:#f8fbfe}</style></head><body><div class="loading"><b>Preparing Informational Pin Log…</b><br><small>Loading mini maps and attached images.</small></div></body></html>');
+        win.document.close();
+
         const pins = getDirectionalPinsForCurrentAccess().sort((a,b) => String(getPinMapId(a)||'').localeCompare(String(getPinMapId(b)||'')) || new Date(b.created_at||0)-new Date(a.created_at||0));
-        const rows = pins.map(pin => {
+        await Promise.all(pins.map(async pin => {
+          if (!pin.map_snapshot_url) {
+            try { await ensureMapSnapshotForPin(pin); } catch (_) {}
+          }
+        }));
+
+        const cards = pins.map(pin => {
           const mapId = getPinMapId(pin);
           const mapName = (getMapView(mapId) || {}).name || mapId || 'Map';
           const rawAngle = pin && pin.direction_angle;
           const hasArrow = rawAngle !== null && rawAngle !== undefined && rawAngle !== "" && Number.isFinite(Number(rawAngle));
           const directionLabel = hasArrow ? Math.round(Number(rawAngle)) + '°' : 'No arrow';
-          return '<tr><td>'+escapeHtml(String(pin.id||''))+'</td><td>'+escapeHtml(pin.title||'Untitled')+'</td><td>'+escapeHtml(formatDepartmentLabel(pin.category||'general'))+'</td><td>'+escapeHtml(mapName)+'</td><td>'+escapeHtml(formatPinStatus(pin))+'</td><td>'+escapeHtml(directionLabel)+'</td><td>'+escapeHtml(pin.description||'')+'</td></tr>';
+          const reportedPhotos = getPinPhotos(pin);
+          const completionPhotos = getClearPhotos(pin);
+          const mapHtml = pin.map_snapshot_url
+            ? '<div class="media-section"><div class="media-title">Mini map / pin location</div><img class="map-image" src="'+escapeHtml(pin.map_snapshot_url)+'" alt="Mini map location" onerror="this.closest(\'.media-section\').style.display=\'none\'"></div>'
+            : '<div class="media-note">Mini map snapshot is not available.</div>';
+          const reportedHtml = reportedPhotos.length
+            ? '<div class="media-section"><div class="media-title">Attached images</div><div class="image-grid">'+reportedPhotos.map((url,index) => '<img src="'+escapeHtml(url)+'" alt="Attached image '+(index+1)+'" onerror="this.style.display=\'none\'">').join('')+'</div></div>'
+            : '';
+          const completionHtml = completionPhotos.length
+            ? '<div class="media-section"><div class="media-title">Completion images</div><div class="image-grid">'+completionPhotos.map((url,index) => '<img src="'+escapeHtml(url)+'" alt="Completion image '+(index+1)+'" onerror="this.style.display=\'none\'">').join('')+'</div></div>'
+            : '';
+          return '<article class="pin-card"><h2>'+escapeHtml(pin.title||'Untitled')+'</h2><div class="report-id">Report ID: '+escapeHtml(String(pin.id||''))+'</div><div class="details-grid"><div><b>Department:</b> '+escapeHtml(formatDepartmentLabel(pin.category||'general'))+'</div><div><b>Map:</b> '+escapeHtml(mapName)+'</div><div><b>Status:</b> '+escapeHtml(formatPinStatus(pin))+'</div><div><b>Direction:</b> '+escapeHtml(directionLabel)+'</div></div><div class="description"><b>Details:</b><br>'+escapeHtml(pin.description||'No details provided.').replace(/\n/g,'<br>')+'</div>'+mapHtml+reportedHtml+completionHtml+'</article>';
         }).join('');
-        const win = window.open('', '_blank');
-        if (!win) { alert('Please allow pop-ups to open the Directional Log.'); return; }
+
         const accessLabel = activeDepartmentShare && activeDepartmentShare.label ? activeDepartmentShare.label : formatDepartmentLabel(selectedDepartmentView);
-        const html = '<!doctype html><html><head><meta charset="utf-8"><title>Directional Log</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#1f2933}h1{margin:0 0 6px;color:#003f70}.meta{margin-bottom:18px;color:#52606d}.actions{margin:0 0 16px}button{border:0;border-radius:6px;padding:8px 12px;background:#005a9c;color:#fff;font-weight:700;cursor:pointer}table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid #cbd5df;padding:7px;text-align:left;vertical-align:top}th{background:#e7f3ff;color:#003f70}.empty{padding:18px;text-align:center;color:#52606d}@media print{.actions{display:none}body{margin:10mm}}</style></head><body><h1>Directional Pin Log</h1><div class="meta">'+escapeHtml(accessLabel||'Department Access')+' • '+pins.length+' visible pin'+(pins.length===1?'':'s')+' • Version '+escapeHtml(APP_VERSION)+'</div><div class="actions"><button onclick="window.print()">Print Directional Log</button></div><table><thead><tr><th>Report ID</th><th>Title</th><th>Department</th><th>Map</th><th>Status</th><th>Direction</th><th>Details</th></tr></thead><tbody>'+(rows||'<tr><td class="empty" colspan="7">No informational pins are currently available for this access link.</td></tr>')+'</tbody></table></body></html>';
+        const html = '<!doctype html><html><head><meta charset="utf-8"><title>Informational Pin Log</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#1f2933;background:#fff}h1{margin:0 0 6px;color:#003f70}.meta{margin-bottom:18px;color:#52606d}.actions{margin:0 0 18px}button{border:0;border-radius:6px;padding:9px 13px;background:#005a9c;color:#fff;font-weight:700;cursor:pointer}.pin-card{border:1px solid #cbd5df;border-radius:10px;padding:14px;margin:0 0 18px;break-inside:avoid;page-break-inside:avoid}.pin-card h2{margin:0 0 3px;color:#003f70;font-size:18px}.report-id{font-size:11px;color:#64748b;margin-bottom:10px}.details-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 14px;font-size:12px;background:#f8fbfe;border:1px solid #e2e8f0;border-radius:8px;padding:9px}.description{margin-top:10px;font-size:13px;line-height:1.4}.media-section{margin-top:12px}.media-title{font-size:12px;font-weight:800;color:#334155;margin-bottom:6px}.map-image{display:block;width:auto;max-width:100%;max-height:360px;object-fit:contain;border:1px solid #d9e0e6;border-radius:8px;background:#f8fafc}.image-grid{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start}.image-grid img{display:block;width:auto;max-width:min(100%,420px);max-height:320px;object-fit:contain;border:1px solid #d9e0e6;border-radius:8px;background:#f8fafc}.media-note,.empty{padding:12px;color:#64748b;font-style:italic}.empty{border:1px solid #cbd5df;border-radius:8px}@media(max-width:600px){.details-grid{grid-template-columns:1fr}}@media print{.actions{display:none}body{margin:9mm}.pin-card{break-inside:avoid;page-break-inside:avoid}.map-image{max-height:290px}.image-grid img{max-height:260px}}</style></head><body><h1>Informational Pin Log</h1><div class="meta">'+escapeHtml(accessLabel||'Department Access')+' • '+pins.length+' visible pin'+(pins.length===1?'':'s')+' • Version '+escapeHtml(APP_VERSION)+'</div><div class="actions"><button onclick="window.print()">Print Informational Pin Log</button></div>'+(cards||'<div class="empty">No informational pins are currently available for this access link.</div>')+'</body></html>';
         win.document.open();
         win.document.write(html);
         win.document.close();
         try { win.focus(); } catch (_) {}
       } catch (error) {
-        console.error('Directional Log error:', error);
-        alert('Could not open the Directional Log. Please refresh the app and try again.');
+        console.error('Informational Pin Log error:', error);
+        try { win.close(); } catch (_) {}
+        alert('Could not open the Informational Pin Log. Please refresh the app and try again.');
       }
     }
 
