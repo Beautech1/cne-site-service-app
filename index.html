@@ -714,6 +714,24 @@
 
     .log-filter-search { grid-column: 1 / -1; }
 
+    .log-filter-grid select[multiple] {
+      min-height: 116px;
+      padding: 4px;
+    }
+
+    .log-filter-grid select[multiple] option {
+      padding: 6px 7px;
+      border-radius: 4px;
+    }
+
+    .log-multi-select-help {
+      display: block;
+      color: #607084;
+      font-size: 9px;
+      font-weight: normal;
+      line-height: 1.25;
+    }
+
     .log-compact-meta {
       display: flex;
       flex-wrap: wrap;
@@ -2816,7 +2834,7 @@
 </head>
 <body>
 
-  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.17-CC</button>
+  <button type="button" id="appVersionBadge" class="app-version-badge" title="Tap to copy app version" onclick="copyAppVersion()">Version 2026.07.18-CE</button>
   <div class="floating-ui" id="floatingUi">
     <button class="mobile-ui-toggle" id="mobileUiToggle" type="button" onclick="toggleMobileUi()">
       <span class="mobile-ui-toggle-main">
@@ -2938,8 +2956,9 @@
         <button class="action-btn secondary" onclick="printClearedLogs()">Printable Preview</button>
       </div>
       <div class="log-filter-grid">
-        <label>Assigned department
-          <select id="clearedLogDepartmentFilter" onchange="renderClearedLog()"></select>
+        <label>Assigned departments
+          <select id="clearedLogDepartmentFilter" multiple size="5" onchange="handleOperationalDepartmentFilterChange(this, 'clearedLog')"></select>
+          <small class="log-multi-select-help">Select one or more departments. Choose “All departments” to reset.</small>
         </label>
         <label>Map / building
           <select id="clearedLogMapFilter" onchange="renderClearedLog()"></select>
@@ -2972,8 +2991,9 @@
         <button class="action-btn secondary" onclick="printActiveLogs()">Printable Preview</button>
       </div>
       <div class="log-filter-grid">
-        <label>Assigned department
-          <select id="activeLogDepartmentFilter" onchange="renderActiveLog()"></select>
+        <label>Assigned departments
+          <select id="activeLogDepartmentFilter" multiple size="5" onchange="handleOperationalDepartmentFilterChange(this, 'activeLog')"></select>
+          <small class="log-multi-select-help">Select one or more departments. Choose “All departments” to reset.</small>
         </label>
         <label>Map / building
           <select id="activeLogMapFilter" onchange="renderActiveLog()"></select>
@@ -3754,7 +3774,7 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.18-CD";
+    const APP_VERSION = "2026.07.18-CE";
     const customReportSelectedPinIds = new Set();
     let customReportMapMode = false;
     let customReportMapIds = [];
@@ -8500,6 +8520,25 @@
       ].filter(Boolean).join(' ').toLowerCase();
     }
 
+    function getSelectedOperationalDepartments(prefix) {
+      const el = document.getElementById(prefix + 'DepartmentFilter');
+      if (!el) return ['all'];
+      const values = [...el.selectedOptions].map(option => option.value).filter(Boolean);
+      return !values.length || values.includes('all') ? ['all'] : values;
+    }
+
+    function handleOperationalDepartmentFilterChange(select, prefix) {
+      const selected = [...select.selectedOptions].map(option => option.value);
+      if (selected.includes('all') && selected.length > 1) {
+        [...select.options].forEach(option => { option.selected = option.value === 'all'; });
+      } else if (!selected.length) {
+        const allOption = [...select.options].find(option => option.value === 'all');
+        if (allOption) allOption.selected = true;
+      }
+      if (prefix === 'activeLog') renderActiveLog();
+      else renderClearedLog();
+    }
+
     function populateOperationalLogFilters() {
       const departmentOptions = ['<option value="all">All departments</option>'].concat(
         getDepartmentsAvailableForDepartmentView().map(d => '<option value="' + escapeHtml(d.key) + '">' + escapeHtml(d.name || d.label || formatDepartmentLabel(d.key)) + '</option>')
@@ -8507,8 +8546,21 @@
       const mapOptions = ['<option value="all">All maps / buildings</option>'].concat(
         mapViews.filter(m => m && m.id).map(m => '<option value="' + escapeHtml(m.id) + '">' + escapeHtml(m.name) + '</option>')
       ).join('');
-      [['activeLogDepartmentFilter', departmentOptions], ['clearedLogDepartmentFilter', departmentOptions],
-       ['activeLogMapFilter', mapOptions], ['clearedLogMapFilter', mapOptions]].forEach(([id, html]) => {
+
+      ['activeLogDepartmentFilter', 'clearedLogDepartmentFilter'].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const current = [...el.selectedOptions].map(option => option.value);
+        el.innerHTML = departmentOptions;
+        let restored = false;
+        [...el.options].forEach(option => {
+          option.selected = current.includes(option.value);
+          if (option.selected) restored = true;
+        });
+        if (!restored) el.options[0].selected = true;
+      });
+
+      [['activeLogMapFilter', mapOptions], ['clearedLogMapFilter', mapOptions]].forEach(([id, html]) => {
         const el = document.getElementById(id);
         if (!el) return;
         const current = el.value || 'all';
@@ -8518,7 +8570,7 @@
     }
 
     function filterOperationalLogRows(rows, prefix) {
-      const dept = document.getElementById(prefix + 'DepartmentFilter')?.value || 'all';
+      const departments = getSelectedOperationalDepartments(prefix);
       const mapId = document.getElementById(prefix + 'MapFilter')?.value || 'all';
       const term = (document.getElementById(prefix + 'SearchFilter')?.value || '').trim().toLowerCase();
       const sortOrder = document.getElementById(prefix + 'SortFilter')?.value || 'desc';
@@ -8528,7 +8580,7 @@
         // in the main Department View, including multi-department views.
         .filter(pin => selectedDepartmentKeys.includes(normalizeAccessDepartmentKey(pin.category || 'general')))
         // The log's own department dropdown can narrow the selected view further.
-        .filter(pin => dept === 'all' || normalizeAccessDepartmentKey(pin.category || 'general') === normalizeAccessDepartmentKey(dept))
+        .filter(pin => departments.includes('all') || departments.map(normalizeAccessDepartmentKey).includes(normalizeAccessDepartmentKey(pin.category || 'general')))
         .filter(pin => mapId === 'all' || pinBelongsToMap(pin, mapId))
         .filter(pin => !term || operationalLogSearchText(pin).includes(term));
       return filtered.slice().sort((a, b) => {
