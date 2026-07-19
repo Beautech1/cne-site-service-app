@@ -2890,7 +2890,7 @@
           <button class="toolbar-btn secondary" onclick="openPrintMapStatusSelector(); closeMobileUiAfterAction();">Print Selected Map</button>
           <button id="activeLogToolbarButton" class="toolbar-btn secondary" onclick="toggleActiveLogPanel(); closeMobileUiAfterAction();">Active Log</button>
           <button id="clearedLogToolbarButton" class="toolbar-btn secondary" onclick="toggleLogPanel(); closeMobileUiAfterAction();">Cleared History Log</button>
-          <button id="directionalLogToolbarButton" class="toolbar-btn secondary" style="display:none;" onclick="openDirectionalLog(); closeMobileUiAfterAction();">Informational Pin Log</button>
+          <button id="directionalLogToolbarButton" class="toolbar-btn secondary" style="display:none;" onclick="openDirectionalLog(); closeMobileUiAfterAction();">Print Informational Log</button>
           <button class="toolbar-btn secondary" onclick="toggleLegendPanel(); closeMobileUiAfterAction();">Legend</button>
           <button class="toolbar-btn secondary" onclick="toggleAdminPanel(); closeMobileUiAfterAction();">Admin</button>
           <input class="hidden-input" id="csvInput" type="file" accept=".csv,text/csv" onchange="handleCsvImport(event)">
@@ -3841,8 +3841,8 @@
     const SUPABASE_TABLE = "pins";
     const PIN_CHANGE_LOG_TABLE = "app_pin_change_log";
     const SUPABASE_BUCKET = "pin-photos";
-    const APP_VERSION = "2026.07.18-CW";
-    const APP_VERSION_SUMMARY = "Added custom title fields to Add New Pin and Edit Pin while preserving preset title dropdowns";
+    const APP_VERSION = "2026.07.19-CX";
+    const APP_VERSION_SUMMARY = "Added informational-link print log, selectable whole-map pin size, and ID plus title labels on all selected-map print backgrounds";
     const customReportSelectedPinIds = new Set();
     const allLogsSelectedDeletePinIds = new Set();
     let customReportMapMode = false;
@@ -8443,14 +8443,21 @@
     function makePrintPinIcon(pin) {
       const color = getDepartmentColor(pin.category) || "#d32f2f";
       const angle = getPinDirection(pin);
-      const info = pin.marker_style === "info" ? '<span style="position:absolute;right:1px;bottom:1px;width:8px;height:8px;border-radius:50%;background:#005a9c;color:#fff;border:1px solid #fff;font:900 6px/7px Arial;display:flex;align-items:center;justify-content:center;box-sizing:border-box">i</span>' : '';
-      const arrow = angle === null ? '' : '<span style="position:absolute;left:15px;top:1px;width:3px;height:17px;transform-origin:50% 15px;transform:rotate('+angle+'deg)"><span style="position:absolute;left:1px;top:5px;width:2px;height:12px;background:#111;box-shadow:0 0 0 1px #fff;border-radius:999px"></span><span style="position:absolute;left:-3px;top:0;width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-bottom:7px solid #111;filter:drop-shadow(0 0 1px #fff)"></span></span>';
+      const metrics = getPrintPinMetrics();
+      const scale = metrics.leafletScale;
+      const box = Math.round(86 * scale);
+      const center = Math.round(16 * scale);
+      const dotSize = Math.max(7, Math.round(8 * scale));
+      const labelFont = Math.max(10, Math.round(12 * scale));
+      const label = escapeHtml(getPrintablePinLabel(pin));
+      const info = pin.marker_style === "info" ? '<span style="position:absolute;left:'+Math.round((center+5)*scale)+'px;top:'+Math.round((center+5)*scale)+'px;width:'+Math.max(8,Math.round(9*scale))+'px;height:'+Math.max(8,Math.round(9*scale))+'px;border-radius:50%;background:#005a9c;color:#fff;border:1px solid #fff;font:900 '+Math.max(6,Math.round(7*scale))+'px/'+Math.max(7,Math.round(8*scale))+'px Arial;display:flex;align-items:center;justify-content:center;box-sizing:border-box">i</span>' : '';
+      const arrow = angle === null ? '' : '<span style="position:absolute;left:'+Math.round((center-1)*scale)+'px;top:'+Math.round(1*scale)+'px;width:'+Math.max(3,Math.round(3*scale))+'px;height:'+Math.round(22*scale)+'px;transform-origin:50% '+Math.round(19*scale)+'px;transform:rotate('+angle+'deg)"><span style="position:absolute;left:1px;top:'+Math.round(6*scale)+'px;width:'+Math.max(2,Math.round(2*scale))+'px;height:'+Math.round(15*scale)+'px;background:#111;box-shadow:0 0 0 1px #fff;border-radius:999px"></span><span style="position:absolute;left:'+Math.round(-4*scale)+'px;top:0;width:0;height:0;border-left:'+Math.max(4,Math.round(5*scale))+'px solid transparent;border-right:'+Math.max(4,Math.round(5*scale))+'px solid transparent;border-bottom:'+Math.max(7,Math.round(9*scale))+'px solid #111;filter:drop-shadow(0 0 1px #fff)"></span></span>';
       return L.divIcon({
         className: "",
-        html: '<div style="position:relative;width:32px;height:32px">'+arrow+'<span style="position:absolute;left:12px;top:12px;width:8px;height:8px;border:1.5px solid #fff;border-radius:50%;background:'+escapeAttr(color)+';box-shadow:0 0 2px rgba(0,0,0,.65);box-sizing:border-box"></span>'+info+'</div>',
-        iconSize: [32,32],
-        iconAnchor: [16,16],
-        popupAnchor: [0,-14]
+        html: '<div style="position:relative;width:'+box+'px;height:'+Math.round(42*scale)+'px">'+arrow+'<span style="position:absolute;left:'+Math.round((center-dotSize/2)*scale)+'px;top:'+Math.round((center-dotSize/2)*scale)+'px;width:'+dotSize+'px;height:'+dotSize+'px;border:'+Math.max(1.5,2*scale)+'px solid #fff;border-radius:50%;background:'+escapeAttr(color)+';box-shadow:0 0 3px rgba(0,0,0,.75);box-sizing:border-box"></span>'+info+'<span style="position:absolute;left:'+Math.round((center+10)*scale)+'px;top:'+Math.round((center-8)*scale)+'px;white-space:nowrap;font:900 '+labelFont+'px Arial;color:#111;text-shadow:-2px -2px 0 #fff,2px -2px 0 #fff,-2px 2px 0 #fff,2px 2px 0 #fff,0 0 4px #fff">'+label+'</span></div>',
+        iconSize: [box, Math.round(42*scale)],
+        iconAnchor: [center, center],
+        popupAnchor: [0, -Math.round(14*scale)]
       });
     }
 
@@ -9285,6 +9292,19 @@
     }
 
     let selectedPrintStatuses = ["active"];
+    let selectedPrintPinSize = "medium";
+
+    function getPrintPinMetrics() {
+      if (selectedPrintPinSize === "small") return { radius: 5, labelFont: 11, labelOffset: 10, arrowLength: 25, leafletScale: 0.82 };
+      if (selectedPrintPinSize === "large") return { radius: 10, labelFont: 18, labelOffset: 17, arrowLength: 38, leafletScale: 1.35 };
+      return { radius: 7, labelFont: 14, labelOffset: 13, arrowLength: 31, leafletScale: 1 };
+    }
+
+    function getPrintablePinLabel(pin) {
+      const id = `#${String((pin && pin.id) || "")}`;
+      const title = String((pin && pin.title) || "Untitled").trim();
+      return `${id} ${title}`;
+    }
 
     function getPrintableSelectedPins(statusesOverride) {
       const chosenStatuses = Array.isArray(statusesOverride) && statusesOverride.length ? statusesOverride : selectedPrintStatuses;
@@ -9336,7 +9356,7 @@
       let cx=0,cy=0,cw=sw,ch=sh;
       if(pts.length){let minX=Math.min(...pts.map(p=>p.x)),maxX=Math.max(...pts.map(p=>p.x)),minY=Math.min(...pts.map(p=>p.y)),maxY=Math.max(...pts.map(p=>p.y));let spanW=Math.max(maxX-minX,sw*(pts.length===1?.34:.22)),spanH=Math.max(maxY-minY,sh*(pts.length===1?.34:.22));spanW+=Math.max(sw*.08,spanW*.18);spanH+=Math.max(sh*.08,spanH*.18);const a=ow/oh;if(spanW/spanH<a)spanW=spanH*a;else spanH=spanW/a;spanW=Math.min(sw,spanW);spanH=Math.min(sh,spanH);const mx=(minX+maxX)/2,my=(minY+maxY)/2;cx=Math.max(0,Math.min(sw-spanW,mx-spanW/2));cy=Math.max(0,Math.min(sh-spanH,my-spanH/2));cw=spanW;ch=spanH;}
       const canvas=document.createElement("canvas");const printPixelRatio=2;canvas.width=ow*printPixelRatio;canvas.height=oh*printPixelRatio;const ctx=canvas.getContext("2d");ctx.scale(printPixelRatio,printPixelRatio);ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality="high";ctx.fillStyle="#fff";ctx.fillRect(0,0,ow,oh);ctx.drawImage(img,cx,cy,cw,ch,0,0,ow,oh);
-      pts.forEach(({pin,x:sx,y:sy})=>{const x=((sx-cx)/cw)*ow,y=((sy-cy)/ch)*oh,color=getDepartmentColor(pin.category)||"#d32f2f",id=`#${String(pin.id||"")}`,dir=getPinDirection(pin);if(dir!==null){ctx.save();ctx.translate(x,y);ctx.rotate(dir*Math.PI/180);ctx.strokeStyle="#fff";ctx.lineWidth=5;ctx.lineCap="round";ctx.beginPath();ctx.moveTo(0,-5);ctx.lineTo(0,-30);ctx.stroke();ctx.fillStyle="#fff";ctx.beginPath();ctx.moveTo(0,-38);ctx.lineTo(-8,-27);ctx.lineTo(8,-27);ctx.closePath();ctx.fill();ctx.strokeStyle="#111";ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(0,-5);ctx.lineTo(0,-30);ctx.stroke();ctx.fillStyle="#111";ctx.beginPath();ctx.moveTo(0,-37);ctx.lineTo(-6,-28);ctx.lineTo(6,-28);ctx.closePath();ctx.fill();ctx.restore();}ctx.save();ctx.fillStyle=color;ctx.strokeStyle="#fff";ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y,7,0,Math.PI*2);ctx.fill();ctx.stroke();if(pin.marker_style==="info"){ctx.fillStyle="#005a9c";ctx.strokeStyle="#fff";ctx.lineWidth=2;ctx.beginPath();ctx.arc(x+7,y+7,5,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.fillStyle="#fff";ctx.font="900 7px Arial";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText("i",x+7,y+7.5);}ctx.font="900 14px Arial";ctx.lineWidth=4;ctx.strokeStyle="#fff";ctx.fillStyle="#111";ctx.textBaseline="middle";let lx=x+13,ly=y,align="left";if(dir!==null){const r=dir*Math.PI/180,ox=-Math.sin(r),oy=Math.cos(r),d=31;lx=x+ox*d;ly=y+oy*d;align=Math.abs(ox)>.42?(ox>=0?"left":"right"):"center";}ctx.textAlign=align;ctx.strokeText(id,lx,ly);ctx.fillText(id,lx,ly);ctx.restore();});
+      pts.forEach(({pin,x:sx,y:sy})=>{const x=((sx-cx)/cw)*ow,y=((sy-cy)/ch)*oh,color=getDepartmentColor(pin.category)||"#d32f2f",label=getPrintablePinLabel(pin),metrics=getPrintPinMetrics(),radius=metrics.radius,dir=getPinDirection(pin);if(dir!==null){ctx.save();ctx.translate(x,y);ctx.rotate(dir*Math.PI/180);ctx.strokeStyle="#fff";ctx.lineWidth=5;ctx.lineCap="round";ctx.beginPath();ctx.moveTo(0,-5);ctx.lineTo(0,-30);ctx.stroke();ctx.fillStyle="#fff";ctx.beginPath();ctx.moveTo(0,-38);ctx.lineTo(-8,-27);ctx.lineTo(8,-27);ctx.closePath();ctx.fill();ctx.strokeStyle="#111";ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(0,-5);ctx.lineTo(0,-30);ctx.stroke();ctx.fillStyle="#111";ctx.beginPath();ctx.moveTo(0,-37);ctx.lineTo(-6,-28);ctx.lineTo(6,-28);ctx.closePath();ctx.fill();ctx.restore();}ctx.save();ctx.fillStyle=color;ctx.strokeStyle="#fff";ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y,radius,0,Math.PI*2);ctx.fill();ctx.stroke();if(pin.marker_style==="info"){ctx.fillStyle="#005a9c";ctx.strokeStyle="#fff";ctx.lineWidth=2;ctx.beginPath();ctx.arc(x+radius,y+radius,Math.max(4,radius*.72),0,Math.PI*2);ctx.fill();ctx.stroke();ctx.fillStyle="#fff";ctx.font="900 7px Arial";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText("i",x+7,y+7.5);}ctx.font=`900 ${metrics.labelFont}px Arial`;ctx.lineWidth=4;ctx.strokeStyle="#fff";ctx.fillStyle="#111";ctx.textBaseline="middle";let lx=x+metrics.labelOffset,ly=y,align="left";if(dir!==null){const r=dir*Math.PI/180,ox=-Math.sin(r),oy=Math.cos(r),d=metrics.arrowLength;lx=x+ox*d;ly=y+oy*d;align=Math.abs(ox)>.42?(ox>=0?"left":"right"):"center";}ctx.textAlign=align;ctx.strokeText(label,lx,ly);ctx.fillText(label,lx,ly);ctx.restore();});
       return `<img src="${canvas.toDataURL("image/png",1)}" alt="${escapeAttr(view.name||"Floor plan")}" style="display:block;max-width:100%;max-height:72vh;width:auto;height:auto">`;
     }
 
@@ -9381,7 +9401,9 @@
       pts.forEach(({ pin, x: sx, y: sy }) => {
         const x = ((sx - cx) / cw) * ow, y = ((sy - cy) / ch) * oh;
         const color = getDepartmentColor(pin.category) || "#d32f2f";
-        const id = `#${String(pin.id || "")}`;
+        const label = getPrintablePinLabel(pin);
+        const metrics = getPrintPinMetrics();
+        const radius = metrics.radius;
         const dir = getPinDirection(pin);
         if (dir !== null) {
           ctx.save();
@@ -9421,7 +9443,7 @@
         ctx.strokeStyle = "#fff";
         ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.arc(x, y, 7, 0, Math.PI * 2);
+        ctx.arc(x, y, radius, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
         if (pin.marker_style === "info") {
@@ -9429,7 +9451,7 @@
           ctx.strokeStyle = "#fff";
           ctx.lineWidth = 2;
           ctx.beginPath();
-          ctx.arc(x + 7, y + 7, 5, 0, Math.PI * 2);
+          ctx.arc(x + radius, y + radius, Math.max(4, radius * 0.72), 0, Math.PI * 2);
           ctx.fill();
           ctx.stroke();
           ctx.fillStyle = "#fff";
@@ -9438,21 +9460,21 @@
           ctx.textBaseline = "middle";
           ctx.fillText("i", x + 7, y + 7.5);
         }
-        ctx.font = "900 14px Arial";
+        ctx.font = `900 ${metrics.labelFont}px Arial`;
         ctx.lineWidth = 4;
         ctx.strokeStyle = "#fff";
         ctx.fillStyle = "#111";
         ctx.textBaseline = "middle";
-        let lx = x + 13, ly = y, align = "left";
+        let lx = x + metrics.labelOffset, ly = y, align = "left";
         if (dir !== null) {
-          const r = dir * Math.PI / 180, ox = -Math.sin(r), oy = Math.cos(r), d = 31;
+          const r = dir * Math.PI / 180, ox = -Math.sin(r), oy = Math.cos(r), d = metrics.arrowLength;
           lx = x + ox * d;
           ly = y + oy * d;
           align = Math.abs(ox) > 0.42 ? (ox >= 0 ? "left" : "right") : "center";
         }
         ctx.textAlign = align;
-        ctx.strokeText(id, lx, ly);
-        ctx.fillText(id, lx, ly);
+        ctx.strokeText(label, lx, ly);
+        ctx.fillText(label, lx, ly);
         ctx.restore();
       });
       return `<img src="${canvas.toDataURL("image/png", 1)}" alt="Outdoor site overlay" style="display:block;max-width:100%;max-height:72vh;width:auto;height:auto">`;
@@ -9594,6 +9616,7 @@
       modal.innerHTML = '<div class="modal-header">Select Pins and Map Style to Print</div>' +
         '<div class="modal-body"><div class="panel-note" style="padding:0;">Choose one or more statuses. The print will still follow the current department access and selected map.</div>' +
         statuses.map(([value,label]) => '<label class="settings-check"><input type="checkbox" data-status value="'+value+'" '+(defaults.includes(value)?'checked':'')+'><span>'+label+'</span></label>').join('') +
+        '<div style="margin-top:8px;padding-top:10px;border-top:1px solid #d9e0e6;"><label style="display:grid;gap:5px;font-size:12px;font-weight:800;color:#243447;">Printed pin and label size<select id="printPinSize" style="padding:8px;border:1px solid #c9d2dc;border-radius:6px;background:#fff;"><option value="small" '+(selectedPrintPinSize==='small'?'selected':'')+'>Small</option><option value="medium" '+(selectedPrintPinSize==='medium'?'selected':'')+'>Medium</option><option value="large" '+(selectedPrintPinSize==='large'?'selected':'')+'>Large</option></select><small style="font-weight:normal;color:#55606e;">Each printed dot is labelled with the Report ID and pin title.</small></label></div>' +
         (outdoorView ? '<div style="margin-top:6px;padding-top:10px;border-top:1px solid #d9e0e6;"><b style="font-size:12px;color:#243447;">Outdoor map background</b><label class="settings-check" style="margin-top:7px;"><input type="radio" name="printMapBackground" value="overlay" checked><span><b>Site-plan overlay</b><br><small>Print the aligned CNE site-plan image with the selected pins.</small></span></label><label class="settings-check"><input type="radio" name="printMapBackground" value="base"><span><b>GPS base map only — no overlay</b><br><small>Print the standard street map with the selected pins.</small></span></label></div>' : '') +
         '</div><div class="modal-actions"><button class="action-btn secondary" data-cancel>Cancel</button><button class="action-btn" data-print>Prepare Print</button></div>';
       const close = () => { modal.remove(); backdrop.remove(); };
@@ -9604,6 +9627,7 @@
         const backgroundChoice = modal.querySelector('input[name="printMapBackground"]:checked')?.value || "overlay";
         if (!selected.length) { alert("Select at least one pin status."); return; }
         selectedPrintStatuses = selected;
+        selectedPrintPinSize = modal.querySelector("#printPinSize")?.value || "medium";
         close();
         await printCurrentMapWithSelectedPins(selected, backgroundChoice);
       };
